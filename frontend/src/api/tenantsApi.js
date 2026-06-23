@@ -1,142 +1,103 @@
-// API simulada de tenants.
-//
-// Los tenants son las empresas/municipios cliente. SOLO el Super Administrador
-// (ámbito plataforma) los administra. A diferencia de usuarios, acá NO se filtra
-// por tenant: el super-admin los ve todos, porque vive fuera de la pared.
+import { apiFetch } from './client.js'
 
-import { simularRed, ApiError } from './client.js'
-import { tenants, usuarios, nextId } from './mockDb.js'
-import { ROLES } from '../domain/roles.js'
+export async function listarTenants({ busqueda = '', estado = '' } = {}) {
+  const data = await apiFetch('/api/companies')
+  
+  let resultado = data.map((c) => ({
+    id: c.id,
+    nombre: c.name,
+    subdominio: c.domain,
+    activo: c.isPublicEntity,
+    cantidadUsuarios: 0 // Set placeholder, can be resolved dynamically if needed
+  }))
 
-export function listarTenants({ busqueda = '', estado = '' } = {}) {
-  return simularRed(() => {
-    let resultado = [...tenants]
-
-    if (busqueda.trim()) {
-      const q = busqueda.trim().toLowerCase()
-      resultado = resultado.filter((t) =>
-        `${t.nombre} ${t.subdominio}`.toLowerCase().includes(q),
-      )
-    }
-    if (estado) {
-      resultado = resultado.filter((t) => t.activo === (estado === 'activos'))
-    }
-
-    // Agregamos cuántos usuarios tiene cada tenant (dato útil para el listado).
-    return resultado.map((t) => ({
-      ...t,
-      cantidadUsuarios: usuarios.filter((u) => u.tenantId === t.id).length,
-    }))
-  })
-}
-
-export function obtenerTenant({ id }) {
-  return simularRed(() => {
-    const tenant = tenants.find((t) => t.id === id)
-    if (!tenant) throw new ApiError('Tenant no encontrado.', 404)
-    return { ...tenant }
-  })
-}
-
-// Crea el tenant Y su primer Administrador en un solo paso.
-// Un tenant sin admin nace inutilizable: nadie podría entrar a configurarlo.
-// Validamos TODO antes de crear nada, para no dejar un tenant a medias.
-export function crearTenant({ datos, admin }) {
-  return simularRed(() => {
-    validarDatos(datos)
-    validarAdmin(admin)
-
-    const subdominio = normalizarSubdominio(datos.subdominio)
-    if (tenants.some((t) => t.subdominio === subdominio)) {
-      throw new ApiError('Ya existe un tenant con ese subdominio.', 409)
-    }
-    const emailAdmin = admin.email.trim()
-    if (usuarios.some((u) => u.email.toLowerCase() === emailAdmin.toLowerCase())) {
-      throw new ApiError('Ya existe un usuario con el email del administrador.', 409)
-    }
-
-    const nuevoTenant = {
-      id: nextId('t'),
-      nombre: datos.nombre.trim(),
-      subdominio,
-      activo: datos.activo ?? true,
-    }
-    tenants.push(nuevoTenant)
-
-    // El admin inicial pertenece al tenant recién creado.
-    const nuevoAdmin = {
-      id: nextId('u'),
-      tenantId: nuevoTenant.id,
-      nombre: admin.nombre.trim(),
-      apellido: admin.apellido.trim(),
-      email: emailAdmin,
-      rol: ROLES.ADMIN_TENANT,
-      activo: true,
-    }
-    usuarios.push(nuevoAdmin)
-
-    return { tenant: { ...nuevoTenant }, admin: { ...nuevoAdmin } }
-  })
-}
-
-export function actualizarTenant({ id, datos }) {
-  return simularRed(() => {
-    const indice = tenants.findIndex((t) => t.id === id)
-    if (indice === -1) throw new ApiError('Tenant no encontrado.', 404)
-    validarDatos(datos)
-    const subdominio = normalizarSubdominio(datos.subdominio)
-    const duplicado = tenants.some((t) => t.id !== id && t.subdominio === subdominio)
-    if (duplicado) {
-      throw new ApiError('Ya existe otro tenant con ese subdominio.', 409)
-    }
-    tenants[indice] = {
-      ...tenants[indice],
-      nombre: datos.nombre.trim(),
-      subdominio,
-      activo: datos.activo,
-    }
-    return { ...tenants[indice] }
-  })
-}
-
-export function cambiarEstadoTenant({ id, activo }) {
-  return simularRed(() => {
-    const indice = tenants.findIndex((t) => t.id === id)
-    if (indice === -1) throw new ApiError('Tenant no encontrado.', 404)
-    tenants[indice] = { ...tenants[indice], activo }
-    return { ...tenants[indice] }
-  })
-}
-
-// El subdominio identifica al tenant en la URL (ej: tucuman.sicstmax.com):
-// minúsculas, sin espacios, solo letras/números/guiones.
-function normalizarSubdominio(valor) {
-  return (valor ?? '').trim().toLowerCase()
-}
-
-function validarDatos(datos) {
-  if (!datos.nombre?.trim()) throw new ApiError('El nombre es obligatorio.', 422)
-  const subdominio = normalizarSubdominio(datos.subdominio)
-  if (!subdominio) throw new ApiError('El subdominio es obligatorio.', 422)
-  if (!/^[a-z0-9-]+$/.test(subdominio)) {
-    throw new ApiError(
-      'El subdominio solo puede tener minúsculas, números y guiones (sin espacios).',
-      422,
+  if (busqueda.trim()) {
+    const q = busqueda.trim().toLowerCase()
+    resultado = resultado.filter((t) =>
+      `${t.nombre} ${t.subdominio}`.toLowerCase().includes(q),
     )
   }
+  if (estado) {
+    resultado = resultado.filter((t) => t.activo === (estado === 'activos'))
+  }
+
+  return resultado
 }
 
-function validarAdmin(admin) {
-  if (!admin?.nombre?.trim()) {
-    throw new ApiError('El nombre del administrador es obligatorio.', 422)
+export async function obtenerTenant({ id }) {
+  const c = await apiFetch(`/api/companies/${id}`)
+  return {
+    id: c.id,
+    nombre: c.name,
+    subdominio: c.domain,
+    activo: c.isPublicEntity
   }
-  if (!admin?.apellido?.trim()) {
-    throw new ApiError('El apellido del administrador es obligatorio.', 422)
+}
+
+export async function crearTenant({ datos, admin }) {
+  const companyId = await apiFetch('/api/companies/with-admin', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: datos.nombre,
+      domain: datos.subdominio,
+      isPublicEntity: datos.activo,
+      adminFirstName: admin.nombre,
+      adminLastName: admin.apellido,
+      adminEmail: admin.email
+    })
+  })
+
+  return {
+    tenant: {
+      id: companyId,
+      nombre: datos.nombre,
+      subdominio: datos.subdominio,
+      activo: datos.activo
+    },
+    admin: {
+      nombre: admin.nombre,
+      apellido: admin.apellido,
+      email: admin.email
+    }
   }
-  if (!admin?.email?.trim()) {
-    throw new ApiError('El email del administrador es obligatorio.', 422)
+}
+
+export async function actualizarTenant({ id, datos }) {
+  await apiFetch(`/api/companies/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      id: id,
+      name: datos.nombre,
+      domain: datos.subdominio,
+      isPublicEntity: datos.activo
+    })
+  })
+
+  return {
+    id,
+    nombre: datos.nombre,
+    subdominio: datos.subdominio,
+    activo: datos.activo
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin.email.trim())) {
-    throw new ApiError('El email del administrador no es válido.', 422)
+}
+
+export async function cambiarEstadoTenant({ id, activo }) {
+  // Fetch existing details first
+  const c = await apiFetch(`/api/companies/${id}`)
+  
+  // Update state
+  c.isPublicEntity = activo
+
+  // Put updated object
+  await apiFetch(`/api/companies/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(c)
+  })
+
+  return {
+    id,
+    nombre: c.name,
+    subdominio: c.domain,
+    activo: c.isPublicEntity
   }
 }

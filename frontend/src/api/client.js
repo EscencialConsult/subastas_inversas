@@ -1,10 +1,73 @@
-// Simula la latencia y la forma de una API real.
-//
-// Cuando exista el backend, se reemplaza el cuerpo de estas funciones por
-// llamadas fetch() reales y las pantallas no se tocan.
+const API_URL = 'http://localhost:5185'
+const CLAVE_STORAGE = 'sicst.sesion'
 
-const LATENCIA_MS = 350
+export class ApiError extends Error {
+  constructor(message, status = 400) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
 
+export async function apiFetch(endpoint, options = {}) {
+  const url = `${API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+  
+  // Set default headers
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  }
+
+  // Get token from localStorage if logged in
+  try {
+    const sesionCruda = localStorage.getItem(CLAVE_STORAGE)
+    if (sesionCruda) {
+      const sesion = JSON.parse(sesionCruda)
+      if (sesion?.token) {
+        headers['Authorization'] = `Bearer ${sesion.token}`
+      }
+    }
+  } catch (e) {
+    console.error('Error al leer el token de autenticación:', e)
+  }
+
+  const fetchOptions = {
+    ...options,
+    headers,
+  }
+
+  let respuesta
+  try {
+    respuesta = await fetch(url, fetchOptions)
+  } catch {
+    throw new ApiError('No se pudo conectar con el servidor. Verificá que el backend esté corriendo.', 503)
+  }
+
+  let cuerpo = null
+  const tipoContenido = respuesta.headers.get('content-type')
+  if (tipoContenido && tipoContenido.includes('application/json')) {
+    cuerpo = await respuesta.json()
+  } else {
+    const texto = await respuesta.text()
+    if (texto) {
+      try {
+        cuerpo = JSON.parse(texto)
+      } catch {
+        cuerpo = texto
+      }
+    }
+  }
+
+  if (!respuesta.ok) {
+    // Si el backend devolvió un objeto de error estructurado con la propiedad "message"
+    const mensaje = cuerpo?.message || (typeof cuerpo === 'string' ? cuerpo : 'Ocurrió un error inesperado.')
+    throw new ApiError(mensaje, respuesta.status)
+  }
+
+  return cuerpo
+}
+
+// Re-exportamos simularRed para que el resto de las APIs simuladas sigan funcionando
 export function simularRed(resolver) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -13,15 +76,6 @@ export function simularRed(resolver) {
       } catch (error) {
         reject(error)
       }
-    }, LATENCIA_MS)
+    }, 350)
   })
-}
-
-// Error con forma uniforme para que las pantallas muestren el mensaje sin adivinar.
-export class ApiError extends Error {
-  constructor(message, status = 400) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-  }
 }

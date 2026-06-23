@@ -24,7 +24,11 @@ export function esProveedor(rol) {
 // Quién gestiona los procesos de compra: el comprador.
 // (Más adelante, evaluador/aprobador/auditor podrán verlos según su etapa.)
 export function puedeGestionarCompras(rol) {
-  return rol === ROLES.COMPRADOR
+  return rol === ROLES.COMPRADOR || rol === ROLES.ADMIN_TENANT
+}
+
+export function puedeConfigurarEmpresa(rol) {
+  return rol === ROLES.ADMIN_TENANT
 }
 
 // Quién autoriza/rechaza los procesos en el circuito: el aprobador.

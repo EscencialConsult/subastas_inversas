@@ -1,13 +1,15 @@
 // Ruteo principal de la app.
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './auth/AuthContext.jsx'
+import { AuthProvider } from './auth/AuthContext.jsx'
+import { useAuth } from './auth/useAuth.js'
 import { RutaProtegida } from './auth/RutaProtegida.jsx'
 import {
   puedeGestionarUsuarios,
   puedeGestionarTenants,
   esProveedor,
   puedeGestionarCompras,
+  puedeConfigurarEmpresa,
   puedeAprobarCompras,
   puedeEvaluar,
   puedeAuditar,
@@ -21,8 +23,12 @@ import { TenantFormPage } from './features/tenants/TenantFormPage.jsx'
 import { PerfilPage } from './features/perfil/PerfilPage.jsx'
 import { RegistroProveedorPage } from './features/proveedor/RegistroProveedorPage.jsx'
 import { ProveedorHomePage } from './features/proveedor/ProveedorHomePage.jsx'
+import { SubastaProveedorPage } from './features/proveedor/SubastaProveedorPage.jsx'
+import { SubastasProveedorListPage } from './features/proveedor/SubastasProveedorListPage.jsx'
+import { ProveedoresListPage } from './features/proveedores/ProveedoresListPage.jsx'
 import { ProcesosListPage } from './features/compras/ProcesosListPage.jsx'
 import { ProcesoFormPage } from './features/compras/ProcesoFormPage.jsx'
+import { ConfiguracionPage } from './features/configuracion/ConfiguracionPage.jsx'
 import { AprobacionesListPage } from './features/aprobaciones/AprobacionesListPage.jsx'
 import { AprobacionDetailPage } from './features/aprobaciones/AprobacionDetailPage.jsx'
 import { SubastaPage } from './features/subasta/SubastaPage.jsx'
@@ -63,7 +69,31 @@ export default function App() {
                 </RutaProtegida>
               }
             />
+            <Route
+              path="proveedor/subastas"
+              element={
+                <RutaProtegida permiso={esProveedor}>
+                  <SubastasProveedorListPage />
+                </RutaProtegida>
+              }
+            />
+            <Route
+              path="proveedor/subasta/:procesoId"
+              element={
+                <RutaProtegida permiso={esProveedor}>
+                  <SubastaProveedorPage />
+                </RutaProtegida>
+              }
+            />
 
+            <Route
+              path="proveedores"
+              element={
+                <RutaProtegida permiso={puedeGestionarCompras}>
+                  <ProveedoresListPage />
+                </RutaProtegida>
+              }
+            />
             <Route
               path="compras"
               element={
@@ -85,6 +115,15 @@ export default function App() {
               element={
                 <RutaProtegida permiso={puedeGestionarCompras}>
                   <ProcesoFormPage />
+                </RutaProtegida>
+              }
+            />
+
+            <Route
+              path="configuracion"
+              element={
+                <RutaProtegida permiso={puedeConfigurarEmpresa}>
+                  <ConfiguracionPage />
                 </RutaProtegida>
               }
             />

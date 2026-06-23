@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/useAuth.js'
 import { listarProcesos, enviarAAprobacion } from '../../api/comprasApi.js'
-import { iniciarSubasta } from '../../api/subastasApi.js'
+import { ApiError } from '../../api/client.js'
+import { iniciarSubasta, obtenerSubastaDeProceso } from '../../api/subastasApi.js'
 import {
   ESTADO_PROCESO,
   ESTADO_INFO,
@@ -54,7 +55,14 @@ export function ProcesosListPage() {
 
   async function iniciar(proceso) {
     try {
-      await iniciarSubasta({ tenantId, procesoId: proceso.id })
+      try {
+        await obtenerSubastaDeProceso({ tenantId, procesoId: proceso.id })
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 404) {
+          throw err
+        }
+        await iniciarSubasta({ tenantId, procesoId: proceso.id })
+      }
       navigate(`/subasta/${proceso.id}`)
     } catch (err) {
       setError(err.message)
@@ -132,8 +140,8 @@ export function ProcesosListPage() {
                     </button>
                   )}
                   {p.estado === ESTADO_PROCESO.APROBADO && (
-                    <button className="btn btn--texto" onClick={() => iniciar(p)}>
-                      Iniciar subasta
+                    <button className="btn btn--primario" onClick={() => iniciar(p)}>
+                      Abrir subasta
                     </button>
                   )}
                   {p.estado === ESTADO_PROCESO.EN_SUBASTA && (

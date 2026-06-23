@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/useAuth.js'
 import { obtenerProceso, adjudicarProceso } from '../../api/comprasApi.js'
 import { obtenerSubastaDeProceso } from '../../api/subastasApi.js'
 

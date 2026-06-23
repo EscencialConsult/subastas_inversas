@@ -1,25 +1,42 @@
-// API simulada de autenticación.
-//
-// En el login real, el backend valida usuario+contraseña DENTRO del tenant
-// (identificado por el subdominio) y devuelve la sesión. Acá lo simulamos.
+import { apiFetch, ApiError } from './client.js'
 
-import { simularRed, ApiError } from './client.js'
-import { usuarios, tenants } from './mockDb.js'
+function mapRole(backendRole) {
+  if (backendRole === 'SuperAdmin') return 'super_admin'
+  if (backendRole === 'Admin') return 'admin_tenant'
+  if (backendRole === 'Comprador') return 'comprador'
+  if (backendRole === 'Proveedor') return 'proveedor'
+  if (backendRole === 'Evaluador') return 'evaluador'
+  if (backendRole === 'Auditor') return 'auditor'
+  if (backendRole === 'Autoridad') return 'autoridad'
+  return backendRole ? backendRole.toLowerCase() : ''
+}
 
-// Para el mock, cualquier contraseña no vacía es válida.
-export function login({ email, password }) {
-  return simularRed(() => {
-    if (!email || !password) {
-      throw new ApiError('Ingresá email y contraseña.', 422)
-    }
-    const usuario = usuarios.find((u) => u.email.toLowerCase() === email.toLowerCase())
-    if (!usuario) {
-      throw new ApiError('Email o contraseña incorrectos.', 401)
-    }
-    if (!usuario.activo) {
-      throw new ApiError('Tu usuario está desactivado. Contactá al administrador.', 403)
-    }
-    const tenant = tenants.find((t) => t.id === usuario.tenantId) ?? null
-    return { usuario, tenant }
+export async function login({ email, password }) {
+  if (!email || !password) {
+    throw new ApiError('Ingresá email y contraseña.', 422)
+  }
+
+  const data = await apiFetch('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
   })
+
+  const usuario = {
+    id: data.userId,
+    nombre: data.firstName,
+    apellido: data.lastName,
+    email: data.email,
+    rol: mapRole(data.role),
+    tenantId: data.companyId,
+    activo: true
+  }
+
+  const tenant = data.companyId ? {
+    id: data.companyId,
+    nombre: 'Mi Organización',
+    subdominio: 'org'
+  } : null
+
+  // We save the token in the session object so client.js can read it
+  return { usuario, tenant, token: data.token }
 }

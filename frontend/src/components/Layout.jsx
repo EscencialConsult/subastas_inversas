@@ -1,12 +1,13 @@
 // Layout principal: header con el tenant + menú lateral según rol + contenido.
 
 import { NavLink, Outlet, Link } from 'react-router-dom'
-import { useAuth } from '../auth/AuthContext.jsx'
+import { useAuth } from '../auth/useAuth.js'
 import {
   puedeGestionarUsuarios,
   puedeGestionarTenants,
   esProveedor,
   puedeGestionarCompras,
+  puedeConfigurarEmpresa,
   puedeAprobarCompras,
   puedeEvaluar,
   puedeAuditar,
@@ -22,41 +23,67 @@ export function Layout() {
       to: '/usuarios',
       texto: 'Usuarios',
       visible: puedeGestionarUsuarios(rol),
+      end: true,
     },
     {
       to: '/tenants',
       texto: 'Tenants',
       visible: puedeGestionarTenants(rol),
+      end: true,
+    },
+    {
+      to: '/proveedores',
+      texto: 'Proveedores',
+      visible: puedeGestionarCompras(rol),
+      end: true,
     },
     {
       to: '/compras',
       texto: 'Compras',
       visible: puedeGestionarCompras(rol),
+      end: true,
+    },
+    {
+      to: '/configuracion',
+      texto: 'Configuracion',
+      visible: puedeConfigurarEmpresa(rol),
+      end: true,
     },
     {
       to: '/aprobaciones',
       texto: 'Aprobaciones',
       visible: puedeAprobarCompras(rol),
+      end: true,
     },
     {
       to: '/adjudicaciones',
       texto: 'Adjudicaciones',
       visible: puedeAprobarCompras(rol),
+      end: true,
     },
     {
       to: '/evaluaciones',
       texto: 'Evaluaciones',
       visible: puedeEvaluar(rol),
+      end: true,
     },
     {
       to: '/auditoria',
       texto: 'Auditoría',
       visible: puedeAuditar(rol),
+      end: true,
     },
     {
       to: '/proveedor',
       texto: 'Mi cuenta',
       visible: esProveedor(rol),
+      end: true,
+    },
+    {
+      to: '/proveedor/subastas',
+      texto: 'Subastas',
+      visible: esProveedor(rol),
+      end: true,
     },
   ].filter((i) => i.visible)
 
@@ -87,6 +114,7 @@ export function Layout() {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.end}
               className={({ isActive }) =>
                 isActive ? 'layout__link layout__link--activo' : 'layout__link'
               }

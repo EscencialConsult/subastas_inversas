@@ -1,0 +1,321 @@
+@SICST.Api_HostAddress = http://localhost:5185
+
+### 1. Login with seeded SuperAdmin to get JWT Token
+# @name loginAdmin
+POST {{SICST.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@sicst.com",
+  "password": "Admin123!"
+}
+
+###
+
+@token = {{loginAdmin.response.body.token}}
+@refreshToken = {{loginAdmin.response.body.refreshToken}}
+
+### 1b. Refresh JWT Token
+POST {{SICST.Api_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "email": "admin@sicst.com",
+  "refreshToken": "{{refreshToken}}"
+}
+
+### 2. Get All Companies (Will fail with 401 Unauthorized if no token is sent)
+GET {{SICST.Api_HostAddress}}/api/companies
+Accept: application/json
+
+###
+
+### 3. Get All Companies (Succeeds with Bearer Token)
+GET {{SICST.Api_HostAddress}}/api/companies
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 4. Create a Company (Requires SuperAdmin Bearer Token)
+# @name createCompany
+POST {{SICST.Api_HostAddress}}/api/companies
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Ministerio de Hacienda",
+  "domain": "hacienda.gob.ar",
+  "logo": "https://hacienda.gob.ar/logo.png",
+  "primaryColor": "#0055AA",
+  "isPublicEntity": true
+}
+
+###
+
+@companyId = {{createCompany.response.body}}
+
+### 5. Get Company by ID (Requires SuperAdmin Bearer Token)
+GET {{SICST.Api_HostAddress}}/api/companies/{{companyId}}
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 6. Update a Company (Requires SuperAdmin Bearer Token)
+PUT {{SICST.Api_HostAddress}}/api/companies/{{companyId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "id": "{{companyId}}",
+  "name": "Ministerio de Hacienda y Finanzas",
+  "domain": "hacienda-finanzas.gob.ar",
+  "logo": "https://hacienda.gob.ar/logo-nuevo.png",
+  "primaryColor": "#004488",
+  "isPublicEntity": true
+}
+
+###
+
+### 7. Register a new Buyer User (associated with the created company)
+# @name registerBuyer
+POST {{SICST.Api_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "buyer1@sicst.com",
+  "password": "BuyerPassword123!",
+  "firstName": "Juan",
+  "lastName": "Perez",
+  "role": 2, 
+  "companyId": "{{companyId}}"
+}
+
+###
+
+### 8. Register Supplier (public endpoint)
+# @name registerSupplier
+POST {{SICST.Api_HostAddress}}/api/suppliers/register
+Content-Type: application/json
+
+{
+  "businessName": "Insumos del Norte SRL",
+  "cuit": "30-12345678-9",
+  "email": "ventas@insumosnorte.com",
+  "password": "Proveedor123!",
+  "province": "Tucuman",
+  "locality": "San Miguel de Tucuman"
+}
+
+###
+
+@supplierUserId = {{registerSupplier.response.body.userId}}
+@supplierId = {{registerSupplier.response.body.supplierId}}
+
+### 9. Login Supplier
+# @name loginSupplier
+POST {{SICST.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "ventas@insumosnorte.com",
+  "password": "Proveedor123!"
+}
+
+###
+
+@supplierToken = {{loginSupplier.response.body.token}}
+
+### 10. Get Supplier Profile
+GET {{SICST.Api_HostAddress}}/api/suppliers/by-user/{{supplierUserId}}
+Authorization: Bearer {{supplierToken}}
+Accept: application/json
+
+###
+
+### 11. Get Company Configuration
+GET {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/configuration
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 12. Upsert Company Configuration
+PUT {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/configuration
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "defaultCurrency": "ARS",
+  "timeZone": "America/Argentina/Buenos_Aires",
+  "minimumBidDecrementPercentage": 1.5,
+  "auctionExtensionMinutes": 3,
+  "requireSupplierVerification": true
+}
+
+###
+
+### 13. Create Contracting Mode
+POST {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/configuration/contracting-modes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "name": "Subasta inversa",
+  "description": "Competencia por menor precio con proveedores habilitados.",
+  "requiresAuction": true,
+  "active": true
+}
+
+###
+
+### 14. Get Contracting Modes
+GET {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/configuration/contracting-modes
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 15. Create Approval Workflow
+POST {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/configuration/approval-workflows
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "name": "Autoridad mayor a 1M",
+  "minAmount": 1000000,
+  "maxAmount": 10000000,
+  "requiredRole": 6,
+  "requiredApprovals": 1,
+  "active": true
+}
+
+###
+
+### 16. Get Approval Workflows
+GET {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/configuration/approval-workflows
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 17. Register Buyer User for Purchase Processes
+# @name registerPurchaseBuyer
+POST {{SICST.Api_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "comprador1@sicst.com",
+  "password": "Comprador123!",
+  "firstName": "Comprador",
+  "lastName": "Uno",
+  "role": 2,
+  "companyId": "{{companyId}}"
+}
+
+###
+
+@buyerId = {{registerPurchaseBuyer.response.body}}
+
+### 18. Create Purchase Process
+# @name createPurchaseProcess
+POST {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/purchase-processes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "buyerId": "{{buyerId}}",
+  "title": "Compra de insumos de limpieza",
+  "description": "Provision de insumos de limpieza para edificios municipales.",
+  "estimatedBudget": 500000,
+  "items": [
+    {
+      "description": "Detergente",
+      "quantity": 100,
+      "unit": "unidad",
+      "estimatedUnitPrice": 1200
+    }
+  ]
+}
+
+###
+
+@purchaseProcessId = {{createPurchaseProcess.response.body.id}}
+
+### 19. Get Purchase Processes
+GET {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/purchase-processes
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 20. Publish Purchase Process
+POST {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/purchase-processes/{{purchaseProcessId}}/publish
+Authorization: Bearer {{token}}
+
+###
+
+### 21. Invite Supplier to Purchase Process
+POST {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/purchase-processes/{{purchaseProcessId}}/invitations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "purchaseProcessId": "{{purchaseProcessId}}",
+  "supplierId": "{{supplierId}}"
+}
+
+###
+
+### 22. Start Auction
+# @name startAuction
+POST {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/purchase-processes/{{purchaseProcessId}}/auction/start
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "purchaseProcessId": "{{purchaseProcessId}}",
+  "durationMinutes": 10
+}
+
+###
+
+@auctionId = {{startAuction.response.body.id}}
+
+### 23. Get Auction By Purchase Process
+GET {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/purchase-processes/{{purchaseProcessId}}/auction
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 24. Place Bid
+POST {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/auctions/{{auctionId}}/bids
+Authorization: Bearer {{supplierToken}}
+Content-Type: application/json
+
+{
+  "auctionId": "{{auctionId}}",
+  "supplierId": "{{supplierId}}",
+  "amount": 480000
+}
+
+###
+
+### 25. Close Auction
+POST {{SICST.Api_HostAddress}}/api/companies/{{companyId}}/auctions/{{auctionId}}/close
+Authorization: Bearer {{token}}
+
+###
+
+### 26. Public Auction SSE Stream
+GET {{SICST.Api_HostAddress}}/api/public/auctions/{{auctionId}}/events
+Accept: text/event-stream
+

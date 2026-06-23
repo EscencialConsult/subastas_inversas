@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/useAuth.js'
 import { listarProcesos } from '../../api/comprasApi.js'
 import { ESTADO_PROCESO } from '../../domain/compras.js'
 

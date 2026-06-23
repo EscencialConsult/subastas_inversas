@@ -1,0 +1,22 @@
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# .NET
+backend/**/bin/
+backend/**/obj/
+*.user
+*.suo
+
+# Secrets
+appsettings.Cloud.json
+appsettings.*.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local

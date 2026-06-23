@@ -4,9 +4,17 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { registrarProveedor } from '../../api/proveedoresApi.js'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/useAuth.js'
 
-const VACIO = { razonSocial: '', cuit: '', email: '', password: '', repetir: '' }
+const VACIO = {
+  razonSocial: '',
+  cuit: '',
+  email: '',
+  provincia: '',
+  localidad: '',
+  password: '',
+  repetir: '',
+}
 
 export function RegistroProveedorPage() {
   const navigate = useNavigate()
@@ -70,6 +78,24 @@ export function RegistroProveedorPage() {
             onChange={(e) => actualizar('email', e.target.value)}
             placeholder="ventas@empresa.com"
             autoComplete="username"
+          />
+        </label>
+
+        <label className="campo">
+          <span>Provincia</span>
+          <input
+            value={datos.provincia}
+            onChange={(e) => actualizar('provincia', e.target.value)}
+            placeholder="Tucuman"
+          />
+        </label>
+
+        <label className="campo">
+          <span>Localidad</span>
+          <input
+            value={datos.localidad}
+            onChange={(e) => actualizar('localidad', e.target.value)}
+            placeholder="San Miguel de Tucuman"
           />
         </label>
 
