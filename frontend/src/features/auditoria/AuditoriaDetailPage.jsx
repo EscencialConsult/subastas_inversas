@@ -9,6 +9,7 @@ import { obtenerProceso } from '../../api/comprasApi.js'
 import { obtenerSubastaDeProceso } from '../../api/subastasApi.js'
 import { nombresPorIds } from '../../api/usersApi.js'
 import { etiquetaEstado, claseEstado } from '../../domain/compras.js'
+import { formatearPesos } from '../../utils/formatear.js'
 
 export function AuditoriaDetailPage() {
   const { id } = useParams()
@@ -39,7 +40,7 @@ export function AuditoriaDetailPage() {
         p.evaluacion?.evaluadorId,
         p.adjudicacion?.aprobadorId,
       ]
-      setNombres(await nombresPorIds({ ids }))
+      setNombres(await nombresPorIds({ tenantId, ids }))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -155,12 +156,4 @@ export function AuditoriaDetailPage() {
       )}
     </section>
   )
-}
-
-function formatearPesos(monto) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(monto)
 }

@@ -14,6 +14,7 @@ import {
   etiquetaEstado,
   claseEstado,
 } from '../../domain/compras.js'
+import { formatearPesos } from '../../utils/formatear.js'
 
 export function AprobacionDetailPage() {
   const { id } = useParams()
@@ -162,12 +163,4 @@ export function AprobacionDetailPage() {
       </div>
     </section>
   )
-}
-
-function formatearPesos(monto) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(monto)
 }

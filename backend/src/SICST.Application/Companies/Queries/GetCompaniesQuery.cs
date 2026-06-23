@@ -1,13 +1,14 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Common.Models;
 using SICST.Application.Companies.DTOs;
 
 namespace SICST.Application.Companies.Queries;
 
-public record GetCompaniesQuery : IRequest<List<CompanyDto>>;
+public record GetCompaniesQuery(int PageNumber = 1, int PageSize = 10) : IRequest<PagedResult<CompanyDto>>;
 
-public class GetCompaniesQueryHandler : IRequestHandler<GetCompaniesQuery, List<CompanyDto>>
+public class GetCompaniesQueryHandler : IRequestHandler<GetCompaniesQuery, PagedResult<CompanyDto>>
 {
     private readonly IApplicationDbContext _context;
 
@@ -16,9 +17,16 @@ public class GetCompaniesQueryHandler : IRequestHandler<GetCompaniesQuery, List<
         _context = context;
     }
 
-    public async Task<List<CompanyDto>> Handle(GetCompaniesQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<CompanyDto>> Handle(GetCompaniesQuery request, CancellationToken cancellationToken)
     {
-        return await _context.Companies
+        var query = _context.Companies.AsQueryable();
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderBy(c => c.Name)
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
             .Select(c => new CompanyDto
             {
                 Id = c.Id,
@@ -29,5 +37,7 @@ public class GetCompaniesQueryHandler : IRequestHandler<GetCompaniesQuery, List<
                 IsPublicEntity = c.IsPublicEntity
             })
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<CompanyDto>(items, totalCount, request.PageNumber, request.PageSize);
     }
 }

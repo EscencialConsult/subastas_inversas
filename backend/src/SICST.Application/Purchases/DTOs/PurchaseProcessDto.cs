@@ -16,5 +16,13 @@ public class PurchaseProcessDto
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? PublishedAtUtc { get; set; }
     public DateTime? ClosedAtUtc { get; set; }
+    public string? RejectionReason { get; set; }
+    public EvaluationDto? Evaluation { get; set; }
+    public AwardDto? Award { get; set; }
+    public List<AwardDto> Awards { get; set; } = [];
+    public ContractDto? Contract { get; set; }
+    public List<ContractDto> Contracts { get; set; } = [];
+    public PurchaseOrderDto? PurchaseOrder { get; set; }
+    public List<PurchaseOrderDto> PurchaseOrders { get; set; } = [];
     public List<PurchaseItemDto> Items { get; set; } = [];
 }

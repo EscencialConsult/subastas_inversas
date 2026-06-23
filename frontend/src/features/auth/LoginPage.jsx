@@ -4,6 +4,7 @@
 // Acá, sin subdominios, el email alcanza para identificar al usuario y su tenant.
 
 import { useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
 
@@ -11,7 +12,7 @@ export function LoginPage() {
   const { login, cargando } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const destino = location.state?.from?.pathname ?? '/'
+  const destino = location.state?.from?.pathname ?? '/inicio'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -30,6 +31,11 @@ export function LoginPage() {
 
   return (
     <div className="login">
+      <div className="login__panel">
+        <Link className="login__volver" to="/" aria-label="Volver al portal publico">
+          <ArrowLeft size={18} />
+        </Link>
+
       <form className="login__caja" onSubmit={manejarSubmit}>
         <h1 className="login__titulo">SICST MAX</h1>
         <p className="login__subtitulo">Ingresá a tu cuenta</p>
@@ -80,6 +86,7 @@ export function LoginPage() {
           </ul>
         </div>
       </form>
+      </div>
     </div>
   )
 }

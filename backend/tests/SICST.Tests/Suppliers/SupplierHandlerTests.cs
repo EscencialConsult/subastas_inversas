@@ -30,7 +30,7 @@ public class SupplierHandlerTests
         var command = new RegisterSupplierCommand
         {
             BusinessName = "Insumos del Norte SRL",
-            Cuit = "30-12345678-9",
+            Cuit = "30-12345678-1",
             Email = "ventas@insumosnorte.com",
             Password = "Proveedor123!",
             Province = "Tucuman",
@@ -48,7 +48,7 @@ public class SupplierHandlerTests
         Assert.True(user.Active);
         Assert.Null(user.CompanyId);
         Assert.Equal(user.Id, supplier.UserId);
-        Assert.Equal("30-12345678-9", supplier.Cuit);
+        Assert.Equal("30-12345678-1", supplier.Cuit);
         Assert.Equal(SupplierStatus.Verified, supplier.Status);
     }
 
@@ -61,7 +61,7 @@ public class SupplierHandlerTests
         var command = new RegisterSupplierCommand
         {
             BusinessName = "Proveedor Uno",
-            Cuit = "30-12345678-9",
+            Cuit = "30-12345678-1",
             Email = "uno@proveedor.com",
             Password = "Proveedor123!",
             Province = "Tucuman",
@@ -120,5 +120,27 @@ public class SupplierHandlerTests
         Assert.Equal(supplierId, result.Id);
         Assert.Equal("Proveedor Test", result.BusinessName);
         Assert.Equal(SupplierStatus.Pending, result.Status);
+    }
+
+    [Fact]
+    public async Task RegisterSupplier_ShouldThrow_WhenCuitHasInvalidCheckDigit()
+    {
+        using var context = CreateDbContext();
+        var handler = new RegisterSupplierCommandHandler(context, new PasswordHasher());
+
+        var command = new RegisterSupplierCommand
+        {
+            BusinessName = "Proveedor Invalido CUIT",
+            Cuit = "30-12345678-0", // mathematically invalid check digit (should be 9)
+            Email = "invalido@proveedor.com",
+            Password = "Proveedor123!",
+            Province = "Buenos Aires",
+            Locality = "Tandil"
+        };
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            handler.Handle(command, CancellationToken.None));
+            
+        Assert.Contains("verificador", ex.Message);
     }
 }

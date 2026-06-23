@@ -1,53 +1,33 @@
 import { useEffect, useState } from 'react'
+import { Building2, BadgeCheck, Clock, Mail, MapPin, X } from 'lucide-react'
 import { useAuth } from '../../auth/useAuth.js'
-import { obtenerProveedorDeUsuario, listarInvitacionesDeProveedor, responderInvitacion } from '../../api/proveedoresApi.js'
-import { ESTADO_INVITACION, etiquetaEstadoInvitacion, claseEstadoInvitacion } from '../../domain/invitaciones.js'
+import { obtenerProveedorDeUsuario } from '../../api/proveedoresApi.js'
+import { iniciales } from '../../utils/iniciales.js'
 
 const ESTADO = {
-  pendiente: { texto: 'Pendiente de verificacion', clase: 'badge--off' },
-  verificado: { texto: 'Verificado', clase: 'badge--ok' },
-  rechazado: { texto: 'Rechazado', clase: 'badge--off' },
+  pendiente: { texto: 'Pendiente de verificación', clase: 'badge--off', icon: Clock },
+  verificado: { texto: 'Verificado', clase: 'badge--ok', icon: BadgeCheck },
+  rechazado: { texto: 'Rechazado', clase: 'badge--off', icon: X },
 }
 
 export function ProveedorHomePage() {
   const { usuario } = useAuth()
   const [proveedor, setProveedor] = useState(null)
-  const [invitaciones, setInvitaciones] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-  const [respondiendo, setRespondiendo] = useState(null)
 
   useEffect(() => {
     obtenerProveedorDeUsuario({ usuarioId: usuario.id })
-      .then((p) => {
-        setProveedor(p)
-        return listarInvitacionesDeProveedor({ proveedorId: p.id })
-      })
-      .then(setInvitaciones)
+      .then(setProveedor)
       .catch((err) => setError(err.message))
       .finally(() => setCargando(false))
   }, [usuario.id])
-
-  async function responder(invitacionId, aceptar) {
-    if (!proveedor) return
-    setRespondiendo(invitacionId)
-    setError('')
-    try {
-      await responderInvitacion({ invitacionId, proveedorId: proveedor.id, aceptar })
-      const actualizadas = await listarInvitacionesDeProveedor({ proveedorId: proveedor.id })
-      setInvitaciones(actualizadas)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setRespondiendo(null)
-    }
-  }
 
   if (cargando) return <p className="estado-cargando">Cargando...</p>
   if (error && !proveedor) return <div className="alerta alerta--error">{error}</div>
 
   const estado = ESTADO[proveedor?.estado] ?? ESTADO.pendiente
-  const pendientes = invitaciones.filter((i) => i.status === ESTADO_INVITACION.PENDING)
+  const EstadoIcon = estado.icon
 
   return (
     <section className="form-pagina">
@@ -57,96 +37,79 @@ export function ProveedorHomePage() {
 
       {error && <div className="alerta alerta--error">{error}</div>}
 
-      <div className="form">
-        <h2 className="form__titulo">Datos de la empresa</h2>
-        <div className="perfil__solo-lectura">
-          <span>Razon social: {proveedor.razonSocial}</span>
-          <span>CUIT: {proveedor.cuit}</span>
-          <span>Email: {usuario.email}</span>
-          <span>Provincia: {proveedor.provincia}</span>
-          <span>Localidad: {proveedor.localidad}</span>
+      <div className="perfil__resumen">
+        <span className="perfil__avatar">
+          {iniciales(proveedor.razonSocial)}
+        </span>
+        <div className="perfil__resumen-info">
+          <span className="perfil__resumen-nombre">{proveedor.razonSocial}</span>
+          <span className="perfil__resumen-detalle">
+            <EstadoIcon size={15} />
+            {estado.texto}
+            <span aria-hidden="true">·</span>
+            CUIT {proveedor.cuit}
+          </span>
+        </div>
+      </div>
+
+      <div className="perfil__seccion">
+        <div className="perfil__seccion-header">
+          <span className="perfil__seccion-icon">
+            <Building2 size={18} />
+          </span>
+          <div>
+            <h2>Datos de la empresa</h2>
+            <p>Información registrada en tu perfil de proveedor</p>
+          </div>
         </div>
 
-        <div className="proveedor__estado">
-          <span>Estado:</span>
-          <span className={`badge ${estado.clase}`}>{estado.texto}</span>
+        <div className="proveedor-home__datos">
+          <div className="proveedor-home__dato">
+            <span className="proveedor-home__dato-label">Razón social</span>
+            <span className="proveedor-home__dato-valor">{proveedor.razonSocial}</span>
+          </div>
+          <div className="proveedor-home__dato">
+            <span className="proveedor-home__dato-label">CUIT</span>
+            <span className="proveedor-home__dato-valor">{proveedor.cuit}</span>
+          </div>
+          <div className="proveedor-home__dato">
+            <span className="proveedor-home__dato-label">
+              <Mail size={14} /> Email
+            </span>
+            <span className="proveedor-home__dato-valor">{usuario.email}</span>
+          </div>
+          <div className="proveedor-home__dato">
+            <span className="proveedor-home__dato-label">
+              <MapPin size={14} /> Provincia
+            </span>
+            <span className="proveedor-home__dato-valor">{proveedor.provincia}</span>
+          </div>
+          <div className="proveedor-home__dato">
+            <span className="proveedor-home__dato-label">
+              <MapPin size={14} /> Localidad
+            </span>
+            <span className="proveedor-home__dato-valor">{proveedor.localidad}</span>
+          </div>
+          <div className="proveedor-home__dato">
+            <span className="proveedor-home__dato-label">Estado</span>
+            <span className="proveedor-home__dato-valor">
+              <span className={`badge ${estado.clase}`}>
+                <EstadoIcon size={13} /> {estado.texto}
+              </span>
+            </span>
+          </div>
         </div>
 
         {proveedor.estado === 'pendiente' && (
-          <p className="form__seccion-ayuda">
-            Tu cuenta esta creada pero todavia no fue verificada. Una vez verificada
-            por ARCA vas a poder participar de las subastas.
-          </p>
+          <div className="proveedor-home__aviso">
+            <Clock size={16} />
+            <span>
+              Tu cuenta está creada pero todavía no fue verificada. Una vez verificada
+              por ARCA vas a poder participar de las subastas.
+            </span>
+          </div>
         )}
       </div>
-
-      {invitaciones.length > 0 && (
-        <div className="form" style={{ marginTop: 20 }}>
-          <h2 className="form__titulo">
-            Invitaciones a procesos
-            {pendientes.length > 0 && (
-              <span className="badge badge--warn" style={{ marginLeft: 8 }}>
-                {pendientes.length} pendiente{pendientes.length !== 1 ? 's' : ''}
-              </span>
-            )}
-          </h2>
-          <table className="tabla">
-            <thead>
-              <tr>
-                <th>Proceso</th>
-                <th>Codigo</th>
-                <th>Invitado</th>
-                <th>Estado</th>
-                <th>Accion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invitaciones.map((inv) => (
-                <tr key={inv.id}>
-                  <td>{inv.processTitle}</td>
-                  <td>{inv.processCode}</td>
-                  <td>{inv.invitedAtUtc?.slice(0, 10)}</td>
-                  <td>
-                    <span className={`badge ${claseEstadoInvitacion(inv.status)}`}>
-                      {etiquetaEstadoInvitacion(inv.status)}
-                    </span>
-                  </td>
-                  <td>
-                    {inv.status === ESTADO_INVITACION.PENDING ? (
-                      <div className="tabla__acciones">
-                        <button
-                          className="btn btn--primario"
-                          onClick={() => responder(inv.id, true)}
-                          disabled={respondiendo === inv.id}
-                          style={{ fontSize: 12, padding: '4px 10px' }}
-                        >
-                          Aceptar
-                        </button>
-                        <button
-                          className="btn btn--peligro"
-                          onClick={() => responder(inv.id, false)}
-                          disabled={respondiendo === inv.id}
-                          style={{ fontSize: 12, padding: '4px 10px' }}
-                        >
-                          Rechazar
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="form__seccion-ayuda">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {invitaciones.length === 0 && proveedor && (
-        <div className="estado-vacio" style={{ marginTop: 20 }}>
-          <p>Todavia no recibiste invitaciones a procesos de compra.</p>
-        </div>
-      )}
     </section>
   )
 }

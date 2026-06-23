@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Play, Flag, Search, X, Eye, ArrowRight, BarChart3,
+  TrendingDown, Clock, Trophy,
+} from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
+import { formatearPesos, formatearFecha, formatearTiempo } from '../../utils/formatear.js'
 import { obtenerProveedorDeUsuario, listarSubastasProveedor } from '../../api/proveedoresApi.js'
 
 export function SubastasProveedorListPage() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
-  const [proveedor, setProveedor] = useState(null)
   const [subastas, setSubastas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [seleccionada, setSeleccionada] = useState(null)
+  const [ahora, setAhora] = useState(() => Date.now())
+  const [busqueda, setBusqueda] = useState('')
+  const [proveedor, setProveedor] = useState(null)
 
   useEffect(() => {
     obtenerProveedorDeUsuario({ usuarioId: usuario.id })
@@ -23,8 +30,23 @@ export function SubastasProveedorListPage() {
       .finally(() => setCargando(false))
   }, [usuario.id])
 
+  useEffect(() => {
+    const intervalo = setInterval(() => setAhora(Date.now()), 1000)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  const filtradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    if (!q) return subastas
+    return subastas.filter(
+      (s) =>
+        s.titulo.toLowerCase().includes(q) ||
+        s.codigo.toLowerCase().includes(q),
+    )
+  }, [subastas, busqueda])
+
   function vencida(s) {
-    return s.estado === 'Closed' || s.estado === 'Finalizada' || new Date(s.finISO).getTime() <= Date.now()
+    return s.estado === 'Closed' || s.estado === 'Finalizada' || new Date(s.finISO).getTime() <= ahora
   }
 
   if (cargando) return <p className="estado-cargando">Cargando subastas...</p>
@@ -32,113 +54,140 @@ export function SubastasProveedorListPage() {
 
   const activas = subastas.filter((s) => !vencida(s))
   const finalizadas = subastas.filter((s) => vencida(s))
+  const activasFiltradas = filtradas.filter((s) => !vencida(s))
+  const finalizadasFiltradas = filtradas.filter((s) => vencida(s))
+
+  const ganadas = proveedor
+    ? finalizadas.filter((s) => {
+        if (!s.lances?.length) return false
+        const mejorGlobal = Math.min(...s.lances.map((l) => l.monto))
+        const misLances = s.lances.filter((l) => l.proveedor === proveedor.razonSocial)
+        if (!misLances.length) return false
+        const miMejor = Math.min(...misLances.map((l) => l.monto))
+        return miMejor === mejorGlobal
+      }).length
+    : 0
 
   return (
     <section className="form-pagina">
       <div className="encabezado">
-        <h1>Subastas</h1>
+        <div>
+          <span className="pagina-eyebrow">Proveedor</span>
+          <h1>Subastas</h1>
+          <p className="pagina-descripcion">
+            Participá en subastas inversas de los organismos compradores.
+          </p>
+        </div>
       </div>
 
-      {activas.length > 0 && (
-        <div className="form">
-          <h2 className="form__titulo">Subastas activas</h2>
-          <table className="tabla">
-            <thead>
-              <tr>
-                <th>Proceso</th>
-                <th>Codigo</th>
-                <th>Presupuesto</th>
-                <th>Mejor oferta</th>
-                <th>Cierre</th>
-                <th>Estado</th>
-                <th>Accion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activas.map((s) => (
-                <tr key={s.id} className="tabla__fila--clickeable" onClick={() => setSeleccionada(s)}>
-                  <td>{s.titulo}</td>
-                  <td>{s.codigo}</td>
-                  <td>{formatearPesos(s.precioBase)}</td>
-                  <td>{formatearPesos(s.precioActual)}</td>
-                  <td>{formatearFecha(s.finISO)}</td>
-                  <td>
-                    <span className="badge badge--ok">Abierta</span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn--texto"
-                      onClick={(e) => { e.stopPropagation(); setSeleccionada(s) }}
-                      style={{ fontSize: 12, padding: '4px 10px' }}
-                    >
-                      Ver
-                    </button>
-                    <button
-                      className="btn btn--primario"
-                      onClick={(e) => { e.stopPropagation(); navigate(`/proveedor/subasta/${s.id}`) }}
-                      style={{ fontSize: 12, padding: '4px 10px', marginLeft: 6 }}
-                    >
-                      Participar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {error && <div className="alerta alerta--error">{error}</div>}
 
-      {finalizadas.length > 0 && (
-        <div className="form" style={{ marginTop: 20 }}>
-          <h2 className="form__titulo">Subastas finalizadas</h2>
-          <table className="tabla">
-            <thead>
-              <tr>
-                <th>Proceso</th>
-                <th>Codigo</th>
-                <th>Presupuesto</th>
-                <th>Mejor oferta</th>
-                <th>Estado</th>
-                <th>Accion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {finalizadas.map((s) => (
-                <tr key={s.id} className="tabla__fila--clickeable" onClick={() => setSeleccionada(s)}>
-                  <td>{s.titulo}</td>
-                  <td>{s.codigo}</td>
-                  <td>{formatearPesos(s.precioBase)}</td>
-                  <td>{formatearPesos(s.precioActual)}</td>
-                  <td><span className="badge badge--off">Cerrada</span></td>
-                  <td>
-                    <button
-                      className="btn btn--texto"
-                      onClick={(e) => { e.stopPropagation(); setSeleccionada(s) }}
-                      style={{ fontSize: 12, padding: '4px 10px' }}
-                    >
-                      Ver
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="subastas-prov__metricas">
+        <div className="subastas-prov__metrica">
+          <span><BarChart3 size={16} /></span>
+          <small>Total</small>
+          <strong>{subastas.length}</strong>
         </div>
-      )}
+        <div className="subastas-prov__metrica subastas-prov__metrica--ok">
+          <span><Play size={16} /></span>
+          <small>Activas</small>
+          <strong>{activas.length}</strong>
+        </div>
+        <div className="subastas-prov__metrica subastas-prov__metrica--off">
+          <span><Flag size={16} /></span>
+          <small>Finalizadas</small>
+          <strong>{finalizadas.length}</strong>
+        </div>
+        <div className="subastas-prov__metrica subastas-prov__metrica--gold">
+          <span><Trophy size={16} /></span>
+          <small>Ganadas</small>
+          <strong>{ganadas}</strong>
+        </div>
 
-      {subastas.length === 0 && (
-        <div className="estado-vacio">
-          <p>No tienes subastas activas en este momento.</p>
+      </div>
+
+      <label className="subastas-prov__search">
+        <Search size={18} />
+        <input
+          placeholder="Buscar por título o código..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+        />
+        {busqueda && (
+          <button className="subastas-prov__search-clear" onClick={() => setBusqueda('')}>
+            <X size={16} />
+          </button>
+        )}
+      </label>
+
+      {filtradas.length === 0 ? (
+        <div className="subastas-prov__empty">
+          <span><GantChart size={26} /></span>
+          <h2>{busqueda ? 'Sin resultados' : 'Sin subastas'}</h2>
+          <p>
+            {busqueda
+              ? 'No encontramos subastas que coincidan con tu búsqueda.'
+              : 'No tenés subastas activas en este momento.'}
+          </p>
         </div>
+      ) : (
+        <>
+          {activasFiltradas.length > 0 && (
+            <div className="perfil__seccion">
+              <div className="perfil__seccion-header">
+                <span className="perfil__seccion-icon">
+                  <Play size={18} />
+                </span>
+                <div>
+                  <h2>Subastas activas</h2>
+                  <p>Podés participar mientras estén abiertas</p>
+                </div>
+              </div>
+              <div className="perfil__cuerpo">
+                <TablaSubastas
+                  subastas={activasFiltradas}
+                  activas
+                  ahora={ahora}
+                  onVer={setSeleccionada}
+                  onParticipar={(s) => navigate(`/proveedor/subasta/${s.id}`)}
+                />
+              </div>
+            </div>
+          )}
+
+          {finalizadasFiltradas.length > 0 && (
+            <div className="perfil__seccion mt-6">
+              <div className="perfil__seccion-header">
+                <span className="perfil__seccion-icon">
+                  <Flag size={18} />
+                </span>
+                <div>
+                  <h2>Subastas finalizadas</h2>
+                  <p>Consultá los resultados de subastas cerradas</p>
+                </div>
+              </div>
+              <div className="perfil__cuerpo">
+                <TablaSubastas
+                  subastas={finalizadasFiltradas}
+                  activas={false}
+                  ahora={ahora}
+                  onVer={setSeleccionada}
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {seleccionada && (
         <ModalDetalle
           subasta={seleccionada}
+          ahora={ahora}
           onCerrar={() => setSeleccionada(null)}
           onParticipar={() => {
+            const id = seleccionada.id
             setSeleccionada(null)
-            navigate(`/proveedor/subasta/${seleccionada.id}`)
+            navigate(`/proveedor/subasta/${id}`)
           }}
         />
       )}
@@ -146,8 +195,64 @@ export function SubastasProveedorListPage() {
   )
 }
 
-function ModalDetalle({ subasta, onCerrar, onParticipar }) {
-  const esAbierta = !(subasta.estado === 'Closed' || subasta.estado === 'Finalizada' || new Date(subasta.finISO).getTime() <= Date.now())
+function TablaSubastas({ subastas, activas, ahora, onVer, onParticipar }) {
+  return (
+    <table className="tabla">
+      <thead>
+        <tr>
+          <th>Proceso</th>
+          <th>Código</th>
+          <th>Presupuesto</th>
+          <th>Mejor oferta</th>
+          {activas && <th>Cierre</th>}
+          <th>Estado</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {subastas.map((s) => (
+          <tr key={s.id} className="tabla__fila--clickeable" onClick={() => onVer(s)}>
+            <td className="font-semibold text-slate-900">{s.titulo}</td>
+            <td><code>{s.codigo}</code></td>
+            <td>{formatearPesos(s.precioBase)}</td>
+            <td className="font-semibold text-emerald-700">{formatearPesos(s.precioActual)}</td>
+            {activas && <td className="text-sm text-slate-500">{formatearFecha(s.finISO)}</td>}
+            <td>
+              <span className={`badge ${activas ? 'badge--ok' : 'badge--off'}`}>
+                {activas ? 'Abierta' : 'Cerrada'}
+              </span>
+            </td>
+            <td>
+              <div className="subastas-prov__acciones">
+                <button
+                  className="btn btn--texto btn--sm"
+                  onClick={(e) => { e.stopPropagation(); onVer(s) }}
+                >
+                  <Eye size={14} /> Ver
+                </button>
+                {activas && onParticipar && (
+                  <button
+                    className="btn btn--primario btn--sm"
+                    onClick={(e) => { e.stopPropagation(); onParticipar(s) }}
+                  >
+                    <ArrowRight size={14} /> Participar
+                  </button>
+                )}
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function ModalDetalle({ subasta, ahora, onCerrar, onParticipar }) {
+  const esAbierta = !(
+    subasta.estado === 'Closed' ||
+    subasta.estado === 'Finalizada' ||
+    new Date(subasta.finISO).getTime() <= ahora
+  )
   const [restante, setRestante] = useState(null)
 
   useEffect(() => {
@@ -167,21 +272,29 @@ function ModalDetalle({ subasta, onCerrar, onParticipar }) {
         <div className="modal__header">
           <h2 className="modal__titulo">{subasta.titulo}</h2>
           <span className="modal__codigo"><code>{subasta.codigo}</code></span>
-          <button className="modal__cerrar" onClick={onCerrar}>&times;</button>
+          <button className="modal__cerrar" onClick={onCerrar}>
+            <X size={20} />
+          </button>
         </div>
 
         <div className="modal__cuerpo">
-          <div className="subasta__panel" style={{ marginBottom: 16 }}>
+          <div className="subasta__panel">
             <div className="subasta__card subasta__card--destacada">
-              <span className="subasta__label">Mejor oferta</span>
-              <span className="subasta__valor subasta__valor--destacado">{formatearPesos(subasta.precioActual)}</span>
+              <span className="subasta__label">
+                <Trophy size={14} /> Mejor oferta
+              </span>
+              <span className="subasta__valor subasta__valor--destacado">
+                {formatearPesos(subasta.precioActual)}
+              </span>
             </div>
             <div className="subasta__card">
               <span className="subasta__label">Presupuesto base</span>
               <span className="subasta__valor">{formatearPesos(subasta.precioBase)}</span>
             </div>
             <div className="subasta__card">
-              <span className="subasta__label">Decremento minimo</span>
+              <span className="subasta__label">
+                <TrendingDown size={14} /> Decremento mínimo
+              </span>
               <span className="subasta__valor">{subasta.decrementoMinimo}%</span>
             </div>
             <div className="subasta__card">
@@ -192,82 +305,71 @@ function ModalDetalle({ subasta, onCerrar, onParticipar }) {
             </div>
           </div>
 
-          <div className="modal__info">
-            <div className="campo__etiqueta">Inicio</div>
-            <div>{formatearFecha(subasta.inicioISO)}</div>
-          </div>
-          <div className="modal__info">
-            <div className="campo__etiqueta">Cierre</div>
-            <div>
-              {formatearFecha(subasta.finISO)}
-              {esAbierta && restante !== null && restante > 0 && (
-                <span style={{ marginLeft: 8, fontWeight: 600 }}>
-                  ({formatearTiempo(restante)} restantes)
-                </span>
-              )}
+          <div className="subastas-prov__modal-info">
+            <div className="subastas-prov__modal-info-item">
+              <span className="subastas-prov__modal-info-label">Inicio</span>
+              <span>{formatearFecha(subasta.inicioISO)}</span>
+            </div>
+            <div className="subastas-prov__modal-info-item">
+              <span className="subastas-prov__modal-info-label">Cierre</span>
+              <span>
+                {formatearFecha(subasta.finISO)}
+                {esAbierta && restante !== null && restante > 0 && (
+                  <span className="subastas-prov__modal-restante">
+                    ({formatearTiempo(restante)} restantes)
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="subastas-prov__modal-info-item">
+              <span className="subastas-prov__modal-info-label">Participantes</span>
+              <span>{subasta.participantes?.length ?? 0}</span>
             </div>
           </div>
-          <div className="modal__info">
-            <div className="campo__etiqueta">Participantes</div>
-            <div>{subasta.participantes?.length ?? 0}</div>
-          </div>
 
-          <h3 className="form__titulo" style={{ marginTop: 16, marginBottom: 8 }}>
-            Lances ({subasta.lances?.length ?? 0})
-          </h3>
-          {lancesOrdenados.length === 0 ? (
-            <p className="form__seccion-ayuda">Todavia no hay lances.</p>
-          ) : (
-            <table className="tabla">
-              <thead>
-                <tr>
-                  <th>Proveedor</th>
-                  <th>Monto</th>
-                  <th>Cuando</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lancesOrdenados.map((l, index) => (
-                  <tr key={l.id}>
-                    <td>{index === 0 && <span className="badge badge--ok">Mejor</span>} {l.proveedor}</td>
-                    <td>{formatearPesos(l.monto)}</td>
-                    <td>{l.hace}</td>
+          <div className="subastas-prov__modal-lances">
+            <div className="subastas-prov__modal-lances-header">
+              <Clock size={16} />
+              <strong>Lances ({subasta.lances?.length ?? 0})</strong>
+            </div>
+            {lancesOrdenados.length === 0 ? (
+              <div className="subastas-prov__lances-empty">
+                <p>Todavía no hay lances.</p>
+              </div>
+            ) : (
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Proveedor</th>
+                    <th>Monto</th>
+                    <th>Cuándo</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {lancesOrdenados.map((l, index) => (
+                    <tr key={l.id}>
+                      <td>
+                        {index === 0 && <span className="badge badge--ok">Mejor</span>} {l.proveedor}
+                      </td>
+                      <td>{formatearPesos(l.monto)}</td>
+                      <td>{l.hace}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
         <div className="modal__footer">
           <button className="btn btn--texto" onClick={onCerrar}>Cerrar</button>
           {esAbierta && (
-            <button className="btn btn--primario" onClick={onParticipar}>Participar</button>
+            <button className="btn btn--primario" onClick={onParticipar}>
+              <ArrowRight size={16} /> Participar
+            </button>
           )}
         </div>
       </div>
     </div>
   )
-}
-
-function formatearPesos(monto) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(monto)
-}
-
-function formatearFecha(fechaIso) {
-  return new Intl.DateTimeFormat('es-AR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(fechaIso))
-}
-
-function formatearTiempo(ms) {
-  const total = Math.max(0, Math.floor((ms ?? 0) / 1000))
-  const min = String(Math.floor(total / 60)).padStart(2, '0')
-  const seg = String(total % 60).padStart(2, '0')
-  return `${min}:${seg}`
 }

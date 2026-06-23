@@ -2,13 +2,14 @@ import { apiFetch } from './client.js'
 
 export async function listarTenants({ busqueda = '', estado = '' } = {}) {
   const data = await apiFetch('/api/companies')
-  
-  let resultado = data.map((c) => ({
+  const items = Array.isArray(data) ? data : (data.items ?? [])
+
+  let resultado = items.map((c) => ({
     id: c.id,
     nombre: c.name,
     subdominio: c.domain,
     activo: c.isPublicEntity,
-    cantidadUsuarios: 0 // Set placeholder, can be resolved dynamically if needed
+    cantidadUsuarios: 0, // placeholder; se puede resolver dinámicamente si es necesario
   }))
 
   if (busqueda.trim()) {
@@ -30,7 +31,7 @@ export async function obtenerTenant({ id }) {
     id: c.id,
     nombre: c.name,
     subdominio: c.domain,
-    activo: c.isPublicEntity
+    activo: c.isPublicEntity,
   }
 }
 
@@ -43,8 +44,8 @@ export async function crearTenant({ datos, admin }) {
       isPublicEntity: datos.activo,
       adminFirstName: admin.nombre,
       adminLastName: admin.apellido,
-      adminEmail: admin.email
-    })
+      adminEmail: admin.email,
+    }),
   })
 
   return {
@@ -52,13 +53,13 @@ export async function crearTenant({ datos, admin }) {
       id: companyId,
       nombre: datos.nombre,
       subdominio: datos.subdominio,
-      activo: datos.activo
+      activo: datos.activo,
     },
     admin: {
       nombre: admin.nombre,
       apellido: admin.apellido,
-      email: admin.email
-    }
+      email: admin.email,
+    },
   }
 }
 
@@ -69,35 +70,32 @@ export async function actualizarTenant({ id, datos }) {
       id: id,
       name: datos.nombre,
       domain: datos.subdominio,
-      isPublicEntity: datos.activo
-    })
+      isPublicEntity: datos.activo,
+    }),
   })
 
   return {
     id,
     nombre: datos.nombre,
     subdominio: datos.subdominio,
-    activo: datos.activo
+    activo: datos.activo,
   }
 }
 
 export async function cambiarEstadoTenant({ id, activo }) {
-  // Fetch existing details first
+  // Trae los datos actuales para no pisar otros campos
   const c = await apiFetch(`/api/companies/${id}`)
-  
-  // Update state
   c.isPublicEntity = activo
 
-  // Put updated object
   await apiFetch(`/api/companies/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(c)
+    body: JSON.stringify(c),
   })
 
   return {
     id,
     nombre: c.name,
     subdominio: c.domain,
-    activo: c.isPublicEntity
+    activo: c.isPublicEntity,
   }
 }

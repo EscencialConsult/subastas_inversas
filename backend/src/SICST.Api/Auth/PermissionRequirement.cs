@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using SICST.Application.Common.Interfaces;
 using SICST.Domain.Entities;
 
@@ -19,10 +20,12 @@ public class PermissionRequirement : IAuthorizationRequirement
 public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IMemoryCache _cache;
 
-    public PermissionAuthorizationHandler(IServiceScopeFactory scopeFactory)
+    public PermissionAuthorizationHandler(IServiceScopeFactory scopeFactory, IMemoryCache cache)
     {
         _scopeFactory = scopeFactory;
+        _cache = cache;
     }
 
     protected override async Task HandleRequirementAsync(
@@ -36,13 +39,22 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
             return;
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+        var cacheKey = $"role-permissions-{role}";
 
-        var hasPermission = await dbContext.RolePermissions
-            .AnyAsync(rp => rp.Role == role && rp.Permission.Code == requirement.Permission);
+        var permissions = await _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
 
-        if (hasPermission)
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+
+            return await dbContext.RolePermissions
+                .Where(rp => rp.Role == role)
+                .Select(rp => rp.Permission.Code)
+                .ToListAsync();
+        });
+
+        if (permissions != null && permissions.Contains(requirement.Permission))
         {
             context.Succeed(requirement);
         }

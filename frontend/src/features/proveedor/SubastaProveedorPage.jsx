@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import {
+  ArrowLeft, TrendingDown, Trophy, Clock, BarChart3,
+  MousePointerClick, Send,
+} from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
 import { obtenerProveedorDeUsuario } from '../../api/proveedoresApi.js'
@@ -6,9 +10,11 @@ import {
   obtenerSubastaProveedor,
   realizarLance,
 } from '../../api/proveedoresApi.js'
+import { formatearPesos, formatearTiempo } from '../../utils/formatear.js'
 
 export function SubastaProveedorPage() {
-  const { procesoId } = useParams()
+  const { auctionId } = useParams()
+  const procesoId = auctionId
   const { usuario } = useAuth()
   const navigate = useNavigate()
 
@@ -42,6 +48,7 @@ export function SubastaProveedorPage() {
   }, [usuario.id, procesoId])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     cargar()
   }, [cargar])
 
@@ -137,6 +144,7 @@ export function SubastaProveedorPage() {
     ? Math.min(...subasta.lances.filter((l) => l.proveedor === proveedor?.razonSocial).map((l) => l.monto), Infinity)
     : Infinity
   const soyUltimoOfertante = lancesOrdenados.length > 0 && lancesOrdenados[0].proveedor === proveedor?.razonSocial
+  const voyGanando = miMejorLance === metricas.mejor && miMejorLance !== Infinity
 
   return (
     <section className="subasta-monitor">
@@ -149,7 +157,7 @@ export function SubastaProveedorPage() {
         </div>
         <div className="subasta-hero__acciones">
           <button className="btn btn--texto" onClick={() => navigate('/proveedor')}>
-            Volver
+            <ArrowLeft size={16} /> Volver
           </button>
         </div>
       </div>
@@ -173,118 +181,132 @@ export function SubastaProveedorPage() {
 
       <div className="subasta__panel">
         <div className="subasta__card subasta__card--destacada">
-          <span className="subasta__label">Mejor oferta actual</span>
+          <span className="subasta__label">
+            <Trophy size={14} /> Mejor oferta actual
+          </span>
           <span className="subasta__valor subasta__valor--destacado">
             {formatearPesos(metricas.mejor)}
           </span>
         </div>
         <div className="subasta__card">
-          <span className="subasta__label">Presupuesto base</span>
+          <span className="subasta__label">
+            <TrendingDown size={14} /> Presupuesto base
+          </span>
           <span className="subasta__valor">{formatearPesos(subasta.precioBase)}</span>
         </div>
-        <div className="subasta__card">
-          <span className="subasta__label">Tu mejor lance</span>
+        <div className={`subasta__card ${voyGanando ? 'subasta__card--destacada' : ''}`}>
+          <span className="subasta__label">
+            <Trophy size={14} /> Tu mejor lance
+          </span>
           <span className="subasta__valor">
             {miMejorLance === Infinity ? '—' : formatearPesos(miMejorLance)}
           </span>
+          {voyGanando && (
+            <span className="badge badge--ok mt-1 self-start">
+              <Trophy size={12} /> Vas ganando
+            </span>
+          )}
         </div>
         <div className="subasta__card">
-          <span className="subasta__label">Decremento minimo</span>
+          <span className="subasta__label">Decremento mínimo</span>
           <span className="subasta__valor">{subasta.decrementoMinimo}%</span>
         </div>
       </div>
 
       <div className="subasta-grid">
-        <div className="form">
-          <div className="encabezado">
-            <h2 className="form__titulo">Lances ({subasta.lances.length})</h2>
+        <div className="perfil__seccion">
+          <div className="perfil__seccion-header">
+            <span className="perfil__seccion-icon">
+              <BarChart3 size={18} />
+            </span>
+            <div>
+              <h2>Lances ({subasta.lances.length})</h2>
+              <p>Historial de ofertas en orden descendente</p>
+            </div>
           </div>
-
-          {lancesOrdenados.length === 0 ? (
-            <div className="estado-vacio">Todavia no hay lances.</div>
-          ) : (
-            <table className="tabla">
-              <thead>
-                <tr>
-                  <th>Proveedor</th>
-                  <th>Monto</th>
-                  <th>Cuando</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lancesOrdenados.map((l, index) => (
-                  <tr key={l.id}>
-                    <td>
-                      {index === 0 && <span className="badge badge--ok">Mejor</span>} {l.proveedor}
-                    </td>
-                    <td>{formatearPesos(l.monto)}</td>
-                    <td>{l.hace}</td>
+          <div className="perfil__cuerpo">
+            {lancesOrdenados.length === 0 ? (
+              <div className="subastas-prov__lances-empty">
+                <span><MousePointerClick size={22} /></span>
+                <p>Todavía no hay lances. Sé el primero en ofertar.</p>
+              </div>
+            ) : (
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Proveedor</th>
+                    <th>Monto</th>
+                    <th>Cuándo</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {lancesOrdenados.map((l, index) => (
+                    <tr key={l.id}>
+                      <td>
+                        {index === 0 && <span className="badge badge--ok">Mejor</span>} {l.proveedor}
+                      </td>
+                      <td>{formatearPesos(l.monto)}</td>
+                      <td>{l.hace}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
-        <aside className="form">
-          <h2 className="form__titulo">Realizar lance</h2>
-
-          {metricas.cerrada ? (
-            <p className="form__seccion-ayuda">La subasta ya finalizo.</p>
-          ) : soyUltimoOfertante ? (
-            <p className="form__seccion-ayuda">
-              Sos el ultimo ofertante. Debes esperar a que otro proveedor oferte antes de hacer un nuevo lance.
-            </p>
-          ) : (
-            <form onSubmit={enviarLance} className="form__cuerpo">
-              <div className="campo">
-                <label className="campo__etiqueta">Monto de tu oferta</label>
-                <div className="campo__input-group">
-                  <span className="campo__prefijo">$</span>
-                  <input
-                    type="number"
-                    className="campo__input"
-                    value={monto}
-                    onChange={(e) => setMonto(e.target.value)}
-                    min={1}
-                    step={0.01}
-                    disabled={accionando}
-                    required
-                  />
+        <aside className="perfil__seccion">
+          <div className="perfil__seccion-header">
+            <span className="perfil__seccion-icon">
+              <Send size={18} />
+            </span>
+            <div>
+              <h2>Realizar lance</h2>
+              <p>Ingresá un monto menor a la mejor oferta</p>
+            </div>
+          </div>
+          <div className="perfil__cuerpo">
+            {metricas.cerrada ? (
+              <p className="form__seccion-ayuda">La subasta ya finalizó.</p>
+            ) : soyUltimoOfertante ? (
+              <p className="form__seccion-ayuda">
+                Sos el último ofertante. Debés esperar a que otro proveedor oferte antes de hacer un nuevo lance.
+              </p>
+            ) : (
+              <form onSubmit={enviarLance} className="flex flex-col gap-4">
+                <div className="campo">
+                  <label className="campo__etiqueta">Monto de tu oferta</label>
+                  <div className="campo__input-group">
+                    <span className="campo__prefijo">$</span>
+                    <input
+                      type="number"
+                      className="campo__input"
+                      value={monto}
+                      onChange={(e) => setMonto(e.target.value)}
+                      min={1}
+                      step={0.01}
+                      disabled={accionando}
+                      required
+                    />
+                  </div>
+                  {metricas.mejor > 0 && (
+                    <p className="campo__ayuda">
+                      Debe ser menor a {formatearPesos(metricas.mejor)}
+                    </p>
+                  )}
                 </div>
-                {metricas.mejor > 0 && (
-                  <p className="campo__ayuda">
-                    Debe ser menor a {formatearPesos(metricas.mejor)}
-                  </p>
-                )}
-              </div>
-              <button
-                type="submit"
-                className="btn btn--primario"
-                disabled={accionando}
-                style={{ marginTop: 12 }}
-              >
-                {accionando ? 'Enviando...' : 'Ofertar'}
-              </button>
-            </form>
-          )}
+                <button
+                  type="submit"
+                  className="btn btn--primario"
+                  disabled={accionando}
+                >
+                  {accionando ? 'Enviando...' : 'Ofertar'}
+                </button>
+              </form>
+            )}
+          </div>
         </aside>
       </div>
     </section>
   )
-}
-
-function formatearPesos(monto) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(monto)
-}
-
-function formatearTiempo(ms) {
-  const total = Math.max(0, Math.floor((ms ?? 0) / 1000))
-  const min = String(Math.floor(total / 60)).padStart(2, '0')
-  const seg = String(total % 60).padStart(2, '0')
-  return `${min}:${seg}`
 }

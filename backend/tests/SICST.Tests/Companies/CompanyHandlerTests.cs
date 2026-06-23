@@ -66,9 +66,9 @@ public class CompanyHandlerTests
         var result = await handler.Handle(new GetCompaniesQuery(), CancellationToken.None);
 
         // Assert
-        Assert.Equal(2, result.Count);
-        Assert.Contains(result, c => c.Name == "Co A");
-        Assert.Contains(result, c => c.Name == "Co B");
+        Assert.Equal(2, result.Items.Count);
+        Assert.Contains(result.Items, c => c.Name == "Co A");
+        Assert.Contains(result.Items, c => c.Name == "Co B");
     }
 
     [Fact]

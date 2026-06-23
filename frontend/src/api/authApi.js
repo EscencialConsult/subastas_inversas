@@ -33,7 +33,7 @@ export async function login({ email, password }) {
 
   const tenant = data.companyId ? {
     id: data.companyId,
-    nombre: 'Mi Organización',
+    nombre: data.companyName || 'Mi Organización',
     subdominio: 'org'
   } : null
 

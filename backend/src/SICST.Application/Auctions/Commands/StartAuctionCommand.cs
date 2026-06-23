@@ -39,9 +39,9 @@ public class StartAuctionCommandHandler : IRequestHandler<StartAuctionCommand, A
             throw new InvalidOperationException("Proceso de compra no encontrado.");
         }
 
-        if (process.Status != PurchaseProcessStatus.Published)
+        if (process.Status != PurchaseProcessStatus.Approved)
         {
-            throw new InvalidOperationException("Solo se puede iniciar subasta de un proceso publicado.");
+            throw new InvalidOperationException("Solo se puede iniciar subasta de un proceso aprobado.");
         }
 
         var exists = await _context.Auctions.AnyAsync(a => a.PurchaseProcessId == request.PurchaseProcessId, cancellationToken);
@@ -77,6 +77,7 @@ public class StartAuctionCommandHandler : IRequestHandler<StartAuctionCommand, A
             }).ToList()
         };
 
+        process.Status = PurchaseProcessStatus.InAuction;
         _context.Auctions.Add(auction);
         await _context.SaveChangesAsync(cancellationToken);
         await _cache.SetAsync(new AuctionState(auction.Id, auction.BasePrice, auction.EndsAtUtc, true), cancellationToken);

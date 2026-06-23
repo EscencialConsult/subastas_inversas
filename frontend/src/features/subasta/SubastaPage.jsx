@@ -8,6 +8,7 @@ import {
   cerrarSubasta,
   mejorOferta,
 } from '../../api/subastasApi.js'
+import { formatearPesos, formatearFecha, formatearTiempo } from '../../utils/formatear.js'
 
 export function SubastaPage() {
   const { procesoId } = useParams()
@@ -225,26 +226,4 @@ export function SubastaPage() {
       </div>
     </section>
   )
-}
-
-function formatearPesos(monto) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(monto)
-}
-
-function formatearTiempo(ms) {
-  const total = Math.max(0, Math.floor((ms ?? 0) / 1000))
-  const min = String(Math.floor(total / 60)).padStart(2, '0')
-  const seg = String(total % 60).padStart(2, '0')
-  return `${min}:${seg}`
-}
-
-function formatearFecha(fechaIso) {
-  return new Intl.DateTimeFormat('es-AR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(fechaIso))
 }

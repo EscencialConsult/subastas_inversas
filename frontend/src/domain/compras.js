@@ -12,7 +12,10 @@ export const ESTADO_PROCESO = {
   EN_SUBASTA: 'en_subasta',
   EVALUACION: 'evaluacion',
   ADJUDICADO: 'adjudicado',
-  CANCELADO: 'cancelado',
+  CONTRATADO: 'contratado',
+  ORDEN_EMITIDA: 'orden_emitida',
+  RECIBIDO: 'recibido',
+  CERRADO: 'cerrado',
 }
 
 // Cada estado: etiqueta para mostrar y clase del badge (color).
@@ -27,7 +30,10 @@ export const ESTADO_INFO = {
   [ESTADO_PROCESO.EN_SUBASTA]: { label: 'En subasta', clase: 'badge--info' },
   [ESTADO_PROCESO.EVALUACION]: { label: 'En evaluación', clase: 'badge--info' },
   [ESTADO_PROCESO.ADJUDICADO]: { label: 'Adjudicado', clase: 'badge--ok' },
-  [ESTADO_PROCESO.CANCELADO]: { label: 'Cancelado', clase: 'badge--off' },
+  [ESTADO_PROCESO.CONTRATADO]: { label: 'Contratado', clase: 'badge--ok' },
+  [ESTADO_PROCESO.ORDEN_EMITIDA]: { label: 'Orden emitida', clase: 'badge--info' },
+  [ESTADO_PROCESO.RECIBIDO]: { label: 'Recibido', clase: 'badge--ok' },
+  [ESTADO_PROCESO.CERRADO]: { label: 'Cerrado', clase: 'badge--off' },
 }
 
 export function etiquetaEstado(estado) {

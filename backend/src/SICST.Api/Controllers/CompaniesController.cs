@@ -5,6 +5,7 @@ using SICST.Application.Common.Security;
 using SICST.Application.Companies.Commands;
 using SICST.Application.Companies.DTOs;
 using SICST.Application.Companies.Queries;
+using SICST.Application.Common.Models;
 
 namespace SICST.Api.Controllers;
 
@@ -30,12 +31,12 @@ public class CompaniesController : ControllerBase
 
     [HttpPost("with-admin")]
     [Authorize(Policy = PermissionCodes.CompaniesCreate)]
-    public async Task<ActionResult<Guid>> CreateWithAdmin([FromBody] CreateCompanyWithAdminCommand command)
+    public async Task<ActionResult<CompanyCreationResultDto>> CreateWithAdmin([FromBody] CreateCompanyWithAdminCommand command)
     {
         try
         {
-            var id = await _sender.Send(command);
-            return CreatedAtAction(nameof(GetById), new { id }, id);
+            var result = await _sender.Send(command);
+            return CreatedAtAction(nameof(GetById), new { id = result.CompanyId }, result);
         }
         catch (InvalidOperationException ex)
         {
@@ -45,9 +46,9 @@ public class CompaniesController : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = PermissionCodes.CompaniesRead)]
-    public async Task<ActionResult<List<CompanyDto>>> GetAll()
+    public async Task<ActionResult<PagedResult<CompanyDto>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
-        var companies = await _sender.Send(new GetCompaniesQuery());
+        var companies = await _sender.Send(new GetCompaniesQuery(pageNumber, pageSize));
         return Ok(companies);
     }
 

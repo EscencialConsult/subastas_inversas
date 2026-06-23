@@ -108,6 +108,11 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
             throw new InvalidOperationException("El CUIT no tiene un formato valido.");
         }
 
+        if (!IsValidCuit(request.Cuit.Trim()))
+        {
+            throw new InvalidOperationException("El CUIT no es valido (digito verificador incorrecto).");
+        }
+
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
         {
             throw new InvalidOperationException("El email no tiene un formato valido.");
@@ -138,5 +143,35 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
     private static bool MockArcaVerification(string cuit)
     {
         return !cuit.EndsWith("-0", StringComparison.Ordinal);
+    }
+
+    private static bool IsValidCuit(string cuit)
+    {
+        if (string.IsNullOrWhiteSpace(cuit)) return false;
+
+        var digits = new string(cuit.Where(char.IsDigit).ToArray());
+        if (digits.Length != 11) return false;
+
+        int[] multipliers = { 5, 4, 3, 2, 7, 6, 5, 4, 3, 2 };
+        int sum = 0;
+        for (int i = 0; i < 10; i++)
+        {
+            sum += (digits[i] - '0') * multipliers[i];
+        }
+
+        int remainder = sum % 11;
+        int checkDigit = digits[10] - '0';
+        int calculatedDigit = 11 - remainder;
+
+        if (calculatedDigit == 11)
+        {
+            calculatedDigit = 0;
+        }
+        else if (calculatedDigit == 10)
+        {
+            calculatedDigit = 9;
+        }
+
+        return checkDigit == calculatedDigit;
     }
 }

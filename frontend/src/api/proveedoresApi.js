@@ -43,7 +43,8 @@ export async function obtenerProveedorDeUsuario({ usuarioId }) {
 
 export async function listarProveedores() {
   const data = await apiFetch('/api/suppliers')
-  return data.map((proveedor) => ({
+  const items = Array.isArray(data) ? data : (data.items ?? [])
+  return items.map((proveedor) => ({
     id: proveedor.id,
     usuarioId: proveedor.userId,
     razonSocial: proveedor.businessName,
@@ -116,11 +117,11 @@ function mapSubastaProveedor(data) {
 }
 
 function formatearHace(fechaIso) {
-  const diff = Math.max(0, Date.now() - new Date(fechaIso).getTime())
-  const minutes = Math.floor(diff / 60000)
-  if (minutes === 0) return 'recien'
-  if (minutes === 1) return '1 min'
-  return `${minutes} min`
+  if (!fechaIso) return '—'
+  return new Intl.DateTimeFormat('es-AR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(fechaIso))
 }
 
 function validar(datos) {

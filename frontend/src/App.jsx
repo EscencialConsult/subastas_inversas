@@ -78,7 +78,7 @@ export default function App() {
               }
             />
             <Route
-              path="proveedor/subasta/:procesoId"
+              path="proveedor/subasta/:auctionId"
               element={
                 <RutaProtegida permiso={esProveedor}>
                   <SubastaProveedorPage />

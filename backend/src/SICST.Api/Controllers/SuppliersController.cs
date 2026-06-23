@@ -9,6 +9,7 @@ using SICST.Application.Suppliers.DTOs;
 using SICST.Application.Suppliers.Queries;
 using SICST.Domain.Entities;
 using SICST.Application.Common.Security;
+using SICST.Application.Common.Models;
 
 namespace SICST.Api.Controllers;
 
@@ -42,9 +43,9 @@ public class SuppliersController : ControllerBase
 
     [Authorize(Policy = PermissionCodes.PurchasesManage)]
     [HttpGet]
-    public async Task<ActionResult<List<SupplierDto>>> GetAll()
+    public async Task<ActionResult<PagedResult<SupplierDto>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
-        var suppliers = await _sender.Send(new GetSuppliersQuery());
+        var suppliers = await _sender.Send(new GetSuppliersQuery(pageNumber, pageSize));
         return Ok(suppliers);
     }
 

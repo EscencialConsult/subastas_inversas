@@ -67,6 +67,12 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
             throw new InvalidOperationException("La oferta no respeta el decremento minimo requerido.");
         }
 
+        var timeRemaining = auction.EndsAtUtc - now;
+        if (timeRemaining.TotalMinutes < 3.0)
+        {
+            auction.EndsAtUtc = now.AddMinutes(3);
+        }
+
         var bid = new Bid
         {
             Id = Guid.NewGuid(),

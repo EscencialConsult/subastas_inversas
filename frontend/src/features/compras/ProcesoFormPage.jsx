@@ -3,6 +3,9 @@
 // - Sin :id  -> alta (borrador).
 // - Con :id y estado borrador -> edición.
 // - Con :id y estado no editable -> vista de solo lectura (ya está en el circuito).
+//
+// Esta página actúa únicamente como coordinador de estado y datos.
+// El render concreto se delega a los sub-componentes de /components.
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -15,18 +18,42 @@ import {
   volverABorrador,
   invitarProveedor,
   listarInvitacionesDeProceso,
+  descargarActaPdf,
+  generarContrato,
+  emitirOrdenCompra,
+  confirmarRecepcion,
+  descargarContratoPdf,
+  descargarOrdenCompraPdf,
+  descargarRecepcionPdf,
 } from '../../api/comprasApi.js'
-import { ESTADO_INVITACION, etiquetaEstadoInvitacion, claseEstadoInvitacion } from '../../domain/invitaciones.js'
 import { listarProveedores } from '../../api/proveedoresApi.js'
 import {
-  ESTADO_PROCESO,
   esEditable,
   etiquetaEstado,
   claseEstado,
 } from '../../domain/compras.js'
+import { ProcesoForm } from './components/ProcesoForm.jsx'
+import { ProcesoView } from './components/ProcesoView.jsx'
+import { ProcesoContrato } from './components/ProcesoContrato.jsx'
 
 const ITEM_VACIO = { description: '', quantity: 1, unit: 'unidad', estimatedUnitPrice: '' }
 const VACIO = { titulo: '', descripcion: '', presupuestoEstimado: '', items: [ITEM_VACIO] }
+
+function mapItem(item) {
+  return {
+    description: item.description ?? item.Description ?? '',
+    quantity: item.quantity ?? item.Quantity ?? 1,
+    unit: item.unit ?? item.Unit ?? 'unidad',
+    estimatedUnitPrice: item.estimatedUnitPrice ?? item.EstimatedUnitPrice ?? '',
+  }
+}
+
+function crearItemsRecepcion(proceso) {
+  return (proceso.items ?? []).map((item) => ({
+    purchaseItemId: item.id,
+    quantityReceived: '',
+  }))
+}
 
 export function ProcesoFormPage() {
   const { id } = useParams()
@@ -34,16 +61,28 @@ export function ProcesoFormPage() {
   const { tenantId, usuario } = useAuth()
   const navigate = useNavigate()
 
+  // ── Estado de datos ──────────────────────────────────────────────────────────
   const [datos, setDatos] = useState(VACIO)
-  const [proceso, setProceso] = useState(null) // el registro completo, en edición/vista
+  const [proceso, setProceso] = useState(null)
   const [cargando, setCargando] = useState(!esNuevo)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+
+  // ── Estado de proveedores e invitaciones ────────────────────────────────────
   const [proveedores, setProveedores] = useState([])
   const [proveedorInvitado, setProveedorInvitado] = useState('')
   const [invitaciones, setInvitaciones] = useState([])
-  const [invitadosNuevos, setInvitadosNuevos] = useState([]) // proveedores seleccionados al crear
+  const [invitadosNuevos, setInvitadosNuevos] = useState([])
 
+  // ── Estado de contratación ───────────────────────────────────────────────────
+  const [descargandoActa, setDescargandoActa] = useState(false)
+  const [terminosContrato, setTerminosContrato] = useState('')
+  const [fechaEntrega, setFechaEntrega] = useState('')
+  const [observacionesOrden, setObservacionesOrden] = useState('')
+  const [observacionesRecepcion, setObservacionesRecepcion] = useState('')
+  const [itemsRecepcion, setItemsRecepcion] = useState([])
+
+  // ── Carga inicial ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (esNuevo) return
     obtenerProceso({ tenantId, id })
@@ -55,6 +94,7 @@ export function ProcesoFormPage() {
           presupuestoEstimado: String(p.presupuestoEstimado || ''),
           items: p.items?.length ? p.items.map(mapItem) : [ITEM_VACIO],
         })
+        setItemsRecepcion(crearItemsRecepcion(p))
       })
       .catch((err) => setError(err.message))
       .finally(() => setCargando(false))
@@ -73,9 +113,23 @@ export function ProcesoFormPage() {
       .catch(() => setInvitaciones([]))
   }, [esNuevo, tenantId, id])
 
-  // En vista/edición, manda el estado real; en alta, siempre es editable.
+  // ── Helpers auxiliares ───────────────────────────────────────────────────────
   const editable = esNuevo || (proceso && esEditable(proceso.estado))
 
+  async function recargarProceso() {
+    const actualizado = await obtenerProceso({ tenantId, id })
+    setProceso(actualizado)
+    setDatos({
+      titulo: actualizado.titulo,
+      descripcion: actualizado.descripcion,
+      presupuestoEstimado: String(actualizado.presupuestoEstimado || ''),
+      items: actualizado.items?.length ? actualizado.items.map(mapItem) : [ITEM_VACIO],
+    })
+    setItemsRecepcion(crearItemsRecepcion(actualizado))
+    return actualizado
+  }
+
+  // ── Handlers de formulario ───────────────────────────────────────────────────
   function actualizar(campo, valor) {
     setDatos((prev) => ({ ...prev, [campo]: valor }))
   }
@@ -109,6 +163,7 @@ export function ProcesoFormPage() {
           try {
             await invitarProveedor({ tenantId, procesoId: nuevo.id, proveedorId: provId })
           } catch {
+            // La creación del proceso no debe fallar si una invitación puntual no se registra.
           }
         }
       } else {
@@ -122,26 +177,15 @@ export function ProcesoFormPage() {
     }
   }
 
+  // ── Handlers de invitación ───────────────────────────────────────────────────
   function agregarInvitadoNuevo() {
     if (!proveedorInvitado || invitadosNuevos.includes(proveedorInvitado)) return
     setInvitadosNuevos((prev) => [...prev, proveedorInvitado])
     setProveedorInvitado('')
   }
 
-  function quitarInvitadoNuevo(id) {
-    setInvitadosNuevos((prev) => prev.filter((p) => p !== id))
-  }
-
-  async function enviar() {
-    setError('')
-    setGuardando(true)
-    try {
-      await enviarAAprobacion({ tenantId, id })
-      navigate('/compras')
-    } catch (err) {
-      setError(err.message)
-      setGuardando(false)
-    }
+  function quitarInvitadoNuevo(provId) {
+    setInvitadosNuevos((prev) => prev.filter((p) => p !== provId))
   }
 
   async function invitar() {
@@ -160,7 +204,19 @@ export function ProcesoFormPage() {
     }
   }
 
-  // Rechazado -> vuelve a borrador y queda editable en la misma pantalla.
+  // ── Handlers de flujo ────────────────────────────────────────────────────────
+  async function enviar() {
+    setError('')
+    setGuardando(true)
+    try {
+      await enviarAAprobacion({ tenantId, id })
+      navigate('/compras')
+    } catch (err) {
+      setError(err.message)
+      setGuardando(false)
+    }
+  }
+
   async function corregir() {
     setError('')
     setGuardando(true)
@@ -174,6 +230,77 @@ export function ProcesoFormPage() {
     }
   }
 
+  // ── Handlers de descargas ────────────────────────────────────────────────────
+  async function handleDescargarActa() {
+    if (!proceso) return
+    setError('')
+    setDescargandoActa(true)
+    try {
+      await descargarActaPdf({ tenantId, id: proceso.id, codigo: proceso.codigo })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDescargandoActa(false)
+    }
+  }
+
+  // ── Handlers de contratación ─────────────────────────────────────────────────
+  async function handleGenerarContrato(awardId = null) {
+    setError('')
+    setGuardando(true)
+    try {
+      await generarContrato({ tenantId, procesoId: proceso.id, awardId, terms: terminosContrato })
+      await recargarProceso()
+      setTerminosContrato('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function handleEmitirOrden(contractId = null) {
+    setError('')
+    setGuardando(true)
+    try {
+      await emitirOrdenCompra({
+        tenantId,
+        contractId: contractId ?? proceso.contrato.id,
+        expectedDeliveryDateUtc: fechaEntrega ? `${fechaEntrega}T00:00:00Z` : null,
+        observations: observacionesOrden,
+      })
+      await recargarProceso()
+      setFechaEntrega('')
+      setObservacionesOrden('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function handleConfirmarRecepcion() {
+    setError('')
+    setGuardando(true)
+    try {
+      await confirmarRecepcion({
+        tenantId,
+        purchaseOrderId: proceso.ordenCompra.id,
+        receivedById: usuario.id,
+        observations: observacionesRecepcion,
+        items: itemsRecepcion,
+      })
+      await recargarProceso()
+      setObservacionesRecepcion('')
+      setItemsRecepcion([])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   if (cargando) return <p className="estado-cargando">Cargando…</p>
 
   return (
@@ -201,261 +328,85 @@ export function ProcesoFormPage() {
         </div>
       )}
 
-      {proceso?.estado === ESTADO_PROCESO.ADJUDICADO && proceso.adjudicacion && (
-        <div className="alerta alerta--ok">
-          Adjudicado a {proceso.adjudicacion.proveedor} el {proceso.adjudicacion.fecha}.
-        </div>
+      {/* Sección de contratación (solo lectura, estado post-adjudicación) */}
+      {proceso && (
+        <ProcesoContrato
+          proceso={proceso}
+          tenantId={tenantId}
+          guardando={guardando}
+          terminosContrato={terminosContrato}
+          setTerminosContrato={setTerminosContrato}
+          fechaEntrega={fechaEntrega}
+          setFechaEntrega={setFechaEntrega}
+          observacionesOrden={observacionesOrden}
+          setObservacionesOrden={setObservacionesOrden}
+          observacionesRecepcion={observacionesRecepcion}
+          setObservacionesRecepcion={setObservacionesRecepcion}
+          itemsRecepcion={itemsRecepcion}
+          setItemsRecepcion={setItemsRecepcion}
+          onGenerarContrato={handleGenerarContrato}
+          onEmitirOrden={handleEmitirOrden}
+          onConfirmarRecepcion={handleConfirmarRecepcion}
+          onDescargarContrato={() =>
+            descargarContratoPdf({ tenantId, contrato: proceso.contrato }).catch((err) => setError(err.message))
+          }
+          onDescargarOrden={() =>
+            descargarOrdenCompraPdf({ tenantId, orden: proceso.ordenCompra }).catch((err) => setError(err.message))
+          }
+          onDescargarRecepcion={(recepcion) =>
+            descargarRecepcionPdf({ tenantId, recepcion }).catch((err) => setError(err.message))
+          }
+        />
       )}
 
-      {proceso?.estado === ESTADO_PROCESO.RECHAZADO && (
-        <div className="alerta alerta--error">
-          {proceso.motivoRechazo && (
-            <p>Rechazado por el aprobador. Motivo: {proceso.motivoRechazo}</p>
-          )}
-          <button
-            className="btn btn--primario"
-            onClick={corregir}
-            disabled={guardando}
-            style={{ marginTop: 8 }}
-          >
-            Corregir y reenviar
-          </button>
-        </div>
+      {/* Vista de solo lectura cuando no es editable */}
+      {proceso && !editable && (
+        <ProcesoView
+          proceso={proceso}
+          guardando={guardando}
+          descargandoActa={descargandoActa}
+          onCorregir={corregir}
+          onDescargarActa={handleDescargarActa}
+        />
       )}
 
-      <form className="form" onSubmit={manejarSubmit}>
-        {proceso && (
-          <div className="perfil__solo-lectura">
-            <span>Código: {proceso.codigo}</span>
-            <span>Creado el: {proceso.creadoEn}</span>
-          </div>
-        )}
+      {/* Formulario de creación/edición */}
+      {editable && (
+        <ProcesoForm
+          datos={datos}
+          proceso={proceso}
+          esNuevo={esNuevo}
+          guardando={guardando}
+          proveedores={proveedores}
+          proveedorInvitado={proveedorInvitado}
+          setProveedorInvitado={setProveedorInvitado}
+          invitaciones={invitaciones}
+          invitadosNuevos={invitadosNuevos}
+          agregarInvitadoNuevo={agregarInvitadoNuevo}
+          quitarInvitadoNuevo={quitarInvitadoNuevo}
+          invitar={invitar}
+          actualizar={actualizar}
+          actualizarItem={actualizarItem}
+          agregarItem={agregarItem}
+          quitarItem={quitarItem}
+          manejarSubmit={manejarSubmit}
+          enviar={enviar}
+          onVolver={() => navigate('/compras')}
+        />
+      )}
 
-        <label className="campo">
-          <span>Título</span>
-          <input
-            value={datos.titulo}
-            onChange={(e) => actualizar('titulo', e.target.value)}
-            disabled={!editable}
-            placeholder="Compra de insumos de limpieza"
-          />
-        </label>
-
-        <label className="campo">
-          <span>Descripción</span>
-          <textarea
-            rows={4}
-            value={datos.descripcion}
-            onChange={(e) => actualizar('descripcion', e.target.value)}
-            disabled={!editable}
-            placeholder="Detalle de lo que se necesita comprar…"
-          />
-        </label>
-
-        <label className="campo">
-          <span>Presupuesto estimado (ARS)</span>
-          <input
-            type="number"
-            min="0"
-            value={datos.presupuestoEstimado}
-            onChange={(e) => actualizar('presupuestoEstimado', e.target.value)}
-            disabled={!editable}
-            placeholder="500000"
-          />
-        </label>
-
-        <fieldset className="form__seccion">
-          <legend>Items del proceso</legend>
-          {datos.items.map((item, indice) => (
-            <div className="item-linea" key={indice}>
-              <input
-                placeholder="Descripcion"
-                value={item.description}
-                onChange={(e) => actualizarItem(indice, 'description', e.target.value)}
-                disabled={!editable}
-              />
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                placeholder="Cantidad"
-                value={item.quantity}
-                onChange={(e) => actualizarItem(indice, 'quantity', e.target.value)}
-                disabled={!editable}
-              />
-              <input
-                placeholder="Unidad"
-                value={item.unit}
-                onChange={(e) => actualizarItem(indice, 'unit', e.target.value)}
-                disabled={!editable}
-              />
-              <input
-                type="number"
-                min="0"
-                placeholder="Precio unit."
-                value={item.estimatedUnitPrice}
-                onChange={(e) => actualizarItem(indice, 'estimatedUnitPrice', e.target.value)}
-                disabled={!editable}
-              />
-              {editable && (
-                <button type="button" className="btn btn--texto" onClick={() => quitarItem(indice)}>
-                  Quitar
-                </button>
-              )}
-            </div>
-          ))}
-          {editable && (
-            <button type="button" className="btn btn--texto" onClick={agregarItem}>
-              + Agregar item
-            </button>
-          )}
-        </fieldset>
-
-        {proveedores.length > 0 && (
-          <fieldset className="form__seccion" style={{ marginTop: 24 }}>
-            <legend>{esNuevo ? 'Seleccionar proveedores a invitar' : 'Invitacion de proveedores'}</legend>
-
-            <div className="filtros">
-              <select
-                value={proveedorInvitado}
-                onChange={(e) => setProveedorInvitado(e.target.value)}
-              >
-                <option value="">Seleccionar proveedor</option>
-                {proveedores.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.razonSocial} - {p.cuit}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="btn btn--primario"
-                onClick={esNuevo ? agregarInvitadoNuevo : invitar}
-                disabled={!proveedorInvitado || guardando}
-              >
-                {esNuevo ? 'Agregar' : 'Invitar'}
-              </button>
-            </div>
-
-            {esNuevo && invitadosNuevos.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {invitadosNuevos.map((provId) => {
-                  const prov = proveedores.find((p) => p.id === provId)
-                  return (
-                    <span
-                      key={provId}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '4px 10px',
-                        background: 'var(--color-primario-bg)',
-                        borderRadius: 999,
-                        fontSize: 13,
-                      }}
-                    >
-                      {prov?.razonSocial ?? provId}
-                      <button
-                        type="button"
-                        onClick={() => quitarInvitadoNuevo(provId)}
-                        style={{
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--color-texto-suave)',
-                          padding: 0,
-                          fontSize: 16,
-                          lineHeight: 1,
-                        }}
-                        title="Quitar"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-
-            {invitaciones.length > 0 && (
-              <>
-                <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--color-borde)' }} />
-                <table className="tabla">
-                  <thead>
-                    <tr>
-                      <th>Proveedor</th>
-                      <th>CUIT</th>
-                      <th>Invitado</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invitaciones.map((inv) => (
-                      <tr key={inv.id}>
-                        <td>{inv.supplierBusinessName}</td>
-                        <td>{inv.supplierCuit}</td>
-                        <td>{inv.invitedAtUtc?.slice(0, 10)}</td>
-                        <td>
-                          <span className={`badge ${claseEstadoInvitacion(inv.status)}`}>
-                            {etiquetaEstadoInvitacion(inv.status)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-
-            {!esNuevo && invitaciones.length === 0 && (
-              <p className="form__seccion-ayuda" style={{ marginTop: 8 }}>
-                Todavia no se invitaron proveedores a este proceso.
-              </p>
-            )}
-
-            {esNuevo && invitadosNuevos.length === 0 && (
-              <p className="form__seccion-ayuda" style={{ marginTop: 8 }}>
-                Selecciona los proveedores que queres invitar. Se invitaran automaticamente al crear el proceso.
-              </p>
-            )}
-          </fieldset>
-        )}
-
-        <div className="form__acciones">
+      {/* Botón volver en modo solo lectura */}
+      {proceso && !editable && (
+        <div className="form__acciones" style={{ marginTop: 16 }}>
           <button
             type="button"
             className="btn btn--texto"
             onClick={() => navigate('/compras')}
           >
-            Volver
+            ← Volver
           </button>
-          {editable && (
-            <button type="submit" className="btn btn--primario" disabled={guardando}>
-              {guardando ? 'Guardando…' : 'Guardar'}
-            </button>
-          )}
-          {/* En edición de un borrador ya guardado, ofrecemos enviarlo a aprobación. */}
-          {!esNuevo && editable && (
-            <button
-              type="button"
-              className="btn btn--primario"
-              onClick={enviar}
-              disabled={guardando}
-            >
-              Enviar a aprobación
-            </button>
-          )}
         </div>
-      </form>
+      )}
     </section>
   )
-}
-
-function mapItem(item) {
-  return {
-    description: item.description ?? item.Description ?? '',
-    quantity: item.quantity ?? item.Quantity ?? 1,
-    unit: item.unit ?? item.Unit ?? 'unidad',
-    estimatedUnitPrice: item.estimatedUnitPrice ?? item.EstimatedUnitPrice ?? '',
-  }
 }

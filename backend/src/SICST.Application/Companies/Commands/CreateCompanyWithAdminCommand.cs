@@ -1,11 +1,12 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Companies.DTOs;
 using SICST.Domain.Entities;
 
 namespace SICST.Application.Companies.Commands;
 
-public record CreateCompanyWithAdminCommand : IRequest<Guid>
+public record CreateCompanyWithAdminCommand : IRequest<CompanyCreationResultDto>
 {
     public string Name { get; init; } = string.Empty;
     public string Domain { get; init; } = string.Empty;
@@ -17,7 +18,7 @@ public record CreateCompanyWithAdminCommand : IRequest<Guid>
     public string AdminEmail { get; init; } = string.Empty;
 }
 
-public class CreateCompanyWithAdminCommandHandler : IRequestHandler<CreateCompanyWithAdminCommand, Guid>
+public class CreateCompanyWithAdminCommandHandler : IRequestHandler<CreateCompanyWithAdminCommand, CompanyCreationResultDto>
 {
     private readonly IApplicationDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
@@ -28,7 +29,7 @@ public class CreateCompanyWithAdminCommandHandler : IRequestHandler<CreateCompan
         _passwordHasher = passwordHasher;
     }
 
-    public async Task<Guid> Handle(CreateCompanyWithAdminCommand request, CancellationToken cancellationToken)
+    public async Task<CompanyCreationResultDto> Handle(CreateCompanyWithAdminCommand request, CancellationToken cancellationToken)
     {
         // 1. Verify company domain is unique
         var domainExists = await _context.Companies
@@ -59,6 +60,8 @@ public class CreateCompanyWithAdminCommandHandler : IRequestHandler<CreateCompan
             IsPublicEntity = request.IsPublicEntity
         };
 
+        var tempPassword = Guid.NewGuid().ToString("N")[..12] + "Aa1!";
+
         // 4. Create the Admin User for this Company
         var adminUser = new User
         {
@@ -70,7 +73,7 @@ public class CreateCompanyWithAdminCommandHandler : IRequestHandler<CreateCompan
             Active = true,
             CompanyId = company.Id,
             // Assign default temporary password
-            PasswordHash = _passwordHasher.Hash("TempPassword123!")
+            PasswordHash = _passwordHasher.Hash(tempPassword)
         };
 
         _context.Companies.Add(company);
@@ -78,6 +81,10 @@ public class CreateCompanyWithAdminCommandHandler : IRequestHandler<CreateCompan
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        return company.Id;
+        return new CompanyCreationResultDto
+        {
+            CompanyId = company.Id,
+            TemporaryAdminPassword = tempPassword
+        };
     }
 }

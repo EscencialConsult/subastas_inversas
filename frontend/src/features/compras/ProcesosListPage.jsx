@@ -1,7 +1,8 @@
 // Listado de procesos de compra del tenant. Entrada principal del comprador.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Plus, Search, Pencil, Eye, Send, Gavel, FileText } from 'lucide-react'
 import { useAuth } from '../../auth/useAuth.js'
 import { listarProcesos, enviarAAprobacion } from '../../api/comprasApi.js'
 import { ApiError } from '../../api/client.js'
@@ -13,6 +14,7 @@ import {
   claseEstado,
   esEditable,
 } from '../../domain/compras.js'
+import { formatearPesos } from '../../utils/formatear.js'
 
 export function ProcesosListPage() {
   const { tenantId } = useAuth()
@@ -69,22 +71,57 @@ export function ProcesosListPage() {
     }
   }
 
+  const stats = useMemo(() => {
+    const total = procesos.length
+    const pendientes = procesos.filter((p) => p.estado === ESTADO_PROCESO.PENDIENTE_APROBACION).length
+    const aprobados = procesos.filter((p) => p.estado === ESTADO_PROCESO.APROBADO).length
+    const borradores = procesos.filter((p) => p.estado === ESTADO_PROCESO.BORRADOR).length
+    return { total, pendientes, aprobados, borradores }
+  }, [procesos])
+
   return (
     <section>
       <div className="encabezado">
-        <h1>Procesos de compra</h1>
+        <div>
+          <h1>Procesos de compra</h1>
+        </div>
         <button className="btn btn--primario" onClick={() => navigate('/compras/nuevo')}>
-          + Nuevo proceso
+          <Plus size={16} />
+          Nuevo proceso
         </button>
       </div>
 
+      {!cargando && procesos.length > 0 && (
+        <div className="stats">
+          <div className="stats__card">
+            <div className="stats__numero">{stats.total}</div>
+            <div className="stats__etiqueta">Total</div>
+          </div>
+          <div className="stats__card">
+            <div className="stats__numero">{stats.borradores}</div>
+            <div className="stats__etiqueta">Borradores</div>
+          </div>
+          <div className="stats__card">
+            <div className="stats__numero">{stats.pendientes}</div>
+            <div className="stats__etiqueta">Pendientes</div>
+          </div>
+          <div className="stats__card">
+            <div className="stats__numero">{stats.aprobados}</div>
+            <div className="stats__etiqueta">Aprobados</div>
+          </div>
+        </div>
+      )}
+
       <div className="filtros">
-        <input
-          className="filtros__busqueda"
-          placeholder="Buscar por código o título…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
+        <div className="filtros__icono">
+          <Search size={16} />
+          <input
+            className="filtros__busqueda"
+            placeholder="Buscar por código o título…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
         <select value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Todos los estados</option>
           {Object.entries(ESTADO_INFO).map(([clave, info]) => (
@@ -101,6 +138,7 @@ export function ProcesosListPage() {
         <p className="estado-cargando">Cargando procesos…</p>
       ) : procesos.length === 0 ? (
         <div className="estado-vacio">
+          <FileText size={40} />
           <p>No hay procesos de compra que coincidan con el filtro.</p>
         </div>
       ) : (
@@ -132,15 +170,18 @@ export function ProcesosListPage() {
                     className="btn btn--texto"
                     onClick={() => navigate(`/compras/${p.id}`)}
                   >
+                    {esEditable(p.estado) ? <Pencil size={14} /> : <Eye size={14} />}
                     {esEditable(p.estado) ? 'Editar' : 'Ver'}
                   </button>
                   {esEditable(p.estado) && (
                     <button className="btn btn--texto" onClick={() => enviar(p)}>
-                      Enviar a aprobación
+                      <Send size={14} />
+                      Enviar
                     </button>
                   )}
                   {p.estado === ESTADO_PROCESO.APROBADO && (
                     <button className="btn btn--primario" onClick={() => iniciar(p)}>
+                      <Gavel size={14} />
                       Abrir subasta
                     </button>
                   )}
@@ -149,6 +190,7 @@ export function ProcesosListPage() {
                       className="btn btn--texto"
                       onClick={() => navigate(`/subasta/${p.id}`)}
                     >
+                      <Eye size={14} />
                       Ver subasta
                     </button>
                   )}
@@ -160,12 +202,4 @@ export function ProcesosListPage() {
       )}
     </section>
   )
-}
-
-function formatearPesos(monto) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(monto)
 }

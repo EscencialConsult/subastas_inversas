@@ -19,46 +19,21 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<Guid>> Register([FromBody] RegisterUserCommand command)
     {
-        try
-        {
-            var userId = await _sender.Send(command);
-            return Ok(userId);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var userId = await _sender.Send(command);
+        return Ok(userId);
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginCommand command)
     {
-        try
-        {
-            var response = await _sender.Send(command);
-            return Ok(response);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var response = await _sender.Send(command);
+        return Ok(response);
     }
 
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResponseDto>> Refresh([FromBody] RefreshTokenCommand command)
     {
-        try
-        {
-            var response = await _sender.Send(command);
-            return Ok(response);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
+        var response = await _sender.Send(command);
+        return Ok(response);
     }
 }

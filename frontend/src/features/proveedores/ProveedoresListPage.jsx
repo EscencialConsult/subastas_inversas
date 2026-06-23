@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../../auth/useAuth.js'
 import { listarProveedores } from '../../api/proveedoresApi.js'
 
 const ESTADOS = {
@@ -9,7 +8,6 @@ const ESTADOS = {
 }
 
 export function ProveedoresListPage() {
-  const { tenant } = useAuth()
   const [proveedores, setProveedores] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')

@@ -1,33 +1,24 @@
-// Auditoría: el auditor ve TODOS los procesos del tenant, en cualquier estado.
-// Es solo lectura: no tiene acciones que modifiquen nada.
+// Auditoria global: el auditor ve eventos inmutables encadenados por hash.
 
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
-import { listarProcesos } from '../../api/comprasApi.js'
-import {
-  ESTADO_INFO,
-  etiquetaEstado,
-  claseEstado,
-} from '../../domain/compras.js'
+import { listarEventosAuditoria } from '../../api/auditApi.js'
+import { formatearFecha } from '../../utils/formatear.js'
 
 export function AuditoriaListPage() {
   const { tenantId } = useAuth()
-  const navigate = useNavigate()
 
-  const [procesos, setProcesos] = useState([])
+  const [eventos, setEventos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-
-  const [busqueda, setBusqueda] = useState('')
-  const [estado, setEstado] = useState('')
+  const [entidad, setEntidad] = useState('')
 
   async function cargar() {
     setCargando(true)
     setError('')
     try {
-      const lista = await listarProcesos({ tenantId, busqueda, estado })
-      setProcesos(lista)
+      const lista = await listarEventosAuditoria({ tenantId, entityName: entidad })
+      setEventos(lista)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -39,68 +30,67 @@ export function AuditoriaListPage() {
     const t = setTimeout(cargar, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, busqueda, estado])
+  }, [tenantId, entidad])
 
   return (
     <section>
       <div className="encabezado">
-        <h1>Auditoría</h1>
+        <h1>Auditoria global</h1>
       </div>
 
       <div className="filtros">
         <input
           className="filtros__busqueda"
-          placeholder="Buscar por código o título…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Filtrar por entidad: PurchaseProcess, Bid, Contract..."
+          value={entidad}
+          onChange={(e) => setEntidad(e.target.value)}
         />
-        <select value={estado} onChange={(e) => setEstado(e.target.value)}>
-          <option value="">Todos los estados</option>
-          {Object.entries(ESTADO_INFO).map(([clave, info]) => (
-            <option key={clave} value={clave}>
-              {info.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       {error && <div className="alerta alerta--error">{error}</div>}
 
       {cargando ? (
-        <p className="estado-cargando">Cargando…</p>
-      ) : procesos.length === 0 ? (
+        <p className="estado-cargando">Cargando...</p>
+      ) : eventos.length === 0 ? (
         <div className="estado-vacio">
-          <p>No hay procesos que coincidan con el filtro.</p>
+          <p>No hay eventos de auditoria que coincidan con el filtro.</p>
         </div>
       ) : (
         <table className="tabla">
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Título</th>
-              <th>Estado</th>
-              <th></th>
+              <th>#</th>
+              <th>Fecha</th>
+              <th>Entidad</th>
+              <th>Accion</th>
+              <th>Hash</th>
+              <th>Hash previo</th>
             </tr>
           </thead>
           <tbody>
-            {procesos.map((p) => (
-              <tr key={p.id}>
+            {eventos.map((evento) => (
+              <tr key={evento.id}>
                 <td>
-                  <code>{p.codigo}</code>
+                  <code>{evento.sequence}</code>
                 </td>
-                <td>{p.titulo}</td>
+                <td>{formatearFecha(evento.createdAt)}</td>
                 <td>
-                  <span className={`badge ${claseEstado(p.estado)}`}>
-                    {etiquetaEstado(p.estado)}
+                  {evento.entityName}
+                  <br />
+                  <code>{evento.entityId}</code>
+                </td>
+                <td>
+                  <span className={`badge ${claseAccion(evento.action)}`}>
+                    {etiquetaAccion(evento.action)}
                   </span>
                 </td>
-                <td className="tabla__acciones">
-                  <button
-                    className="btn btn--texto"
-                    onClick={() => navigate(`/auditoria/${p.id}`)}
-                  >
-                    Ver expediente
-                  </button>
+                <td>
+                  <code title={evento.hash}>{evento.hash.slice(0, 12)}...</code>
+                </td>
+                <td>
+                  <code title={evento.previousHash}>
+                    {evento.previousHash ? `${evento.previousHash.slice(0, 12)}...` : 'GENESIS'}
+                  </code>
                 </td>
               </tr>
             ))}
@@ -109,4 +99,17 @@ export function AuditoriaListPage() {
       )}
     </section>
   )
+}
+
+function etiquetaAccion(action) {
+  if (action === 'Created' || action === 0) return 'Creado'
+  if (action === 'Updated' || action === 1) return 'Actualizado'
+  if (action === 'Deleted' || action === 2) return 'Eliminado'
+  return action
+}
+
+function claseAccion(action) {
+  if (action === 'Deleted' || action === 2) return 'badge--error'
+  if (action === 'Updated' || action === 1) return 'badge--info'
+  return 'badge--ok'
 }

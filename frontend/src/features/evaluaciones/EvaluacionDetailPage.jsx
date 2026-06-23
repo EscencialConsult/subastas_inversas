@@ -7,6 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
 import { obtenerProceso, registrarEvaluacion } from '../../api/comprasApi.js'
 import { obtenerSubastaDeProceso } from '../../api/subastasApi.js'
+import { formatearPesos } from '../../utils/formatear.js'
 
 export function EvaluacionDetailPage() {
   const { id } = useParams()
@@ -157,12 +158,4 @@ export function EvaluacionDetailPage() {
       </form>
     </section>
   )
-}
-
-function formatearPesos(monto) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(monto)
 }
