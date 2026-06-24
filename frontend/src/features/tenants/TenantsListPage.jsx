@@ -100,6 +100,12 @@ export function TenantsListPage() {
                 <td className="tabla__acciones">
                   <button
                     className="btn btn--texto"
+                    onClick={() => navigate(`/tenants/${t.id}/detalle`)}
+                  >
+                    Detalle
+                  </button>
+                  <button
+                    className="btn btn--texto"
                     onClick={() => navigate(`/tenants/${t.id}`)}
                   >
                     Editar

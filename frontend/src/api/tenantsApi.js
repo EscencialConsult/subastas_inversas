@@ -5,8 +5,9 @@
 // por tenant: el super-admin los ve todos, porque vive fuera de la pared.
 
 import { simularRed, ApiError } from './client.js'
-import { tenants, usuarios, nextId } from './mockDb.js'
+import { tenants, usuarios, nextId, procesosCompra, subastas } from './mockDb.js'
 import { ROLES } from '../domain/roles.js'
+import { analisisSubasta } from './subastasApi.js'
 
 export function listarTenants({ busqueda = '', estado = '' } = {}) {
   return simularRed(() => {
@@ -35,6 +36,45 @@ export function obtenerTenant({ id }) {
     const tenant = tenants.find((t) => t.id === id)
     if (!tenant) throw new ApiError('Tenant no encontrado.', 404)
     return { ...tenant }
+  })
+}
+
+// Detalle completo de una empresa para la supervisión del super-admin:
+// sus datos + usuarios + actividad (procesos, subastas, ahorro promedio).
+export function obtenerDetalleEmpresa({ id }) {
+  return simularRed(() => {
+    const tenant = tenants.find((t) => t.id === id)
+    if (!tenant) throw new ApiError('Empresa no encontrada.', 404)
+
+    const propios = usuarios.filter((u) => u.tenantId === id)
+    const procesos = procesosCompra.filter((p) => p.tenantId === id)
+    const subastasEmp = subastas.filter((s) => s.tenantId === id)
+    const conLances = subastasEmp.filter((s) => s.lances.length > 0)
+    const ahorroProm = conLances.length
+      ? Math.round(
+          conLances.reduce((acc, s) => acc + analisisSubasta(s).bajaPorcentaje, 0) /
+            conLances.length,
+        )
+      : null
+
+    return {
+      tenant: { ...tenant },
+      stats: {
+        usuarios: propios.length,
+        activos: propios.filter((u) => u.activo).length,
+        procesos: procesos.length,
+        subastas: subastasEmp.length,
+        ahorroProm,
+      },
+      usuarios: propios.map((u) => ({
+        id: u.id,
+        nombre: u.nombre,
+        apellido: u.apellido,
+        email: u.email,
+        rol: u.rol,
+        activo: u.activo,
+      })),
+    }
   })
 }
 
@@ -70,7 +110,7 @@ export function crearTenant({ datos, admin }) {
       nombre: admin.nombre.trim(),
       apellido: admin.apellido.trim(),
       email: emailAdmin,
-      rol: ROLES.ADMIN_TENANT,
+      rol: ROLES.ADMINISTRADOR,
       activo: true,
     }
     usuarios.push(nuevoAdmin)

@@ -1,5 +1,5 @@
-// Listado para el Aprobador (segunda compuerta): procesos evaluados,
-// con recomendación lista, esperando adjudicación.
+// Listado para la AUTORIDAD: adjudicaciones propuestas por el comprador,
+// esperando aprobación.
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -21,10 +21,9 @@ export function AdjudicacionesListPage() {
     try {
       const lista = await listarProcesos({
         tenantId,
-        estado: ESTADO_PROCESO.EVALUACION,
+        estado: ESTADO_PROCESO.ADJUDICADA,
       })
-      // Solo los que ya tienen evaluación (recomendación) están listos para adjudicar.
-      setProcesos(lista.filter((p) => p.evaluacion))
+      setProcesos(lista)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -41,7 +40,7 @@ export function AdjudicacionesListPage() {
   return (
     <section>
       <div className="encabezado">
-        <h1>Adjudicaciones</h1>
+        <h1>Aprobación de adjudicaciones</h1>
       </div>
 
       {error && <div className="alerta alerta--error">{error}</div>}
@@ -50,7 +49,7 @@ export function AdjudicacionesListPage() {
         <p className="estado-cargando">Cargando…</p>
       ) : procesos.length === 0 ? (
         <div className="estado-vacio">
-          <p>No hay procesos listos para adjudicar.</p>
+          <p>No hay adjudicaciones pendientes de aprobación.</p>
         </div>
       ) : (
         <table className="tabla">
@@ -58,7 +57,7 @@ export function AdjudicacionesListPage() {
             <tr>
               <th>Código</th>
               <th>Título</th>
-              <th>Proveedor recomendado</th>
+              <th>Proveedor adjudicado</th>
               <th></th>
             </tr>
           </thead>
@@ -69,7 +68,7 @@ export function AdjudicacionesListPage() {
                   <code>{p.codigo}</code>
                 </td>
                 <td>{p.titulo}</td>
-                <td>{p.evaluacion.recomendadoProveedor}</td>
+                <td>{p.adjudicacion?.proveedor ?? '—'}</td>
                 <td className="tabla__acciones">
                   <button
                     className="btn btn--texto"

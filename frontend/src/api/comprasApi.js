@@ -1,7 +1,11 @@
-// API simulada de procesos de compra.
+// API simulada de procesos de compra (alineada al documento oficial).
 //
-// Mismo principio que usuarios: TODO filtra por tenant. Un comprador de un
-// municipio jamás debe ver los procesos (ni las futuras subastas) de otro.
+// Regla de oro: TODO filtra por empresa (tenantId == id_empresa). Un comprador
+// de una empresa jamás debe ver los procesos (ni las subastas) de otra.
+//
+// Flujo: borrador -> publicado -> en_subasta -> cerrada -> adjudicada -> aprobada.
+// - El comprador crea, publica, adjudica.
+// - La autoridad aprueba la adjudicación.
 
 import { simularRed, ApiError } from './client.js'
 import { procesosCompra, nextId } from './mockDb.js'
@@ -25,6 +29,37 @@ export function listarProcesos({ tenantId, busqueda = '', estado = '' }) {
       resultado = resultado.filter((p) => p.estado === estado)
     }
     return resultado.map((p) => ({ ...p }))
+  })
+}
+
+// Legajos: las compras ya adjudicadas/aprobadas de la empresa, con su resultado.
+// Es el "archivo" de compras realizadas que ve el comprador.
+export function listarComprasRealizadas({ tenantId, busqueda = '' }) {
+  return simularRed(() => {
+    let filas = procesosCompra
+      .filter(
+        (p) =>
+          p.tenantId === tenantId &&
+          (p.estado === ESTADO_PROCESO.ADJUDICADA ||
+            p.estado === ESTADO_PROCESO.APROBADA),
+      )
+      .map((p) => ({
+        id: p.id,
+        codigo: p.codigo,
+        titulo: p.titulo,
+        estado: p.estado,
+        proveedor: p.adjudicacion?.proveedor ?? '—',
+        monto: p.adjudicacion?.monto ?? 0,
+        fecha: p.adjudicacion?.fecha ?? p.creadoEn,
+      }))
+
+    if (busqueda.trim()) {
+      const q = busqueda.trim().toLowerCase()
+      filas = filas.filter((f) =>
+        `${f.codigo} ${f.titulo} ${f.proveedor}`.toLowerCase().includes(q),
+      )
+    }
+    return filas
   })
 }
 
@@ -57,10 +92,7 @@ export function crearProceso({ tenantId, compradorId, datos }) {
 
 export function actualizarProceso({ tenantId, id, datos }) {
   return simularRed(() => {
-    const indice = procesosCompra.findIndex(
-      (p) => p.id === id && p.tenantId === tenantId,
-    )
-    if (indice === -1) throw new ApiError('Proceso de compra no encontrado.', 404)
+    const indice = buscarIndice(tenantId, id)
     if (!esEditable(procesosCompra[indice].estado)) {
       throw new ApiError('Solo se puede editar un proceso en borrador.', 409)
     }
@@ -75,129 +107,89 @@ export function actualizarProceso({ tenantId, id, datos }) {
   })
 }
 
-// Envía el proceso al circuito de aprobación: borrador -> pendiente de aprobación.
-export function enviarAAprobacion({ tenantId, id }) {
+// Publica el proceso: borrador -> publicado. A partir de acá ya no se edita y
+// queda listo para invitar proveedores y abrir la subasta. (No hay aprobación previa.)
+export function publicarProceso({ tenantId, id }) {
   return simularRed(() => {
-    const indice = procesosCompra.findIndex(
-      (p) => p.id === id && p.tenantId === tenantId,
-    )
-    if (indice === -1) throw new ApiError('Proceso de compra no encontrado.', 404)
+    const indice = buscarIndice(tenantId, id)
     if (procesosCompra[indice].estado !== ESTADO_PROCESO.BORRADOR) {
-      throw new ApiError('Solo se puede enviar a aprobación un borrador.', 409)
+      throw new ApiError('Solo se puede publicar un borrador.', 409)
     }
     procesosCompra[indice] = {
       ...procesosCompra[indice],
-      estado: ESTADO_PROCESO.PENDIENTE_APROBACION,
+      estado: ESTADO_PROCESO.PUBLICADO,
     }
     return { ...procesosCompra[indice] }
   })
 }
 
-// Vuelve un proceso RECHAZADO a borrador, para que el comprador lo corrija
-// y lo vuelva a enviar. Limpia los datos de la decisión anterior.
-export function volverABorrador({ tenantId, id }) {
+// El comprador ADJUDICA: elige el proveedor ganador (propone). El proceso queda
+// pendiente de la aprobación de la Autoridad.
+export function adjudicarProceso({ tenantId, id, compradorId, proveedor, monto }) {
   return simularRed(() => {
-    const proceso = procesosCompra.find((p) => p.id === id && p.tenantId === tenantId)
-    if (!proceso) throw new ApiError('Proceso de compra no encontrado.', 404)
-    if (proceso.estado !== ESTADO_PROCESO.RECHAZADO) {
-      throw new ApiError('Solo un proceso rechazado puede volver a borrador.', 409)
+    const indice = buscarIndice(tenantId, id)
+    if (procesosCompra[indice].estado !== ESTADO_PROCESO.CERRADA) {
+      throw new ApiError('Solo se puede adjudicar una subasta cerrada.', 409)
     }
-    proceso.estado = ESTADO_PROCESO.BORRADOR
-    proceso.motivoRechazo = ''
-    proceso.aprobadorId = null
-    proceso.decididoEn = null
-    return { ...proceso }
+    if (!proveedor) throw new ApiError('Elegí el proveedor a adjudicar.', 422)
+    procesosCompra[indice] = {
+      ...procesosCompra[indice],
+      estado: ESTADO_PROCESO.ADJUDICADA,
+      adjudicacion: {
+        compradorId,
+        proveedor,
+        monto: Number(monto) || 0,
+        fecha: hoy(),
+      },
+      aprobacion: null,
+    }
+    return { ...procesosCompra[indice] }
   })
 }
 
-// --- Circuito de aprobación (lo usa el Aprobador) ---
-
-export function aprobarProceso({ tenantId, id, aprobadorId }) {
+// La AUTORIDAD aprueba la adjudicación propuesta por el comprador.
+export function aprobarAdjudicacion({ tenantId, id, autoridadId }) {
   return simularRed(() => {
-    const proceso = decidible(tenantId, id)
-    proceso.estado = ESTADO_PROCESO.APROBADO
-    proceso.aprobadorId = aprobadorId
-    proceso.decididoEn = hoy()
-    proceso.motivoRechazo = ''
-    return { ...proceso }
+    const indice = buscarIndice(tenantId, id)
+    if (procesosCompra[indice].estado !== ESTADO_PROCESO.ADJUDICADA) {
+      throw new ApiError('Este proceso no está pendiente de aprobación.', 409)
+    }
+    procesosCompra[indice] = {
+      ...procesosCompra[indice],
+      estado: ESTADO_PROCESO.APROBADA,
+      aprobacion: { autoridadId, fecha: hoy(), estado: 'aprobada' },
+    }
+    return { ...procesosCompra[indice] }
   })
 }
 
-export function rechazarProceso({ tenantId, id, aprobadorId, motivo }) {
+// La AUTORIDAD rechaza la adjudicación: vuelve a "cerrada" para que el comprador
+// adjudique de nuevo. Queda registrado el motivo.
+export function rechazarAdjudicacion({ tenantId, id, autoridadId, motivo }) {
   return simularRed(() => {
     if (!motivo?.trim()) {
       throw new ApiError('Para rechazar hay que indicar un motivo.', 422)
     }
-    const proceso = decidible(tenantId, id)
-    proceso.estado = ESTADO_PROCESO.RECHAZADO
-    proceso.aprobadorId = aprobadorId
-    proceso.decididoEn = hoy()
-    proceso.motivoRechazo = motivo.trim()
-    return { ...proceso }
+    const indice = buscarIndice(tenantId, id)
+    if (procesosCompra[indice].estado !== ESTADO_PROCESO.ADJUDICADA) {
+      throw new ApiError('Este proceso no está pendiente de aprobación.', 409)
+    }
+    procesosCompra[indice] = {
+      ...procesosCompra[indice],
+      estado: ESTADO_PROCESO.CERRADA,
+      adjudicacion: null,
+      aprobacion: { autoridadId, fecha: hoy(), estado: 'rechazada', motivo: motivo.trim() },
+    }
+    return { ...procesosCompra[indice] }
   })
 }
 
-// Busca el proceso y verifica que esté en condiciones de decidirse
-// (debe estar pendiente de aprobación). Devuelve la referencia real para mutarla.
-function decidible(tenantId, id) {
-  const proceso = procesosCompra.find((p) => p.id === id && p.tenantId === tenantId)
-  if (!proceso) throw new ApiError('Proceso de compra no encontrado.', 404)
-  if (proceso.estado !== ESTADO_PROCESO.PENDIENTE_APROBACION) {
-    throw new ApiError('Este proceso no está pendiente de aprobación.', 409)
-  }
-  return proceso
-}
-
-// --- Evaluación (lo usa el Evaluador) ---
-// Tras la subasta, el evaluador revisa las ofertas y recomienda un ganador.
-// Queda registrada la recomendación; la adjudicación final la decide el aprobador.
-export function registrarEvaluacion({
-  tenantId,
-  id,
-  evaluadorId,
-  recomendadoProveedor,
-  observaciones,
-}) {
-  return simularRed(() => {
-    const proceso = procesosCompra.find((p) => p.id === id && p.tenantId === tenantId)
-    if (!proceso) throw new ApiError('Proceso de compra no encontrado.', 404)
-    if (proceso.estado !== ESTADO_PROCESO.EVALUACION) {
-      throw new ApiError('Este proceso no está en evaluación.', 409)
-    }
-    if (!recomendadoProveedor) {
-      throw new ApiError('Elegí el proveedor recomendado.', 422)
-    }
-    proceso.evaluacion = {
-      evaluadorId,
-      recomendadoProveedor,
-      observaciones: observaciones?.trim() ?? '',
-      fecha: hoy(),
-    }
-    return { ...proceso }
-  })
-}
-
-// --- Adjudicación (segunda compuerta del Aprobador) ---
-// Tras la evaluación, el aprobador adjudica al proveedor recomendado.
-// Es el cierre del circuito: el proceso queda Adjudicado.
-export function adjudicarProceso({ tenantId, id, aprobadorId }) {
-  return simularRed(() => {
-    const proceso = procesosCompra.find((p) => p.id === id && p.tenantId === tenantId)
-    if (!proceso) throw new ApiError('Proceso de compra no encontrado.', 404)
-    if (proceso.estado !== ESTADO_PROCESO.EVALUACION) {
-      throw new ApiError('El proceso no está en etapa de evaluación.', 409)
-    }
-    if (!proceso.evaluacion) {
-      throw new ApiError('Falta la evaluación antes de poder adjudicar.', 409)
-    }
-    proceso.estado = ESTADO_PROCESO.ADJUDICADO
-    proceso.adjudicacion = {
-      aprobadorId,
-      proveedor: proceso.evaluacion.recomendadoProveedor,
-      fecha: hoy(),
-    }
-    return { ...proceso }
-  })
+function buscarIndice(tenantId, id) {
+  const indice = procesosCompra.findIndex(
+    (p) => p.id === id && p.tenantId === tenantId,
+  )
+  if (indice === -1) throw new ApiError('Proceso de compra no encontrado.', 404)
+  return indice
 }
 
 function validar(datos) {
@@ -207,7 +199,7 @@ function validar(datos) {
   }
 }
 
-// Código correlativo tipo PC-0003. En el backend real lo daría la base por tenant.
+// Código correlativo tipo PC-0003. En el backend real lo daría la base por empresa.
 function generarCodigo() {
   const numero = procesosCompra.length + 1
   return `PC-${String(numero).padStart(4, '0')}`

@@ -1,11 +1,16 @@
-// Detalle de adjudicación: el aprobador ve la recomendación del evaluador y
-// las ofertas, y adjudica al proveedor recomendado (cierre del circuito).
+// Detalle para la AUTORIDAD: ve la adjudicación propuesta por el comprador y
+// las ofertas, y la aprueba o la rechaza (con motivo).
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerProceso, adjudicarProceso } from '../../api/comprasApi.js'
-import { obtenerSubastaDeProceso } from '../../api/subastasApi.js'
+import {
+  obtenerProceso,
+  aprobarAdjudicacion,
+  rechazarAdjudicacion,
+} from '../../api/comprasApi.js'
+import { obtenerSubastaDeProceso, analisisSubasta } from '../../api/subastasApi.js'
+import { ESTADO_PROCESO } from '../../domain/compras.js'
 
 export function AdjudicacionDetailPage() {
   const { id } = useParams()
@@ -13,9 +18,13 @@ export function AdjudicacionDetailPage() {
   const navigate = useNavigate()
 
   const [proceso, setProceso] = useState(null)
+  const [subasta, setSubasta] = useState(null)
   const [ofertas, setOfertas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+
+  const [rechazando, setRechazando] = useState(false)
+  const [motivo, setMotivo] = useState('')
   const [procesando, setProcesando] = useState(false)
 
   async function cargar() {
@@ -25,6 +34,7 @@ export function AdjudicacionDetailPage() {
         obtenerSubastaDeProceso({ tenantId, procesoId: id }),
       ])
       setProceso(p)
+      setSubasta(s)
       setOfertas([...s.lances].sort((a, b) => a.monto - b.monto))
     } catch (err) {
       setError(err.message)
@@ -39,11 +49,23 @@ export function AdjudicacionDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, id])
 
-  async function adjudicar() {
+  async function aprobar() {
     setError('')
     setProcesando(true)
     try {
-      await adjudicarProceso({ tenantId, id, aprobadorId: usuario.id })
+      await aprobarAdjudicacion({ tenantId, id, autoridadId: usuario.id })
+      navigate('/adjudicaciones')
+    } catch (err) {
+      setError(err.message)
+      setProcesando(false)
+    }
+  }
+
+  async function confirmarRechazo() {
+    setError('')
+    setProcesando(true)
+    try {
+      await rechazarAdjudicacion({ tenantId, id, autoridadId: usuario.id, motivo })
       navigate('/adjudicaciones')
     } catch (err) {
       setError(err.message)
@@ -54,8 +76,14 @@ export function AdjudicacionDetailPage() {
   if (cargando) return <p className="estado-cargando">Cargando…</p>
   if (!proceso) return <div className="alerta alerta--error">{error}</div>
 
-  const recomendado = proceso.evaluacion?.recomendadoProveedor
-  const ofertaRecomendada = ofertas.find((o) => o.proveedor === recomendado)
+  const pendiente = proceso.estado === ESTADO_PROCESO.ADJUDICADA
+  const adj = proceso.adjudicacion
+  const adjudicado = adj?.proveedor
+
+  const analisis = subasta ? analisisSubasta(subasta) : null
+  const masBaja = ofertas[0] ?? null
+  const adjudicaNoEsLaMasBaja =
+    adjudicado && masBaja && adjudicado !== masBaja.proveedor
 
   return (
     <section className="form-pagina">
@@ -73,16 +101,34 @@ export function AdjudicacionDetailPage() {
       <p className="proceso__descripcion">{proceso.titulo}</p>
 
       <div className="form">
-        <h2 className="form__titulo">Recomendación del evaluador</h2>
+        <h2 className="form__titulo">Adjudicación propuesta</h2>
         <div className="perfil__solo-lectura">
-          <span>Proveedor recomendado: {recomendado}</span>
-          {ofertaRecomendada && (
-            <span>Monto: {formatearPesos(ofertaRecomendada.monto)}</span>
-          )}
-          {proceso.evaluacion?.observaciones && (
-            <span>Observaciones: {proceso.evaluacion.observaciones}</span>
-          )}
+          <span>Proveedor: {adjudicado ?? '—'}</span>
+          {adj && <span>Monto: {formatearPesos(adj.monto)}</span>}
+          {adj && <span>Propuesta el: {adj.fecha}</span>}
         </div>
+
+        {/* Contexto de la subasta para que la Autoridad decida con información. */}
+        {analisis && (
+          <>
+            <h2 className="form__titulo">Resultado de la subasta</h2>
+            <div className="perfil__solo-lectura">
+              <span>Proveedores que ofertaron: {analisis.oferentes}</span>
+              <span>Presupuesto base: {formatearPesos(analisis.base)}</span>
+              <span>Oferta más baja: {formatearPesos(analisis.mejor)}</span>
+              <span>Baja lograda: {analisis.bajaPorcentaje.toFixed(1)}%</span>
+            </div>
+          </>
+        )}
+
+        {/* Aviso de gobernanza: si NO se adjudicó a la oferta más baja. */}
+        {adjudicaNoEsLaMasBaja && (
+          <div className="alerta alerta--info">
+            Atención: la adjudicación propuesta no es la oferta más baja
+            ({masBaja?.proveedor}, {formatearPesos(masBaja?.monto)}). Revisá la
+            justificación antes de aprobar.
+          </div>
+        )}
 
         <h2 className="form__titulo">Ofertas</h2>
         <table className="tabla">
@@ -94,13 +140,14 @@ export function AdjudicacionDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {ofertas.map((o) => (
+            {ofertas.map((o, i) => (
               <tr key={o.id}>
                 <td>{o.proveedor}</td>
                 <td>{formatearPesos(o.monto)}</td>
-                <td>
-                  {o.proveedor === recomendado && (
-                    <span className="badge badge--ok">Recomendado</span>
+                <td className="tabla__acciones">
+                  {i === 0 && <span className="badge badge--off">Más baja</span>}
+                  {o.proveedor === adjudicado && (
+                    <span className="badge badge--ok">Adjudicado</span>
                   )}
                 </td>
               </tr>
@@ -108,17 +155,56 @@ export function AdjudicacionDetailPage() {
           </tbody>
         </table>
 
-        <div className="form__acciones">
-          <button
-            className="btn btn--texto"
-            onClick={() => navigate('/adjudicaciones')}
-          >
-            Cancelar
-          </button>
-          <button className="btn btn--primario" onClick={adjudicar} disabled={procesando}>
-            {procesando ? 'Procesando…' : `Adjudicar a ${recomendado}`}
-          </button>
-        </div>
+        {pendiente && !rechazando && (
+          <div className="form__acciones">
+            <button
+              className="btn btn--peligro"
+              onClick={() => setRechazando(true)}
+              disabled={procesando}
+            >
+              Rechazar
+            </button>
+            <button className="btn btn--primario" onClick={aprobar} disabled={procesando}>
+              {procesando ? 'Procesando…' : 'Aprobar adjudicación'}
+            </button>
+          </div>
+        )}
+
+        {pendiente && rechazando && (
+          <div className="rechazo">
+            <label className="campo">
+              <span>Motivo del rechazo</span>
+              <textarea
+                rows={3}
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                placeholder="Explicá por qué se rechaza la adjudicación…"
+              />
+            </label>
+            <div className="form__acciones">
+              <button
+                className="btn btn--texto"
+                onClick={() => setRechazando(false)}
+                disabled={procesando}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn btn--peligro"
+                onClick={confirmarRechazo}
+                disabled={procesando}
+              >
+                {procesando ? 'Procesando…' : 'Confirmar rechazo'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!pendiente && (
+          <div className="alerta alerta--info">
+            Esta adjudicación ya fue resuelta.
+          </div>
+        )}
       </div>
     </section>
   )

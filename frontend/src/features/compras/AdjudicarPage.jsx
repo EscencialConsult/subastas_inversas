@@ -1,25 +1,26 @@
-// Detalle de evaluación: el evaluador ve las ofertas de la subasta y recomienda
-// un ganador. En subasta inversa, la mejor oferta es la de MENOR monto, pero el
-// evaluador puede recomendar otra si la más baja no cumple requisitos.
+// Adjudicación por el COMPRADOR: tras cerrar la subasta, elige el proveedor
+// ganador (propone). Queda pendiente de la aprobación de la Autoridad.
+//
+// En subasta inversa la mejor oferta es la más baja; viene preseleccionada,
+// pero el comprador puede elegir otra si la más baja no corresponde.
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerProceso, registrarEvaluacion } from '../../api/comprasApi.js'
+import { obtenerProceso, adjudicarProceso } from '../../api/comprasApi.js'
 import { obtenerSubastaDeProceso } from '../../api/subastasApi.js'
 
-export function EvaluacionDetailPage() {
+export function AdjudicarPage() {
   const { id } = useParams()
   const { tenantId, usuario } = useAuth()
   const navigate = useNavigate()
 
   const [proceso, setProceso] = useState(null)
-  const [ofertas, setOfertas] = useState([]) // lances ordenados (menor primero)
+  const [ofertas, setOfertas] = useState([]) // ordenadas, menor primero
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
-  const [recomendado, setRecomendado] = useState('')
-  const [observaciones, setObservaciones] = useState('')
+  const [elegido, setElegido] = useState('') // proveedor elegido
   const [guardando, setGuardando] = useState(false)
 
   async function cargar() {
@@ -29,12 +30,9 @@ export function EvaluacionDetailPage() {
         obtenerSubastaDeProceso({ tenantId, procesoId: id }),
       ])
       setProceso(p)
-      // Subasta inversa: ordenamos de menor a mayor (la mejor oferta arriba).
       const ordenadas = [...s.lances].sort((a, b) => a.monto - b.monto)
       setOfertas(ordenadas)
-      // Por defecto, recomendamos la oferta más baja (si no hay evaluación previa).
-      setRecomendado(p.evaluacion?.recomendadoProveedor ?? ordenadas[0]?.proveedor ?? '')
-      setObservaciones(p.evaluacion?.observaciones ?? '')
+      setElegido(ordenadas[0]?.proveedor ?? '') // preselecciona la más baja
     } catch (err) {
       setError(err.message)
     } finally {
@@ -48,19 +46,20 @@ export function EvaluacionDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, id])
 
-  async function guardar(e) {
+  async function adjudicar(e) {
     e.preventDefault()
     setError('')
     setGuardando(true)
     try {
-      await registrarEvaluacion({
+      const oferta = ofertas.find((o) => o.proveedor === elegido)
+      await adjudicarProceso({
         tenantId,
         id,
-        evaluadorId: usuario.id,
-        recomendadoProveedor: recomendado,
-        observaciones,
+        compradorId: usuario.id,
+        proveedor: elegido,
+        monto: oferta?.monto ?? 0,
       })
-      navigate('/evaluaciones')
+      navigate('/compras')
     } catch (err) {
       setError(err.message)
       setGuardando(false)
@@ -70,15 +69,13 @@ export function EvaluacionDetailPage() {
   if (cargando) return <p className="estado-cargando">Cargando…</p>
   if (!proceso) return <div className="alerta alerta--error">{error}</div>
 
-  const yaEvaluado = Boolean(proceso.evaluacion)
-
   return (
     <section className="form-pagina">
       <div className="encabezado">
         <h1>
-          Evaluación · <code>{proceso.codigo}</code>
+          Adjudicar · <code>{proceso.codigo}</code>
         </h1>
-        <button className="btn btn--texto" onClick={() => navigate('/evaluaciones')}>
+        <button className="btn btn--texto" onClick={() => navigate('/compras')}>
           Volver
         </button>
       </div>
@@ -101,26 +98,17 @@ export function EvaluacionDetailPage() {
             <tr key={o.id}>
               <td>{o.proveedor}</td>
               <td>{formatearPesos(o.monto)}</td>
-              <td>
-                {i === 0 && <span className="badge badge--ok">Más baja</span>}
-              </td>
+              <td>{i === 0 && <span className="badge badge--ok">Más baja</span>}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <form className="form" onSubmit={guardar} style={{ marginTop: 20 }}>
-        <h2 className="form__titulo">
-          {yaEvaluado ? 'Evaluación registrada' : 'Registrar evaluación'}
-        </h2>
-
+      <form className="form" onSubmit={adjudicar} style={{ marginTop: 20 }}>
+        <h2 className="form__titulo">Adjudicar al proveedor</h2>
         <label className="campo">
-          <span>Proveedor recomendado</span>
-          <select
-            value={recomendado}
-            onChange={(e) => setRecomendado(e.target.value)}
-            disabled={yaEvaluado}
-          >
+          <span>Proveedor ganador</span>
+          <select value={elegido} onChange={(e) => setElegido(e.target.value)}>
             <option value="">Elegí un proveedor…</option>
             {ofertas.map((o) => (
               <option key={o.id} value={o.proveedor}>
@@ -130,30 +118,15 @@ export function EvaluacionDetailPage() {
           </select>
         </label>
 
-        <label className="campo">
-          <span>Observaciones</span>
-          <textarea
-            rows={3}
-            value={observaciones}
-            onChange={(e) => setObservaciones(e.target.value)}
-            disabled={yaEvaluado}
-            placeholder="Fundamentación de la recomendación…"
-          />
-        </label>
+        <div className="alerta alerta--info">
+          La adjudicación queda pendiente de aprobación de la Autoridad.
+        </div>
 
-        {!yaEvaluado && (
-          <div className="form__acciones">
-            <button type="submit" className="btn btn--primario" disabled={guardando}>
-              {guardando ? 'Guardando…' : 'Registrar evaluación'}
-            </button>
-          </div>
-        )}
-
-        {yaEvaluado && (
-          <div className="alerta alerta--info">
-            Evaluación registrada. Queda pendiente la adjudicación por parte del aprobador.
-          </div>
-        )}
+        <div className="form__acciones">
+          <button type="submit" className="btn btn--primario" disabled={guardando}>
+            {guardando ? 'Adjudicando…' : 'Adjudicar'}
+          </button>
+        </div>
       </form>
     </section>
   )

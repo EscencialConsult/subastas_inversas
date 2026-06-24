@@ -31,7 +31,7 @@ export function LoginPage() {
   return (
     <div className="login">
       <form className="login__caja" onSubmit={manejarSubmit}>
-        <h1 className="login__titulo">SICST MAX</h1>
+        <h1 className="login__titulo">SICST</h1>
         <p className="login__subtitulo">Ingresá a tu cuenta</p>
 
         {error && <div className="alerta alerta--error">{error}</div>}
@@ -73,8 +73,7 @@ export function LoginPage() {
             <li>admin@sicstmax.com — Super Admin</li>
             <li>laura.gomez@tucuman.gob.ar — Admin tenant</li>
             <li>diego.ruiz@tucuman.gob.ar — Comprador</li>
-            <li>roberto.diaz@tucuman.gob.ar — Aprobador</li>
-            <li>carla.nunez@tucuman.gob.ar — Evaluador</li>
+            <li>roberto.diaz@tucuman.gob.ar — Autoridad</li>
             <li>hugo.ramirez@tucuman.gob.ar — Auditor</li>
             <li>ventas@insumosnorte.com — Proveedor</li>
           </ul>

@@ -8,9 +8,10 @@ import {
   puedeGestionarTenants,
   esProveedor,
   puedeGestionarCompras,
-  puedeAprobarCompras,
-  puedeEvaluar,
-  puedeAuditar,
+  puedeAprobarAdjudicacion,
+  puedeSupervisar,
+  puedeVerProveedores,
+  tienePanel,
 } from './auth/permisos.js'
 import { Layout } from './components/Layout.jsx'
 import { LoginPage } from './features/auth/LoginPage.jsx'
@@ -18,16 +19,18 @@ import { UsuariosListPage } from './features/usuarios/UsuariosListPage.jsx'
 import { UsuarioFormPage } from './features/usuarios/UsuarioFormPage.jsx'
 import { TenantsListPage } from './features/tenants/TenantsListPage.jsx'
 import { TenantFormPage } from './features/tenants/TenantFormPage.jsx'
+import { EmpresaDetallePage } from './features/tenants/EmpresaDetallePage.jsx'
 import { PerfilPage } from './features/perfil/PerfilPage.jsx'
+import { PanelPage } from './features/dashboard/PanelPage.jsx'
 import { RegistroProveedorPage } from './features/proveedor/RegistroProveedorPage.jsx'
 import { ProveedorHomePage } from './features/proveedor/ProveedorHomePage.jsx'
 import { ProcesosListPage } from './features/compras/ProcesosListPage.jsx'
 import { ProcesoFormPage } from './features/compras/ProcesoFormPage.jsx'
-import { AprobacionesListPage } from './features/aprobaciones/AprobacionesListPage.jsx'
-import { AprobacionDetailPage } from './features/aprobaciones/AprobacionDetailPage.jsx'
+import { AdjudicarPage } from './features/compras/AdjudicarPage.jsx'
+import { ComprasRealizadasPage } from './features/compras/ComprasRealizadasPage.jsx'
+import { ProveedoresDirectorioPage } from './features/proveedor/ProveedoresDirectorioPage.jsx'
 import { SubastaPage } from './features/subasta/SubastaPage.jsx'
-import { EvaluacionesListPage } from './features/evaluaciones/EvaluacionesListPage.jsx'
-import { EvaluacionDetailPage } from './features/evaluaciones/EvaluacionDetailPage.jsx'
+import { SubastasRealizadasPage } from './features/subasta/SubastasRealizadasPage.jsx'
 import { AdjudicacionesListPage } from './features/adjudicaciones/AdjudicacionesListPage.jsx'
 import { AdjudicacionDetailPage } from './features/adjudicaciones/AdjudicacionDetailPage.jsx'
 import { AuditoriaListPage } from './features/auditoria/AuditoriaListPage.jsx'
@@ -52,6 +55,16 @@ export default function App() {
           >
             <Route index element={<Inicio />} />
 
+            {/* Panel de inicio (dashboard) para roles internos. */}
+            <Route
+              path="panel"
+              element={
+                <RutaProtegida permiso={tienePanel}>
+                  <PanelPage />
+                </RutaProtegida>
+              }
+            />
+
             {/* Mi perfil: lo ve cualquier usuario logueado (sin guard de rol). */}
             <Route path="perfil" element={<PerfilPage />} />
 
@@ -64,6 +77,7 @@ export default function App() {
               }
             />
 
+            {/* --- Compras (Comprador) --- */}
             <Route
               path="compras"
               element={
@@ -88,20 +102,20 @@ export default function App() {
                 </RutaProtegida>
               }
             />
-
             <Route
-              path="aprobaciones"
+              path="compras/:id/adjudicar"
               element={
-                <RutaProtegida permiso={puedeAprobarCompras}>
-                  <AprobacionesListPage />
+                <RutaProtegida permiso={puedeGestionarCompras}>
+                  <AdjudicarPage />
                 </RutaProtegida>
               }
             />
+
             <Route
-              path="aprobaciones/:id"
+              path="compras-realizadas"
               element={
-                <RutaProtegida permiso={puedeAprobarCompras}>
-                  <AprobacionDetailPage />
+                <RutaProtegida permiso={puedeGestionarCompras}>
+                  <ComprasRealizadasPage />
                 </RutaProtegida>
               }
             />
@@ -115,27 +129,21 @@ export default function App() {
               }
             />
 
+            {/* --- Directorio de proveedores (comprador / supervisión) --- */}
             <Route
-              path="evaluaciones"
+              path="proveedores"
               element={
-                <RutaProtegida permiso={puedeEvaluar}>
-                  <EvaluacionesListPage />
-                </RutaProtegida>
-              }
-            />
-            <Route
-              path="evaluaciones/:id"
-              element={
-                <RutaProtegida permiso={puedeEvaluar}>
-                  <EvaluacionDetailPage />
+                <RutaProtegida permiso={puedeVerProveedores}>
+                  <ProveedoresDirectorioPage />
                 </RutaProtegida>
               }
             />
 
+            {/* --- Aprobación de adjudicaciones (Autoridad) --- */}
             <Route
               path="adjudicaciones"
               element={
-                <RutaProtegida permiso={puedeAprobarCompras}>
+                <RutaProtegida permiso={puedeAprobarAdjudicacion}>
                   <AdjudicacionesListPage />
                 </RutaProtegida>
               }
@@ -143,16 +151,27 @@ export default function App() {
             <Route
               path="adjudicaciones/:id"
               element={
-                <RutaProtegida permiso={puedeAprobarCompras}>
+                <RutaProtegida permiso={puedeAprobarAdjudicacion}>
                   <AdjudicacionDetailPage />
                 </RutaProtegida>
               }
             />
 
+            {/* --- Subastas realizadas (supervisión) --- */}
+            <Route
+              path="subastas"
+              element={
+                <RutaProtegida permiso={puedeSupervisar}>
+                  <SubastasRealizadasPage />
+                </RutaProtegida>
+              }
+            />
+
+            {/* --- Auditoría (Auditor) --- */}
             <Route
               path="auditoria"
               element={
-                <RutaProtegida permiso={puedeAuditar}>
+                <RutaProtegida permiso={puedeSupervisar}>
                   <AuditoriaListPage />
                 </RutaProtegida>
               }
@@ -160,12 +179,13 @@ export default function App() {
             <Route
               path="auditoria/:id"
               element={
-                <RutaProtegida permiso={puedeAuditar}>
+                <RutaProtegida permiso={puedeSupervisar}>
                   <AuditoriaDetailPage />
                 </RutaProtegida>
               }
             />
 
+            {/* --- Empresas (Super-admin) --- */}
             <Route
               path="tenants"
               element={
@@ -190,7 +210,16 @@ export default function App() {
                 </RutaProtegida>
               }
             />
+            <Route
+              path="tenants/:id/detalle"
+              element={
+                <RutaProtegida permiso={puedeGestionarTenants}>
+                  <EmpresaDetallePage />
+                </RutaProtegida>
+              }
+            />
 
+            {/* --- Usuarios (Administrador de empresa) --- */}
             <Route
               path="usuarios"
               element={
@@ -224,24 +253,9 @@ export default function App() {
   )
 }
 
-// Pantalla de inicio: manda a cada rol a su sección principal.
+// Pantalla de inicio: el proveedor va a su cuenta; el resto, al panel.
 function Inicio() {
-  const { rol, usuario } = useAuth()
-
-  if (puedeGestionarTenants(rol)) return <Navigate to="/tenants" replace />
+  const { rol } = useAuth()
   if (esProveedor(rol)) return <Navigate to="/proveedor" replace />
-  if (puedeGestionarUsuarios(rol)) return <Navigate to="/usuarios" replace />
-  if (puedeGestionarCompras(rol)) return <Navigate to="/compras" replace />
-  if (puedeAprobarCompras(rol)) return <Navigate to="/aprobaciones" replace />
-  if (puedeEvaluar(rol)) return <Navigate to="/evaluaciones" replace />
-  if (puedeAuditar(rol)) return <Navigate to="/auditoria" replace />
-
-  // Roles cuyo módulo todavía no está construido (comprador, evaluador, etc.):
-  // en vez de mandarlos a una pantalla sin acceso, les damos una bienvenida.
-  return (
-    <div className="estado-vacio">
-      <h2>Hola, {usuario.nombre}</h2>
-      <p>Tu sección estará disponible próximamente.</p>
-    </div>
-  )
+  return <Navigate to="/panel" replace />
 }

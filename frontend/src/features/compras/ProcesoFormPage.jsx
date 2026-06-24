@@ -11,9 +11,9 @@ import {
   obtenerProceso,
   crearProceso,
   actualizarProceso,
-  enviarAAprobacion,
-  volverABorrador,
+  publicarProceso,
 } from '../../api/comprasApi.js'
+import { obtenerSubastaDeProceso, analisisSubasta } from '../../api/subastasApi.js'
 import {
   ESTADO_PROCESO,
   esEditable,
@@ -31,6 +31,7 @@ export function ProcesoFormPage() {
 
   const [datos, setDatos] = useState(VACIO)
   const [proceso, setProceso] = useState(null) // el registro completo, en edición/vista
+  const [subasta, setSubasta] = useState(null) // si el proceso llegó a subasta
   const [cargando, setCargando] = useState(!esNuevo)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
@@ -45,6 +46,10 @@ export function ProcesoFormPage() {
           descripcion: p.descripcion,
           presupuestoEstimado: String(p.presupuestoEstimado || ''),
         })
+        // La subasta es opcional: si el proceso no llegó a esa etapa, no existe.
+        return obtenerSubastaDeProceso({ tenantId, procesoId: id })
+          .then(setSubasta)
+          .catch(() => setSubasta(null))
       })
       .catch((err) => setError(err.message))
       .finally(() => setCargando(false))
@@ -75,28 +80,14 @@ export function ProcesoFormPage() {
     }
   }
 
-  async function enviar() {
+  async function publicar() {
     setError('')
     setGuardando(true)
     try {
-      await enviarAAprobacion({ tenantId, id })
+      await publicarProceso({ tenantId, id })
       navigate('/compras')
     } catch (err) {
       setError(err.message)
-      setGuardando(false)
-    }
-  }
-
-  // Rechazado -> vuelve a borrador y queda editable en la misma pantalla.
-  async function corregir() {
-    setError('')
-    setGuardando(true)
-    try {
-      const actualizado = await volverABorrador({ tenantId, id })
-      setProceso(actualizado)
-    } catch (err) {
-      setError(err.message)
-    } finally {
       setGuardando(false)
     }
   }
@@ -124,29 +115,21 @@ export function ProcesoFormPage() {
 
       {!editable && !esNuevo && (
         <div className="alerta alerta--info">
-          Este proceso ya está en el circuito de aprobación, por eso no se puede editar.
+          Este proceso ya fue publicado, por eso no se puede editar.
         </div>
       )}
 
-      {proceso?.estado === ESTADO_PROCESO.ADJUDICADO && proceso.adjudicacion && (
+      {proceso?.adjudicacion && (
         <div className="alerta alerta--ok">
-          Adjudicado a {proceso.adjudicacion.proveedor} el {proceso.adjudicacion.fecha}.
+          {proceso.estado === ESTADO_PROCESO.APROBADA
+            ? `Adjudicado y aprobado: ${proceso.adjudicacion.proveedor} (${proceso.adjudicacion.fecha}).`
+            : `Adjudicado a ${proceso.adjudicacion.proveedor}, pendiente de aprobación de la Autoridad.`}
         </div>
       )}
 
-      {proceso?.estado === ESTADO_PROCESO.RECHAZADO && (
+      {proceso?.aprobacion?.estado === 'rechazada' && (
         <div className="alerta alerta--error">
-          {proceso.motivoRechazo && (
-            <p>Rechazado por el aprobador. Motivo: {proceso.motivoRechazo}</p>
-          )}
-          <button
-            className="btn btn--primario"
-            onClick={corregir}
-            disabled={guardando}
-            style={{ marginTop: 8 }}
-          >
-            Corregir y reenviar
-          </button>
+          La Autoridad rechazó la adjudicación. Motivo: {proceso.aprobacion.motivo}
         </div>
       )}
 
@@ -204,19 +187,66 @@ export function ProcesoFormPage() {
               {guardando ? 'Guardando…' : 'Guardar'}
             </button>
           )}
-          {/* En edición de un borrador ya guardado, ofrecemos enviarlo a aprobación. */}
+          {/* En un borrador ya guardado, ofrecemos publicarlo. */}
           {!esNuevo && editable && (
             <button
               type="button"
               className="btn btn--primario"
-              onClick={enviar}
+              onClick={publicar}
               disabled={guardando}
             >
-              Enviar a aprobación
+              Publicar
             </button>
           )}
         </div>
       </form>
+
+      {/* Resumen de la subasta (si el proceso ya pasó por ella). */}
+      {subasta && <ResumenSubasta subasta={subasta} />}
     </section>
   )
+}
+
+// Muestra cómo resultó la subasta del proceso: análisis + lances.
+function ResumenSubasta({ subasta }) {
+  const a = analisisSubasta(subasta)
+  const lances = [...subasta.lances].sort((x, y) => x.monto - y.monto)
+  return (
+    <div className="form">
+      <h2 className="form__titulo">Resultado de la subasta</h2>
+      <div className="perfil__solo-lectura">
+        <span>Proveedores que ofertaron: {a.oferentes}</span>
+        <span>Lances totales: {a.cantidadLances}</span>
+        <span>Presupuesto base: {formatearPesos(a.base)}</span>
+        <span>Mejor oferta: {formatearPesos(a.mejor)}</span>
+        <span>Baja lograda: {a.bajaPorcentaje.toFixed(1)}%</span>
+      </div>
+
+      <h3 className="form__subtitulo">Lances ({lances.length})</h3>
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>Proveedor</th>
+            <th>Monto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lances.map((l) => (
+            <tr key={l.id}>
+              <td>{l.proveedor}</td>
+              <td>{formatearPesos(l.monto)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function formatearPesos(monto) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(monto)
 }

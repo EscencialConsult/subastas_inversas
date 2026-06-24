@@ -47,6 +47,32 @@ export function registrarProveedor({ datos }) {
   })
 }
 
+// Directorio de la red de proveedores. Los proveedores son GLOBALES (red
+// compartida): no se filtran por empresa. Lo usan el comprador (para invitarlos)
+// y la supervisión.
+export function listarProveedores({ busqueda = '', estado = '' } = {}) {
+  return simularRed(() => {
+    let filas = proveedores.map((p) => ({
+      id: p.id,
+      razonSocial: p.razonSocial,
+      cuit: p.cuit,
+      estado: p.estado,
+      provincia: p.provincia ?? '—',
+      rubro: p.rubro ?? '—',
+    }))
+    if (busqueda.trim()) {
+      const q = busqueda.trim().toLowerCase()
+      filas = filas.filter((p) =>
+        `${p.razonSocial} ${p.cuit} ${p.rubro} ${p.provincia}`
+          .toLowerCase()
+          .includes(q),
+      )
+    }
+    if (estado) filas = filas.filter((p) => p.estado === estado)
+    return filas
+  })
+}
+
 export function obtenerProveedorDeUsuario({ usuarioId }) {
   return simularRed(() => {
     const proveedor = proveedores.find((p) => p.usuarioId === usuarioId)

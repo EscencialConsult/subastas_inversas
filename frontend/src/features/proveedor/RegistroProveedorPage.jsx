@@ -39,7 +39,7 @@ export function RegistroProveedorPage() {
   return (
     <div className="login">
       <form className="login__caja" onSubmit={manejarSubmit}>
-        <h1 className="login__titulo">SICST MAX</h1>
+        <h1 className="login__titulo">SICST</h1>
         <p className="login__subtitulo">Registro de proveedor</p>
 
         {error && <div className="alerta alerta--error">{error}</div>}

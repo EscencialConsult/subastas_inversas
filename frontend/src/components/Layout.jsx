@@ -7,9 +7,10 @@ import {
   puedeGestionarTenants,
   esProveedor,
   puedeGestionarCompras,
-  puedeAprobarCompras,
-  puedeEvaluar,
-  puedeAuditar,
+  puedeAprobarAdjudicacion,
+  puedeSupervisar,
+  puedeVerProveedores,
+  tienePanel,
 } from '../auth/permisos.js'
 import { etiquetaRol } from '../domain/roles.js'
 
@@ -18,6 +19,11 @@ export function Layout() {
 
   // El menú se arma según el rol: un Auditor no ve "Usuarios", etc.
   const items = [
+    {
+      to: '/panel',
+      texto: 'Panel',
+      visible: tienePanel(rol),
+    },
     {
       to: '/usuarios',
       texto: 'Usuarios',
@@ -34,24 +40,29 @@ export function Layout() {
       visible: puedeGestionarCompras(rol),
     },
     {
-      to: '/aprobaciones',
-      texto: 'Aprobaciones',
-      visible: puedeAprobarCompras(rol),
+      to: '/compras-realizadas',
+      texto: 'Compras realizadas',
+      visible: puedeGestionarCompras(rol),
+    },
+    {
+      to: '/proveedores',
+      texto: 'Proveedores',
+      visible: puedeVerProveedores(rol),
     },
     {
       to: '/adjudicaciones',
       texto: 'Adjudicaciones',
-      visible: puedeAprobarCompras(rol),
+      visible: puedeAprobarAdjudicacion(rol),
     },
     {
-      to: '/evaluaciones',
-      texto: 'Evaluaciones',
-      visible: puedeEvaluar(rol),
+      to: '/subastas',
+      texto: 'Subastas',
+      visible: puedeSupervisar(rol),
     },
     {
       to: '/auditoria',
       texto: 'Auditoría',
-      visible: puedeAuditar(rol),
+      visible: puedeSupervisar(rol),
     },
     {
       to: '/proveedor',
@@ -65,7 +76,7 @@ export function Layout() {
       <header className="layout__header">
         <div className="layout__marca">
           {/* El nombre/logo del tenant es DATO (configuración), no código. */}
-          <span className="layout__logo">SICST MAX</span>
+          <span className="layout__logo">SICST</span>
           {tenant && <span className="layout__tenant">· {tenant.nombre}</span>}
         </div>
         <div className="layout__usuario">

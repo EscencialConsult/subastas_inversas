@@ -10,7 +10,7 @@ import {
   crearUsuario,
   actualizarUsuario,
 } from '../../api/usersApi.js'
-import { ROLE_INFO, ROLES_ASIGNABLES_POR_TENANT } from '../../domain/roles.js'
+import { ROLE_INFO, ROLES_ASIGNABLES_POR_EMPRESA } from '../../domain/roles.js'
 
 const VACIO = { nombre: '', apellido: '', email: '', rol: '', activo: true }
 
@@ -106,7 +106,7 @@ export function UsuarioFormPage() {
             onChange={(e) => actualizarCampo('rol', e.target.value)}
           >
             <option value="">Elegí un rol…</option>
-            {ROLES_ASIGNABLES_POR_TENANT.map((clave) => (
+            {ROLES_ASIGNABLES_POR_EMPRESA.map((clave) => (
               <option key={clave} value={clave}>
                 {ROLE_INFO[clave].label}
               </option>
