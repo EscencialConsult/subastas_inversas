@@ -1,4 +1,5 @@
 import { apiFetch, ApiError } from './client.js'
+import { listarProcesos } from './comprasApi.js'
 
 const DURACION_MIN = 10
 
@@ -17,9 +18,10 @@ export async function iniciarSubasta({ tenantId, procesoId }) {
 
 export async function cerrarSubasta({ tenantId, procesoId }) {
   const subasta = await obtenerSubastaDeProceso({ tenantId, procesoId })
-  return apiFetch(`/api/companies/${tenantId}/auctions/${subasta.id}/close`, {
+  await apiFetch(`/api/companies/${tenantId}/auctions/${subasta.id}/close`, {
     method: 'POST',
   })
+  return subasta
 }
 
 export async function obtenerSubastaDeProceso({ tenantId, procesoId }) {
@@ -48,9 +50,59 @@ export async function simularLance({ tenantId, procesoId }) {
   return obtenerSubastaDeProceso({ tenantId, procesoId })
 }
 
+export async function listarSubastasRealizadas({ tenantId, busqueda = '', estado = '' }) {
+  const procesos = await listarProcesos({ tenantId, busqueda, estado })
+  const filas = []
+
+  for (const proceso of procesos) {
+    try {
+      const subasta = await obtenerSubastaDeProceso({ tenantId, procesoId: proceso.id })
+      const a = analisisSubasta(subasta)
+      filas.push({
+        procesoId: proceso.id,
+        codigo: proceso.codigo,
+        titulo: proceso.titulo,
+        estadoProceso: proceso.estado,
+        oferentes: a.oferentes,
+        base: a.base,
+        mejor: a.mejor,
+        bajaPorcentaje: a.bajaPorcentaje,
+        nivelBaja: a.nivelBaja,
+        proveedorAdjudicado: proceso.adjudicacion?.proveedor ?? null,
+      })
+    } catch (error) {
+      if (error.status !== 404) throw error
+    }
+  }
+
+  return filas
+}
+
 export function mejorOferta(subasta) {
   if (!subasta.lances.length) return subasta.precioBase
   return Math.min(...subasta.lances.map((l) => l.monto))
+}
+
+export function analisisSubasta(subasta) {
+  const oferentes = new Set(subasta.lances.map((l) => l.proveedor)).size
+  const mejor = mejorOferta(subasta)
+  const base = subasta.precioBase || 0
+  const bajaPorcentaje = base > 0 ? ((base - mejor) / base) * 100 : 0
+
+  return {
+    oferentes,
+    cantidadLances: subasta.lances.length,
+    base,
+    mejor,
+    bajaPorcentaje,
+    nivelBaja: nivelDeBaja(bajaPorcentaje),
+  }
+}
+
+function nivelDeBaja(porcentaje) {
+  if (porcentaje >= 15) return 'alta'
+  if (porcentaje >= 5) return 'moderada'
+  return 'baja'
 }
 
 function mapSubasta(auction) {

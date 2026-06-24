@@ -5,9 +5,11 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using SICST.Api.Auth;
 using SICST.Api.Hubs;
+using SICST.Api.Middlewares;
 using SICST.Api.Tenancy;
 using SICST.Application;
 using SICST.Application.Common.Security;
+using SICST.Application.Common.Interfaces;
 using SICST.Application.Common.Interfaces;
 using SICST.Infrastructure;
 using SICST.Persistence;
@@ -17,6 +19,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<ICurrentTenant, CurrentTenant>();
 
@@ -112,7 +115,9 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowAll"); // Must be called before UseRouting/UseEndpoints/UseAuthentication/UseAuthorization
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
+app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseMiddleware<TenantResolutionMiddleware>();
 
 app.UseAuthentication(); // Must be called before UseAuthorization()

@@ -11,5 +11,6 @@ public class AuthResponseDto
     public string LastName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public Guid? CompanyId { get; set; }
+    public string? CompanyName { get; set; }
     public string RefreshToken { get; set; } = string.Empty;
 }

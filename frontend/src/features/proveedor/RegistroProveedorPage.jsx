@@ -4,17 +4,9 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { registrarProveedor } from '../../api/proveedoresApi.js'
-import { useAuth } from '../../auth/useAuth.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 
-const VACIO = {
-  razonSocial: '',
-  cuit: '',
-  email: '',
-  provincia: '',
-  localidad: '',
-  password: '',
-  repetir: '',
-}
+const VACIO = { razonSocial: '', cuit: '', email: '', password: '', repetir: '' }
 
 export function RegistroProveedorPage() {
   const navigate = useNavigate()
@@ -47,7 +39,7 @@ export function RegistroProveedorPage() {
   return (
     <div className="login">
       <form className="login__caja" onSubmit={manejarSubmit}>
-        <h1 className="login__titulo">SICST MAX</h1>
+        <h1 className="login__titulo">SICST</h1>
         <p className="login__subtitulo">Registro de proveedor</p>
 
         {error && <div className="alerta alerta--error">{error}</div>}
@@ -78,24 +70,6 @@ export function RegistroProveedorPage() {
             onChange={(e) => actualizar('email', e.target.value)}
             placeholder="ventas@empresa.com"
             autoComplete="username"
-          />
-        </label>
-
-        <label className="campo">
-          <span>Provincia</span>
-          <input
-            value={datos.provincia}
-            onChange={(e) => actualizar('provincia', e.target.value)}
-            placeholder="Tucuman"
-          />
-        </label>
-
-        <label className="campo">
-          <span>Localidad</span>
-          <input
-            value={datos.localidad}
-            onChange={(e) => actualizar('localidad', e.target.value)}
-            placeholder="San Miguel de Tucuman"
           />
         </label>
 

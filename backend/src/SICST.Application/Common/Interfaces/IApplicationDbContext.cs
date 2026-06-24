@@ -21,6 +21,15 @@ public interface IApplicationDbContext
     DbSet<Auction> Auctions { get; }
     DbSet<AuctionParticipant> AuctionParticipants { get; }
     DbSet<Bid> Bids { get; }
+    DbSet<Evaluation> Evaluations { get; }
+    DbSet<Award> Awards { get; }
+    DbSet<AwardItem> AwardItems { get; }
+    DbSet<Approval> Approvals { get; }
+    DbSet<Contract> Contracts { get; }
+    DbSet<PurchaseOrder> PurchaseOrders { get; }
+    DbSet<ReceptionConfirmation> ReceptionConfirmations { get; }
+    DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems { get; }
+    DbSet<AuditEvent> AuditEvents { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

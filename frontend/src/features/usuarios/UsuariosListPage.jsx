@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/useAuth.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import { listarUsuarios, cambiarEstadoUsuario } from '../../api/usersApi.js'
 import { ROLE_INFO, etiquetaRol } from '../../domain/roles.js'
 

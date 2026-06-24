@@ -40,7 +40,7 @@ public class CloseAuctionCommandHandler : IRequestHandler<CloseAuctionCommand, A
         auction.ClosedAtUtc = DateTime.UtcNow;
 
         var process = await _context.PurchaseProcesses.FirstAsync(p => p.Id == auction.PurchaseProcessId, cancellationToken);
-        process.Status = PurchaseProcessStatus.Closed;
+        process.Status = PurchaseProcessStatus.Evaluation;
         process.ClosedAtUtc = auction.ClosedAtUtc;
 
         await _context.SaveChangesAsync(cancellationToken);

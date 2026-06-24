@@ -33,7 +33,7 @@ public class PublishPurchaseProcessCommandHandler : IRequestHandler<PublishPurch
             throw new InvalidOperationException("Solo se puede publicar un proceso en borrador.");
         }
 
-        process.Status = PurchaseProcessStatus.Published;
+        process.Status = PurchaseProcessStatus.Approved;
         process.PublishedAtUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 

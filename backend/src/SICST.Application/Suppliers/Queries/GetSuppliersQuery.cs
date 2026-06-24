@@ -1,13 +1,14 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Common.Models;
 using SICST.Application.Suppliers.DTOs;
 
 namespace SICST.Application.Suppliers.Queries;
 
-public record GetSuppliersQuery : IRequest<List<SupplierDto>>;
+public record GetSuppliersQuery(int PageNumber = 1, int PageSize = 10) : IRequest<PagedResult<SupplierDto>>;
 
-public class GetSuppliersQueryHandler : IRequestHandler<GetSuppliersQuery, List<SupplierDto>>
+public class GetSuppliersQueryHandler : IRequestHandler<GetSuppliersQuery, PagedResult<SupplierDto>>
 {
     private readonly IApplicationDbContext _context;
 
@@ -16,10 +17,16 @@ public class GetSuppliersQueryHandler : IRequestHandler<GetSuppliersQuery, List<
         _context = context;
     }
 
-    public async Task<List<SupplierDto>> Handle(GetSuppliersQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<SupplierDto>> Handle(GetSuppliersQuery request, CancellationToken cancellationToken)
     {
-        return await _context.Suppliers
+        var query = _context.Suppliers.AsQueryable();
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
             .OrderBy(s => s.BusinessName)
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
             .Select(s => new SupplierDto
             {
                 Id = s.Id,
@@ -33,5 +40,7 @@ public class GetSuppliersQueryHandler : IRequestHandler<GetSuppliersQuery, List<
                 ArcaVerified = s.ArcaVerified
             })
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<SupplierDto>(items, totalCount, request.PageNumber, request.PageSize);
     }
 }

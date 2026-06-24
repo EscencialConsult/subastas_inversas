@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/useAuth.js'
-import { listarProcesos, enviarAAprobacion } from '../../api/comprasApi.js'
-import { ApiError } from '../../api/client.js'
-import { iniciarSubasta, obtenerSubastaDeProceso } from '../../api/subastasApi.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { listarProcesos, publicarProceso } from '../../api/comprasApi.js'
+import { iniciarSubasta } from '../../api/subastasApi.js'
 import {
   ESTADO_PROCESO,
   ESTADO_INFO,
@@ -44,9 +43,9 @@ export function ProcesosListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, busqueda, estado])
 
-  async function enviar(proceso) {
+  async function publicar(proceso) {
     try {
-      await enviarAAprobacion({ tenantId, id: proceso.id })
+      await publicarProceso({ tenantId, id: proceso.id })
       cargar()
     } catch (err) {
       setError(err.message)
@@ -55,14 +54,7 @@ export function ProcesosListPage() {
 
   async function iniciar(proceso) {
     try {
-      try {
-        await obtenerSubastaDeProceso({ tenantId, procesoId: proceso.id })
-      } catch (err) {
-        if (!(err instanceof ApiError) || err.status !== 404) {
-          throw err
-        }
-        await iniciarSubasta({ tenantId, procesoId: proceso.id })
-      }
+      await iniciarSubasta({ tenantId, procesoId: proceso.id })
       navigate(`/subasta/${proceso.id}`)
     } catch (err) {
       setError(err.message)
@@ -135,13 +127,13 @@ export function ProcesosListPage() {
                     {esEditable(p.estado) ? 'Editar' : 'Ver'}
                   </button>
                   {esEditable(p.estado) && (
-                    <button className="btn btn--texto" onClick={() => enviar(p)}>
-                      Enviar a aprobación
+                    <button className="btn btn--texto" onClick={() => publicar(p)}>
+                      Publicar
                     </button>
                   )}
-                  {p.estado === ESTADO_PROCESO.APROBADO && (
-                    <button className="btn btn--primario" onClick={() => iniciar(p)}>
-                      Abrir subasta
+                  {p.estado === ESTADO_PROCESO.PUBLICADO && (
+                    <button className="btn btn--texto" onClick={() => iniciar(p)}>
+                      Iniciar subasta
                     </button>
                   )}
                   {p.estado === ESTADO_PROCESO.EN_SUBASTA && (
@@ -150,6 +142,14 @@ export function ProcesosListPage() {
                       onClick={() => navigate(`/subasta/${p.id}`)}
                     >
                       Ver subasta
+                    </button>
+                  )}
+                  {p.estado === ESTADO_PROCESO.CERRADA && (
+                    <button
+                      className="btn btn--texto"
+                      onClick={() => navigate(`/compras/${p.id}/adjudicar`)}
+                    >
+                      Adjudicar
                     </button>
                   )}
                 </td>

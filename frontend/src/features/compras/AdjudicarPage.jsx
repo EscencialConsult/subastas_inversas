@@ -1,0 +1,141 @@
+// Adjudicación por el COMPRADOR: tras cerrar la subasta, elige el proveedor
+// ganador (propone). Queda pendiente de la aprobación de la Autoridad.
+//
+// En subasta inversa la mejor oferta es la más baja; viene preseleccionada,
+// pero el comprador puede elegir otra si la más baja no corresponde.
+
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { obtenerProceso, adjudicarProceso } from '../../api/comprasApi.js'
+import { obtenerSubastaDeProceso } from '../../api/subastasApi.js'
+
+export function AdjudicarPage() {
+  const { id } = useParams()
+  const { tenantId, usuario } = useAuth()
+  const navigate = useNavigate()
+
+  const [proceso, setProceso] = useState(null)
+  const [ofertas, setOfertas] = useState([]) // ordenadas, menor primero
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
+
+  const [elegido, setElegido] = useState('') // proveedor elegido
+  const [guardando, setGuardando] = useState(false)
+
+  async function cargar() {
+    try {
+      const [p, s] = await Promise.all([
+        obtenerProceso({ tenantId, id }),
+        obtenerSubastaDeProceso({ tenantId, procesoId: id }),
+      ])
+      setProceso(p)
+      const ordenadas = [...s.lances].sort((a, b) => a.monto - b.monto)
+      setOfertas(ordenadas)
+      setElegido(ordenadas[0]?.proveedor ?? '') // preselecciona la más baja
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCargando(false)
+    }
+  }
+
+  useEffect(() => {
+    const t = setTimeout(cargar, 0)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, id])
+
+  async function adjudicar(e) {
+    e.preventDefault()
+    setError('')
+    setGuardando(true)
+    try {
+      const oferta = ofertas.find((o) => o.proveedor === elegido)
+      await adjudicarProceso({
+        tenantId,
+        id,
+        compradorId: usuario.id,
+        proveedor: elegido,
+        monto: oferta?.monto ?? 0,
+      })
+      navigate('/compras')
+    } catch (err) {
+      setError(err.message)
+      setGuardando(false)
+    }
+  }
+
+  if (cargando) return <p className="estado-cargando">Cargando…</p>
+  if (!proceso) return <div className="alerta alerta--error">{error}</div>
+
+  return (
+    <section className="form-pagina">
+      <div className="encabezado">
+        <h1>
+          Adjudicar · <code>{proceso.codigo}</code>
+        </h1>
+        <button className="btn btn--texto" onClick={() => navigate('/compras')}>
+          Volver
+        </button>
+      </div>
+
+      {error && <div className="alerta alerta--error">{error}</div>}
+
+      <p className="proceso__descripcion">{proceso.titulo}</p>
+
+      <h2 className="form__titulo">Ofertas recibidas</h2>
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>Proveedor</th>
+            <th>Monto</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {ofertas.map((o, i) => (
+            <tr key={o.id}>
+              <td>{o.proveedor}</td>
+              <td>{formatearPesos(o.monto)}</td>
+              <td>{i === 0 && <span className="badge badge--ok">Más baja</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <form className="form" onSubmit={adjudicar} style={{ marginTop: 20 }}>
+        <h2 className="form__titulo">Adjudicar al proveedor</h2>
+        <label className="campo">
+          <span>Proveedor ganador</span>
+          <select value={elegido} onChange={(e) => setElegido(e.target.value)}>
+            <option value="">Elegí un proveedor…</option>
+            {ofertas.map((o) => (
+              <option key={o.id} value={o.proveedor}>
+                {o.proveedor} — {formatearPesos(o.monto)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="alerta alerta--info">
+          La adjudicación queda pendiente de aprobación de la Autoridad.
+        </div>
+
+        <div className="form__acciones">
+          <button type="submit" className="btn btn--primario" disabled={guardando}>
+            {guardando ? 'Adjudicando…' : 'Adjudicar'}
+          </button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
+function formatearPesos(monto) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(monto)
+}

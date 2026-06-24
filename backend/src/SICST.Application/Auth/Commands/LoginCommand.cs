@@ -45,6 +45,14 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponseDto
             throw new UnauthorizedAccessException("Invalid email or password.");
         }
 
+        string? companyName = null;
+        if (user.CompanyId.HasValue)
+        {
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.Id == user.CompanyId.Value, cancellationToken);
+            companyName = company?.Name;
+        }
+
         var token = _jwtProvider.Generate(user);
 
         return new AuthResponseDto
@@ -56,6 +64,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponseDto
             LastName = user.LastName,
             Role = user.Role.ToString(),
             CompanyId = user.CompanyId,
+            CompanyName = companyName,
             RefreshToken = token
         };
     }

@@ -19,8 +19,8 @@ export async function registrarProveedor({ datos }) {
       cuit: datos.cuit.trim(),
       email: datos.email.trim(),
       password: datos.password,
-      province: datos.provincia.trim(),
-      locality: datos.localidad.trim(),
+      province: datos.provincia?.trim() || 'Sin informar',
+      locality: datos.localidad?.trim() || 'Sin informar',
     }),
   })
 }
@@ -41,9 +41,10 @@ export async function obtenerProveedorDeUsuario({ usuarioId }) {
   }
 }
 
-export async function listarProveedores() {
+export async function listarProveedores({ busqueda = '', estado = '' } = {}) {
   const data = await apiFetch('/api/suppliers')
-  return data.map((proveedor) => ({
+  const items = Array.isArray(data) ? data : (data.items ?? [])
+  let resultado = items.map((proveedor) => ({
     id: proveedor.id,
     usuarioId: proveedor.userId,
     razonSocial: proveedor.businessName,
@@ -52,8 +53,21 @@ export async function listarProveedores() {
     provincia: proveedor.province,
     localidad: proveedor.locality,
     estado: ESTADOS[proveedor.status] ?? 'pendiente',
+    rubro: proveedor.rubro ?? '---',
     arcaVerificado: proveedor.arcaVerified,
   }))
+
+  if (busqueda.trim()) {
+    const q = busqueda.trim().toLowerCase()
+    resultado = resultado.filter((p) =>
+      `${p.razonSocial} ${p.cuit} ${p.email} ${p.provincia} ${p.localidad}`
+        .toLowerCase()
+        .includes(q),
+    )
+  }
+  if (estado) resultado = resultado.filter((p) => p.estado === estado)
+
+  return resultado
 }
 
 export async function listarInvitacionesDeProveedor({ proveedorId }) {
@@ -116,11 +130,11 @@ function mapSubastaProveedor(data) {
 }
 
 function formatearHace(fechaIso) {
-  const diff = Math.max(0, Date.now() - new Date(fechaIso).getTime())
-  const minutes = Math.floor(diff / 60000)
-  if (minutes === 0) return 'recien'
-  if (minutes === 1) return '1 min'
-  return `${minutes} min`
+  if (!fechaIso) return '—'
+  return new Intl.DateTimeFormat('es-AR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(fechaIso))
 }
 
 function validar(datos) {
@@ -135,8 +149,6 @@ function validar(datos) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.email.trim())) {
     throw new ApiError('El email no tiene un formato valido.', 422)
   }
-  if (!datos.provincia?.trim()) throw new ApiError('La provincia es obligatoria.', 422)
-  if (!datos.localidad?.trim()) throw new ApiError('La localidad es obligatoria.', 422)
   if (!datos.password || datos.password.length < 6) {
     throw new ApiError('La contrasena debe tener al menos 6 caracteres.', 422)
   }

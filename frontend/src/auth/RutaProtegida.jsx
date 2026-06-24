@@ -4,7 +4,7 @@
 // Si hay sesión pero no tiene permiso -> muestra "sin acceso".
 
 import { Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from './useAuth.js'
+import { useAuth } from './AuthContext.jsx'
 
 export function RutaProtegida({ children, permiso }) {
   const { estaAutenticado, rol } = useAuth()

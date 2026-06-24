@@ -656,13 +656,6 @@ Comando:
 ```powershell
 dotnet test backend\SICST.slnx
 ```
-
-Estado actual:
-
-```text
-25 tests OK
-```
-
 Advertencia conocida:
 
 - El proyecto de tests muestra un warning por versiones mezcladas de Entity Framework Core (`10.0.4` y `10.0.9`). No rompe la ejecucion, pero conviene alinear versiones.
@@ -704,4 +697,268 @@ Prioridad proxima:
 7. Completar UI/backend de items e invitaciones de proveedores.
 8. Reemplazar `InMemoryAuctionStateCache` por Redis real.
 9. Conectar el frontend a SignalR para actualizar lances sin polling.
-10. Empezar Sprint 7: adjudicacion.
+10. Completar permisos especificos para contratacion y recepcion si se separan roles operativos.
+
+## Sprint 8 - Contratos
+
+Estado: implementado base.
+
+### Entidad Contract
+
+Representa el contrato generado a partir de una adjudicacion.
+
+Campos principales:
+
+- `Id`
+- `CompanyId`
+- `PurchaseProcessId`
+- `AwardId`
+- `SupplierId`
+- `Number`
+- `Amount`
+- `StartDateUtc`
+- `EndDateUtc`
+- `Status`
+- `Terms`
+- `DocumentPath`
+- `CreatedAtUtc`
+- `SignedAtUtc`
+
+Estados:
+
+- `Draft`
+- `Active`
+- `Completed`
+- `Cancelled`
+
+### Entidad PurchaseOrder
+
+Representa la orden de compra emitida desde un contrato activo.
+
+Campos principales:
+
+- `Id`
+- `CompanyId`
+- `PurchaseProcessId`
+- `ContractId`
+- `SupplierId`
+- `Number`
+- `Amount`
+- `Status`
+- `IssuedAtUtc`
+- `ExpectedDeliveryDateUtc`
+- `Observations`
+- `DocumentPath`
+
+Estados:
+
+- `Issued`
+- `PartiallyReceived`
+- `Received`
+- `Cancelled`
+
+### Entidad ReceptionConfirmation
+
+Representa una confirmacion de recepcion de una orden de compra.
+
+La recepcion permite entregas parciales mediante `ReceptionConfirmationItem`, que registra cantidades recibidas por item del proceso.
+
+Campos principales:
+
+- `Id`
+- `PurchaseOrderId`
+- `ReceivedById`
+- `Status`
+- `ReceivedAtUtc`
+- `Observations`
+- `DocumentPath`
+- `Items`
+
+Estados:
+
+- `Accepted`
+- `AcceptedWithObservations`
+- `Rejected`
+
+### Endpoints de contratacion
+
+Base path:
+
+```http
+/api/companies/{companyId}
+```
+
+Endpoints:
+
+- `POST /api/companies/{companyId}/purchase-processes/{id}/contract`
+- `POST /api/companies/{companyId}/contracts/{contractId}/purchase-order`
+- `POST /api/companies/{companyId}/purchase-orders/{purchaseOrderId}/receptions`
+- `GET /api/companies/{companyId}/contracts/{contractId}/pdf`
+- `GET /api/companies/{companyId}/purchase-orders/{purchaseOrderId}/pdf`
+- `GET /api/companies/{companyId}/receptions/{receptionId}/pdf`
+
+Reglas actuales:
+
+- Solo se puede generar contrato para procesos `Adjudicated`.
+- No se puede generar mas de un contrato por adjudicacion.
+- La orden de compra se emite solo desde contratos `Active`.
+- No se puede emitir mas de una orden por contrato.
+- Las recepciones pueden ser parciales y acumulan cantidades por item.
+- No se permite recibir mas cantidad que la solicitada en el proceso.
+- Cuando todos los items quedan recibidos, la orden pasa a `Received` y el proceso a `Received`.
+
+## Sprint 9 - Auditoria
+
+Estado: implementado base.
+
+### Entidad AuditEvent
+
+Ubicacion: `SICST.Domain/Entities/AuditEvent.cs`
+
+Representa un evento global de auditoria generado automaticamente al persistir cambios sobre entidades del sistema.
+
+Campos:
+
+- `Id`
+- `Sequence`
+- `CompanyId`
+- `EntityName`
+- `EntityId`
+- `Action`
+- `Payload`
+- `CreatedAtUtc`
+- `PreviousHash`
+- `Hash`
+
+Acciones:
+
+- `Created`
+- `Updated`
+- `Deleted`
+
+### Hash encadenado SHA256
+
+La auditoria se genera desde `ApplicationDbContext.SaveChangesAsync`.
+
+Cada evento calcula un hash SHA256 con:
+
+- secuencia
+- hash previo
+- empresa
+- entidad
+- id de entidad
+- accion
+- fecha
+- payload JSON
+
+El primer evento usa `PreviousHash` vacio. Cada evento siguiente guarda como `PreviousHash` el `Hash` del evento anterior, formando una cadena auditable.
+
+`AuditEvent` se excluye de su propia auditoria para evitar recursividad.
+
+### Endpoint de consulta auditor
+
+Controller: `AuditController`
+
+Endpoint:
+
+```http
+GET /audit/events
+```
+
+Permiso requerido:
+
+- `audit:read`
+
+Filtros opcionales:
+
+- `companyId`
+- `entityName`
+- `action`
+- `fromUtc`
+- `toUtc`
+- `limit`
+
+Ejemplo:
+
+```http
+GET /audit/events?companyId={companyId}&entityName=PurchaseProcess&limit=100
+```
+
+## Sprint 10 - Portal Publico
+
+Estado: implementado base.
+
+El portal publico permite consultar informacion sin iniciar sesion.
+
+### Consulta publica de procesos
+
+Endpoint:
+
+```http
+GET /api/public/purchase-processes
+```
+
+Filtros opcionales:
+
+- `companyId`
+- `search`
+
+Devuelve procesos en estados publicables:
+
+- `Approved`
+- `InAuction`
+- `Evaluation`
+- `Adjudicated`
+- `Contracted`
+- `PurchaseOrderIssued`
+- `Received`
+- `Closed`
+
+No expone informacion interna de usuarios ni permisos.
+
+### Consulta publica de adjudicaciones
+
+Endpoint:
+
+```http
+GET /api/public/awards
+```
+
+Filtros opcionales:
+
+- `companyId`
+- `search`
+
+Devuelve proceso, organismo, proveedor adjudicado, monto, fecha y URL del acta.
+
+### Consulta publica de subastas en vivo
+
+Endpoint de listado:
+
+```http
+GET /api/public/auctions/live
+```
+
+Devuelve subastas abiertas y dentro de su ventana horaria.
+
+Endpoint SSE:
+
+```http
+GET /api/public/auctions/{auctionId}/events
+```
+
+Emite eventos `auction` cada 2 segundos hasta que la subasta cierre.
+
+### Frontend
+
+Ruta publica:
+
+```text
+/publico
+```
+
+Incluye pestañas para:
+
+- procesos
+- adjudicaciones
+- subastas en vivo con actualizacion SSE

@@ -1,4 +1,4 @@
-// Permisos visuales: qué puede hacer cada rol en el módulo de usuarios.
+// Permisos visuales: qué puede hacer cada rol.
 //
 // OJO: esto controla lo que se MUESTRA. La seguridad real la hace el backend.
 // El frontend nunca es la última línea de defensa, pero sí evita mostrar
@@ -6,11 +6,11 @@
 
 import { ROLES } from '../domain/roles.js'
 
-// Quién administra los usuarios INTERNOS de una empresa: solo el admin del tenant.
+// Quién administra los usuarios INTERNOS de una empresa: solo su Administrador.
 // El super-admin NO gestiona usuarios internos de los clientes; su trabajo es
-// administrar los tenants y crear el admin inicial de cada uno.
+// administrar las empresas y crear el administrador inicial de cada una.
 export function puedeGestionarUsuarios(rol) {
-  return rol === ROLES.ADMIN_TENANT
+  return rol === ROLES.ADMINISTRADOR
 }
 
 export function puedeGestionarTenants(rol) {
@@ -21,27 +21,42 @@ export function esProveedor(rol) {
   return rol === ROLES.PROVEEDOR
 }
 
-// Quién gestiona los procesos de compra: el comprador.
-// (Más adelante, evaluador/aprobador/auditor podrán verlos según su etapa.)
+// Quién tiene panel de inicio (dashboard): todos los roles internos.
+// El proveedor tiene su propia home ("Mi cuenta"), no el panel.
+export function tienePanel(rol) {
+  return rol !== ROLES.PROVEEDOR
+}
+
+// Quién gestiona los procesos de compra (crear, publicar, subasta, adjudicar):
+// el comprador.
 export function puedeGestionarCompras(rol) {
-  return rol === ROLES.COMPRADOR || rol === ROLES.ADMIN_TENANT
+  return rol === ROLES.COMPRADOR
 }
 
-export function puedeConfigurarEmpresa(rol) {
-  return rol === ROLES.ADMIN_TENANT
+// Quién ve el directorio de proveedores (red compartida): el comprador (para
+// invitarlos) y la supervisión (administrador, auditor).
+export function puedeVerProveedores(rol) {
+  return (
+    rol === ROLES.COMPRADOR ||
+    rol === ROLES.ADMINISTRADOR ||
+    rol === ROLES.AUDITOR
+  )
 }
 
-// Quién autoriza/rechaza los procesos en el circuito: el aprobador.
-export function puedeAprobarCompras(rol) {
-  return rol === ROLES.APROBADOR
+// Quién APRUEBA las adjudicaciones (según monto): la Autoridad.
+export function puedeAprobarAdjudicacion(rol) {
+  return rol === ROLES.AUTORIDAD
 }
 
-// Quién evalúa las ofertas tras la subasta: el evaluador.
+// Quién valida la documentación de proveedores: el evaluador.
+// (Su pantalla vive en el módulo de proveedores, todavía por construir.)
 export function puedeEvaluar(rol) {
   return rol === ROLES.EVALUADOR
 }
 
-// Quién audita: el auditor. Acceso de SOLO LECTURA a todo el expediente.
-export function puedeAuditar(rol) {
-  return rol === ROLES.AUDITOR
+// Quién accede a la SUPERVISIÓN (solo lectura de todo el expediente):
+// el Auditor (control y trazabilidad) y el Administrador (responsable de la
+// empresa, necesita ver todo lo que pasa: compras, subastas, adjudicaciones).
+export function puedeSupervisar(rol) {
+  return rol === ROLES.AUDITOR || rol === ROLES.ADMINISTRADOR
 }

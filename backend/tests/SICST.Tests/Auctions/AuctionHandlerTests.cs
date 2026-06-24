@@ -119,6 +119,42 @@ public class AuctionHandlerTests
             }, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task PlaceBid_ShouldExtendAuction_WhenPlacedInLastThreeMinutes()
+    {
+        using var context = CreateDbContext();
+        var seed = await SeedPublishedProcessWithSupplier(context);
+        var cache = CreateCache();
+        
+        // Start auction with only 2 minutes duration (so the end is within the 3-minute window)
+        var auction = await new StartAuctionCommandHandler(context, cache)
+            .Handle(new StartAuctionCommand
+            {
+                CompanyId = seed.CompanyId,
+                PurchaseProcessId = seed.ProcessId,
+                DurationMinutes = 2
+            }, CancellationToken.None);
+
+        var originalEndsAt = auction.EndsAtUtc;
+
+        var bid = await new PlaceBidCommandHandler(context, cache)
+            .Handle(new PlaceBidCommand
+            {
+                AuctionId = auction.Id,
+                SupplierId = seed.SupplierId,
+                Amount = 98000m
+            }, CancellationToken.None);
+
+        // Fetch auction from database to verify extension
+        var updatedAuction = await context.Auctions.FindAsync(auction.Id);
+        
+        Assert.NotNull(updatedAuction);
+        Assert.True(updatedAuction.EndsAtUtc > originalEndsAt);
+        // It should be extended to roughly 3 minutes from now
+        var diff = updatedAuction.EndsAtUtc - DateTime.UtcNow;
+        Assert.True(diff.TotalMinutes > 2.5 && diff.TotalMinutes <= 3.1);
+    }
+
     private static async Task<(Guid CompanyId, Guid ProcessId, Guid SupplierId)> SeedPublishedProcessWithSupplier(ApplicationDbContext context)
     {
         var company = new Company
@@ -187,7 +223,7 @@ public class AuctionHandlerTests
             Title = "Compra Test",
             Description = "Proceso para subasta",
             EstimatedBudget = 100000m,
-            Status = PurchaseProcessStatus.Published,
+            Status = PurchaseProcessStatus.Approved,
             CreatedAtUtc = DateTime.UtcNow,
             PublishedAtUtc = DateTime.UtcNow
         };

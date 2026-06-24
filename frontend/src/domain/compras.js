@@ -1,33 +1,38 @@
-// Dominio del proceso de compra.
+// Dominio del proceso de compra (alineado al documento oficial).
 //
-// Un proceso de compra recorre estados (es lo que el documento llama el circuito).
-// El comprador lo arma como BORRADOR y lo envía a aprobación; de ahí en más
-// avanza por el circuito (aprobación → subasta → evaluación → adjudicación).
+// Flujo según el doc:
+//   1. El COMPRADOR crea el proceso (borrador) y lo PUBLICA (no hay aprobación previa).
+//   2. Se abre la SUBASTA; al cerrarla queda CERRADA.
+//   3. El COMPRADOR ADJUDICA (propone al ganador) -> ADJUDICADA.
+//   4. La AUTORIDAD APRUEBA la adjudicación (según monto) -> APROBADA.
+//
+// El Evaluador NO participa de este circuito: su tarea es validar la
+// documentación de los proveedores (módulo de proveedores).
 
 export const ESTADO_PROCESO = {
   BORRADOR: 'borrador',
-  PENDIENTE_APROBACION: 'pendiente_aprobacion',
-  APROBADO: 'aprobado',
-  RECHAZADO: 'rechazado',
+  PUBLICADO: 'publicado',
   EN_SUBASTA: 'en_subasta',
-  EVALUACION: 'evaluacion',
-  ADJUDICADO: 'adjudicado',
-  CANCELADO: 'cancelado',
+  CERRADA: 'cerrada',
+  ADJUDICADA: 'adjudicada',
+  APROBADA: 'aprobada',
+  DESIERTA: 'desierta',
+  CANCELADA: 'cancelada',
 }
 
 // Cada estado: etiqueta para mostrar y clase del badge (color).
 export const ESTADO_INFO = {
   [ESTADO_PROCESO.BORRADOR]: { label: 'Borrador', clase: 'badge--off' },
-  [ESTADO_PROCESO.PENDIENTE_APROBACION]: {
-    label: 'Pendiente de aprobación',
+  [ESTADO_PROCESO.PUBLICADO]: { label: 'Publicado', clase: 'badge--info' },
+  [ESTADO_PROCESO.EN_SUBASTA]: { label: 'En subasta', clase: 'badge--warn' },
+  [ESTADO_PROCESO.CERRADA]: { label: 'Subasta cerrada', clase: 'badge--info' },
+  [ESTADO_PROCESO.ADJUDICADA]: {
+    label: 'Adjudicada (pend. aprobación)',
     clase: 'badge--warn',
   },
-  [ESTADO_PROCESO.APROBADO]: { label: 'Aprobado', clase: 'badge--ok' },
-  [ESTADO_PROCESO.RECHAZADO]: { label: 'Rechazado', clase: 'badge--error' },
-  [ESTADO_PROCESO.EN_SUBASTA]: { label: 'En subasta', clase: 'badge--info' },
-  [ESTADO_PROCESO.EVALUACION]: { label: 'En evaluación', clase: 'badge--info' },
-  [ESTADO_PROCESO.ADJUDICADO]: { label: 'Adjudicado', clase: 'badge--ok' },
-  [ESTADO_PROCESO.CANCELADO]: { label: 'Cancelado', clase: 'badge--off' },
+  [ESTADO_PROCESO.APROBADA]: { label: 'Aprobada', clase: 'badge--ok' },
+  [ESTADO_PROCESO.DESIERTA]: { label: 'Desierta', clase: 'badge--off' },
+  [ESTADO_PROCESO.CANCELADA]: { label: 'Cancelada', clase: 'badge--off' },
 }
 
 export function etiquetaEstado(estado) {
@@ -38,8 +43,8 @@ export function claseEstado(estado) {
   return ESTADO_INFO[estado]?.clase ?? 'badge--off'
 }
 
-// Solo se puede editar mientras es borrador: una vez enviado a aprobación,
-// el proceso queda "congelado" para no alterar lo que se está autorizando.
+// Solo se puede editar mientras es borrador: una vez publicado, el proceso
+// queda "congelado" para no alterar lo que los proveedores van a ofertar.
 export function esEditable(estado) {
   return estado === ESTADO_PROCESO.BORRADOR
 }

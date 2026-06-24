@@ -35,6 +35,7 @@ public static class DatabaseInitializer
         }
 
         await SeedPermissionsAsync(context);
+        await SeedDemoDataAsync(context, passwordHasher);
     }
 
     private static async Task SeedPermissionsAsync(IApplicationDbContext context)
@@ -110,6 +111,169 @@ public static class DatabaseInitializer
                 }
             }
         }
+
+        await context.SaveChangesAsync(CancellationToken.None);
+    }
+
+    private static async Task SeedDemoDataAsync(IApplicationDbContext context, IPasswordHasher passwordHasher)
+    {
+        if (await context.Companies.AnyAsync())
+        {
+            return;
+        }
+
+        // 1. Seed Company
+        var company = new Company
+        {
+            Id = Guid.NewGuid(),
+            Name = "Gobierno de Prueba",
+            Domain = "prueba.gov.ar",
+            IsPublicEntity = true
+        };
+        context.Companies.Add(company);
+
+        // 2. Seed Users
+        var tenantAdmin = new User
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.Id,
+            Email = "admin@prueba.gov.ar",
+            FirstName = "Admin",
+            LastName = "Tenant",
+            PasswordHash = passwordHasher.Hash("Admin123!"),
+            Role = UserRole.Admin,
+            Active = true
+        };
+
+        var comprador = new User
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.Id,
+            Email = "comprador@prueba.gov.ar",
+            FirstName = "Juan",
+            LastName = "Comprador",
+            PasswordHash = passwordHasher.Hash("Comprador123!"),
+            Role = UserRole.Comprador,
+            Active = true
+        };
+
+        var autoridad = new User
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.Id,
+            Email = "autoridad@prueba.gov.ar",
+            FirstName = "Marta",
+            LastName = "Autoridad",
+            PasswordHash = passwordHasher.Hash("Autoridad123!"),
+            Role = UserRole.Autoridad,
+            Active = true
+        };
+
+        var evaluador = new User
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.Id,
+            Email = "evaluador@prueba.gov.ar",
+            FirstName = "Lucas",
+            LastName = "Evaluador",
+            PasswordHash = passwordHasher.Hash("Evaluador123!"),
+            Role = UserRole.Evaluador,
+            Active = true
+        };
+
+        var auditor = new User
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.Id,
+            Email = "auditor@prueba.gov.ar",
+            FirstName = "Clara",
+            LastName = "Auditora",
+            PasswordHash = passwordHasher.Hash("Auditor123!"),
+            Role = UserRole.Auditor,
+            Active = true
+        };
+
+        context.Users.AddRange(tenantAdmin, comprador, autoridad, evaluador, auditor);
+
+        // 3. Seed Company Configuration
+        var config = new CompanyConfiguration
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.Id,
+            DefaultCurrency = "ARS",
+            TimeZone = "America/Argentina/Buenos_Aires",
+            MinimumBidDecrementPercentage = 1,
+            AuctionExtensionMinutes = 3,
+            RequireSupplierVerification = true,
+            UpdatedAtUtc = DateTime.UtcNow
+        };
+        context.CompanyConfigurations.Add(config);
+
+        // 4. Seed Supplier 1
+        var supplierUser1 = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "proveedor1@prueba.com",
+            FirstName = "Soporte",
+            LastName = "IT",
+            PasswordHash = passwordHasher.Hash("Proveedor123!"),
+            Role = UserRole.Proveedor,
+            Active = true
+        };
+        var supplier1 = new Supplier
+        {
+            Id = Guid.NewGuid(),
+            UserId = supplierUser1.Id,
+            BusinessName = "Insumos Tecnológicos S.A.",
+            Cuit = "30-12345678-1",
+            Email = "proveedor1@prueba.com",
+            Province = "Buenos Aires",
+            Locality = "CABA",
+            Status = SupplierStatus.Verified,
+            ArcaVerified = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        // 5. Seed Supplier 2
+        var supplierUser2 = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "proveedor2@prueba.com",
+            FirstName = "Ventas",
+            LastName = "Papelera",
+            PasswordHash = passwordHasher.Hash("Proveedor123!"),
+            Role = UserRole.Proveedor,
+            Active = true
+        };
+        var supplier2 = new Supplier
+        {
+            Id = Guid.NewGuid(),
+            UserId = supplierUser2.Id,
+            BusinessName = "Papelera Distribuidora SRL",
+            Cuit = "30-76543210-9",
+            Email = "proveedor2@prueba.com",
+            Province = "Córdoba",
+            Locality = "Córdoba",
+            Status = SupplierStatus.Verified,
+            ArcaVerified = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        context.Users.AddRange(supplierUser1, supplierUser2);
+        context.Suppliers.AddRange(supplier1, supplier2);
+
+        // 6. Seed contracting mode
+        var contractingMode = new ContractingMode
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.Id,
+            Name = "Licitación Pública",
+            Description = "Licitación pública de prueba",
+            RequiresAuction = true,
+            Active = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        context.ContractingModes.Add(contractingMode);
 
         await context.SaveChangesAsync(CancellationToken.None);
     }

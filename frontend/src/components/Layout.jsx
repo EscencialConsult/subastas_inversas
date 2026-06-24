@@ -1,16 +1,16 @@
 // Layout principal: header con el tenant + menú lateral según rol + contenido.
 
 import { NavLink, Outlet, Link } from 'react-router-dom'
-import { useAuth } from '../auth/useAuth.js'
+import { useAuth } from '../auth/AuthContext.jsx'
 import {
   puedeGestionarUsuarios,
   puedeGestionarTenants,
   esProveedor,
   puedeGestionarCompras,
-  puedeConfigurarEmpresa,
-  puedeAprobarCompras,
-  puedeEvaluar,
-  puedeAuditar,
+  puedeAprobarAdjudicacion,
+  puedeSupervisar,
+  puedeVerProveedores,
+  tienePanel,
 } from '../auth/permisos.js'
 import { etiquetaRol } from '../domain/roles.js'
 
@@ -20,70 +20,54 @@ export function Layout() {
   // El menú se arma según el rol: un Auditor no ve "Usuarios", etc.
   const items = [
     {
+      to: '/panel',
+      texto: 'Panel',
+      visible: tienePanel(rol),
+    },
+    {
       to: '/usuarios',
       texto: 'Usuarios',
       visible: puedeGestionarUsuarios(rol),
-      end: true,
     },
     {
       to: '/tenants',
       texto: 'Tenants',
       visible: puedeGestionarTenants(rol),
-      end: true,
-    },
-    {
-      to: '/proveedores',
-      texto: 'Proveedores',
-      visible: puedeGestionarCompras(rol),
-      end: true,
     },
     {
       to: '/compras',
       texto: 'Compras',
       visible: puedeGestionarCompras(rol),
-      end: true,
     },
     {
-      to: '/configuracion',
-      texto: 'Configuracion',
-      visible: puedeConfigurarEmpresa(rol),
-      end: true,
+      to: '/compras-realizadas',
+      texto: 'Compras realizadas',
+      visible: puedeGestionarCompras(rol),
     },
     {
-      to: '/aprobaciones',
-      texto: 'Aprobaciones',
-      visible: puedeAprobarCompras(rol),
-      end: true,
+      to: '/proveedores',
+      texto: 'Proveedores',
+      visible: puedeVerProveedores(rol),
     },
     {
       to: '/adjudicaciones',
       texto: 'Adjudicaciones',
-      visible: puedeAprobarCompras(rol),
-      end: true,
+      visible: puedeAprobarAdjudicacion(rol),
     },
     {
-      to: '/evaluaciones',
-      texto: 'Evaluaciones',
-      visible: puedeEvaluar(rol),
-      end: true,
+      to: '/subastas',
+      texto: 'Subastas',
+      visible: puedeSupervisar(rol),
     },
     {
       to: '/auditoria',
       texto: 'Auditoría',
-      visible: puedeAuditar(rol),
-      end: true,
+      visible: puedeSupervisar(rol),
     },
     {
       to: '/proveedor',
       texto: 'Mi cuenta',
       visible: esProveedor(rol),
-      end: true,
-    },
-    {
-      to: '/proveedor/subastas',
-      texto: 'Subastas',
-      visible: esProveedor(rol),
-      end: true,
     },
   ].filter((i) => i.visible)
 
@@ -92,7 +76,7 @@ export function Layout() {
       <header className="layout__header">
         <div className="layout__marca">
           {/* El nombre/logo del tenant es DATO (configuración), no código. */}
-          <span className="layout__logo">SICST MAX</span>
+          <span className="layout__logo">SICST</span>
           {tenant && <span className="layout__tenant">· {tenant.nombre}</span>}
         </div>
         <div className="layout__usuario">
@@ -114,7 +98,6 @@ export function Layout() {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.end}
               className={({ isActive }) =>
                 isActive ? 'layout__link layout__link--activo' : 'layout__link'
               }

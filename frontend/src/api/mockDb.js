@@ -40,7 +40,7 @@ export const usuarios = [
     nombre: 'Laura',
     apellido: 'Gómez',
     email: 'laura.gomez@tucuman.gob.ar',
-    rol: ROLES.ADMIN_TENANT,
+    rol: ROLES.ADMINISTRADOR,
     activo: true,
   },
   {
@@ -67,7 +67,7 @@ export const usuarios = [
     nombre: 'Pablo',
     apellido: 'Herrera',
     email: 'pablo.herrera@escencial.com',
-    rol: ROLES.ADMIN_TENANT,
+    rol: ROLES.ADMINISTRADOR,
     activo: true,
   },
   {
@@ -87,7 +87,7 @@ export const usuarios = [
     nombre: 'Roberto',
     apellido: 'Díaz',
     email: 'roberto.diaz@tucuman.gob.ar',
-    rol: ROLES.APROBADOR,
+    rol: ROLES.AUTORIDAD,
     activo: true,
   },
   {
@@ -120,6 +120,35 @@ export const proveedores = [
     razonSocial: 'Insumos del Norte SRL',
     cuit: '30-12345678-9',
     estado: 'verificado',
+    provincia: 'Tucumán',
+    rubro: 'Insumos de limpieza',
+  },
+  {
+    id: 'p-2',
+    usuarioId: null,
+    razonSocial: 'Distribuidora Sur',
+    cuit: '30-87654321-2',
+    estado: 'verificado',
+    provincia: 'Tucumán',
+    rubro: 'Equipamiento informático',
+  },
+  {
+    id: 'p-3',
+    usuarioId: null,
+    razonSocial: 'Comercial Andina',
+    cuit: '30-55667788-3',
+    estado: 'verificado',
+    provincia: 'Salta',
+    rubro: 'Servicios de mantenimiento',
+  },
+  {
+    id: 'p-4',
+    usuarioId: null,
+    razonSocial: 'Materiales del Centro',
+    cuit: '27-11223344-5',
+    estado: 'pendiente',
+    provincia: 'Córdoba',
+    rubro: 'Materiales de construcción',
   },
 ]
 
@@ -143,16 +172,50 @@ export const procesosCompra = [
     titulo: 'Adquisición de equipos informáticos',
     descripcion: 'Compra de 30 computadoras para oficinas administrativas.',
     presupuestoEstimado: 9000000,
-    estado: ESTADO_PROCESO.PENDIENTE_APROBACION,
+    estado: ESTADO_PROCESO.PUBLICADO,
     compradorId: 'u-3',
     creadoEn: '2026-06-15',
+  },
+  {
+    // Proceso YA cerrado (subasta hecha, adjudicada y aprobada): sirve de ejemplo
+    // para ver la supervisión con datos reales.
+    id: 'pc-3',
+    tenantId: 't-municipio-tucuman',
+    codigo: 'PC-0003',
+    titulo: 'Servicio de mantenimiento de vehículos',
+    descripcion: 'Mantenimiento preventivo de la flota municipal por 6 meses.',
+    presupuestoEstimado: 3000000,
+    estado: ESTADO_PROCESO.APROBADA,
+    compradorId: 'u-3',
+    creadoEn: '2026-06-05',
+    adjudicacion: {
+      compradorId: 'u-3',
+      proveedor: 'Comercial Andina',
+      monto: 2520000,
+      fecha: '2026-06-18',
+    },
+    aprobacion: { autoridadId: 'u-7', fecha: '2026-06-19', estado: 'aprobada' },
   },
 ]
 
 // Subastas. Una por proceso de compra que llegó a la etapa de subasta.
 // Es una subasta INVERSA: gana el menor precio, así que la "mejor oferta"
-// es el lance más bajo. Arranca vacía: se crea al iniciar la subasta.
-export const subastas = []
+// es el lance más bajo. Trae una de ejemplo (la del proceso pc-3, ya cerrado).
+export const subastas = [
+  {
+    id: 's-1',
+    procesoId: 'pc-3',
+    tenantId: 't-municipio-tucuman',
+    precioBase: 3000000,
+    inicioISO: '2026-06-18T10:00:00.000Z',
+    duracionMin: 10,
+    lances: [
+      { id: 'l-1', proveedor: 'Insumos del Norte SRL', monto: 2850000, hace: 'cerrada' },
+      { id: 'l-2', proveedor: 'Distribuidora Sur', monto: 2650000, hace: 'cerrada' },
+      { id: 'l-3', proveedor: 'Comercial Andina', monto: 2520000, hace: 'cerrada' },
+    ],
+  },
+]
 
 // Contador simple para generar ids nuevos en el mock.
 let seq = usuarios.length + proveedores.length + procesosCompra.length

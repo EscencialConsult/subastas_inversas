@@ -20,6 +20,14 @@ public class GetPurchaseProcessByIdQueryHandler : IRequestHandler<GetPurchasePro
     {
         var process = await _context.PurchaseProcesses
             .Include(p => p.Items)
+            .Include(p => p.Evaluation).ThenInclude(e => e!.Evaluator)
+            .Include(p => p.Awards).ThenInclude(a => a.Supplier)
+            .Include(p => p.Awards).ThenInclude(a => a.AdjudicatedBy)
+            .Include(p => p.Awards).ThenInclude(a => a.Items).ThenInclude(i => i.PurchaseItem)
+            .Include(p => p.Contracts).ThenInclude(c => c.Supplier)
+            .Include(p => p.PurchaseOrders).ThenInclude(o => o.Supplier)
+            .Include(p => p.PurchaseOrders).ThenInclude(o => o.Receptions).ThenInclude(r => r.ReceivedBy)
+            .Include(p => p.PurchaseOrders).ThenInclude(o => o.Receptions).ThenInclude(r => r.Items).ThenInclude(i => i.PurchaseItem)
             .FirstOrDefaultAsync(p => p.Id == request.Id && p.CompanyId == request.CompanyId, cancellationToken);
 
         return process == null ? null : PurchaseProcessMapping.ToDto(process);

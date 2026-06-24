@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/useAuth.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import { listarProcesos } from '../../api/comprasApi.js'
 import {
   ESTADO_INFO,
@@ -45,6 +45,13 @@ export function AuditoriaListPage() {
     <section>
       <div className="encabezado">
         <h1>Auditoría</h1>
+        <button
+          className="btn btn--primario"
+          onClick={() => exportarCSV(procesos)}
+          disabled={procesos.length === 0}
+        >
+          Exportar CSV
+        </button>
       </div>
 
       <div className="filtros">
@@ -109,4 +116,33 @@ export function AuditoriaListPage() {
       )}
     </section>
   )
+}
+
+// Exporta los procesos visibles a CSV (';' + BOM para Excel en español).
+function exportarCSV(procesos) {
+  const cabecera = ['Código', 'Título', 'Estado', 'Adjudicado a', 'Monto', 'Creado']
+  const filas = procesos.map((p) => [
+    p.codigo,
+    p.titulo,
+    etiquetaEstado(p.estado),
+    p.adjudicacion?.proveedor ?? '',
+    p.adjudicacion?.monto ?? '',
+    p.creadoEn,
+  ])
+  const csv = [cabecera, ...filas]
+    .map((fila) => fila.map(celdaCSV).join(';'))
+    .join('\r\n')
+
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'auditoria-procesos.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function celdaCSV(valor) {
+  const texto = String(valor ?? '')
+  return /[";\n\r]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto
 }

@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { useAuth } from '../../auth/useAuth.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 
 export function LoginPage() {
   const { login, cargando } = useAuth()
@@ -31,7 +31,7 @@ export function LoginPage() {
   return (
     <div className="login">
       <form className="login__caja" onSubmit={manejarSubmit}>
-        <h1 className="login__titulo">SICST MAX</h1>
+        <h1 className="login__titulo">SICST</h1>
         <p className="login__subtitulo">Ingresá a tu cuenta</p>
 
         {error && <div className="alerta alerta--error">{error}</div>}
@@ -65,6 +65,9 @@ export function LoginPage() {
         <p className="login__registro">
           ¿Sos proveedor? <Link to="/registro-proveedor">Registrate acá</Link>
         </p>
+        <p className="login__registro">
+          <Link to="/portal">Ver portal público (sin ingresar)</Link>
+        </p>
 
         {/* Ayuda para probar el mock mientras no hay backend. */}
         <div className="login__ayuda">
@@ -73,8 +76,7 @@ export function LoginPage() {
             <li>admin@sicstmax.com — Super Admin</li>
             <li>laura.gomez@tucuman.gob.ar — Admin tenant</li>
             <li>diego.ruiz@tucuman.gob.ar — Comprador</li>
-            <li>roberto.diaz@tucuman.gob.ar — Aprobador</li>
-            <li>carla.nunez@tucuman.gob.ar — Evaluador</li>
+            <li>roberto.diaz@tucuman.gob.ar — Autoridad</li>
             <li>hugo.ramirez@tucuman.gob.ar — Auditor</li>
             <li>ventas@insumosnorte.com — Proveedor</li>
           </ul>

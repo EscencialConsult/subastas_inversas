@@ -6,18 +6,14 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../auth/useAuth.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import {
   obtenerProceso,
   crearProceso,
   actualizarProceso,
-  enviarAAprobacion,
-  volverABorrador,
-  invitarProveedor,
-  listarInvitacionesDeProceso,
+  publicarProceso,
 } from '../../api/comprasApi.js'
-import { ESTADO_INVITACION, etiquetaEstadoInvitacion, claseEstadoInvitacion } from '../../domain/invitaciones.js'
-import { listarProveedores } from '../../api/proveedoresApi.js'
+import { obtenerSubastaDeProceso, analisisSubasta } from '../../api/subastasApi.js'
 import {
   ESTADO_PROCESO,
   esEditable,
@@ -25,8 +21,7 @@ import {
   claseEstado,
 } from '../../domain/compras.js'
 
-const ITEM_VACIO = { description: '', quantity: 1, unit: 'unidad', estimatedUnitPrice: '' }
-const VACIO = { titulo: '', descripcion: '', presupuestoEstimado: '', items: [ITEM_VACIO] }
+const VACIO = { titulo: '', descripcion: '', presupuestoEstimado: '' }
 
 export function ProcesoFormPage() {
   const { id } = useParams()
@@ -36,13 +31,10 @@ export function ProcesoFormPage() {
 
   const [datos, setDatos] = useState(VACIO)
   const [proceso, setProceso] = useState(null) // el registro completo, en edición/vista
+  const [subasta, setSubasta] = useState(null) // si el proceso llegó a subasta
   const [cargando, setCargando] = useState(!esNuevo)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
-  const [proveedores, setProveedores] = useState([])
-  const [proveedorInvitado, setProveedorInvitado] = useState('')
-  const [invitaciones, setInvitaciones] = useState([])
-  const [invitadosNuevos, setInvitadosNuevos] = useState([]) // proveedores seleccionados al crear
 
   useEffect(() => {
     if (esNuevo) return
@@ -53,24 +45,14 @@ export function ProcesoFormPage() {
           titulo: p.titulo,
           descripcion: p.descripcion,
           presupuestoEstimado: String(p.presupuestoEstimado || ''),
-          items: p.items?.length ? p.items.map(mapItem) : [ITEM_VACIO],
         })
+        // La subasta es opcional: si el proceso no llegó a esa etapa, no existe.
+        return obtenerSubastaDeProceso({ tenantId, procesoId: id })
+          .then(setSubasta)
+          .catch(() => setSubasta(null))
       })
       .catch((err) => setError(err.message))
       .finally(() => setCargando(false))
-  }, [esNuevo, tenantId, id])
-
-  useEffect(() => {
-    listarProveedores()
-      .then(setProveedores)
-      .catch(() => setProveedores([]))
-  }, [])
-
-  useEffect(() => {
-    if (esNuevo || !id) return
-    listarInvitacionesDeProceso({ tenantId, procesoId: id })
-      .then(setInvitaciones)
-      .catch(() => setInvitaciones([]))
   }, [esNuevo, tenantId, id])
 
   // En vista/edición, manda el estado real; en alta, siempre es editable.
@@ -80,37 +62,13 @@ export function ProcesoFormPage() {
     setDatos((prev) => ({ ...prev, [campo]: valor }))
   }
 
-  function actualizarItem(indice, campo, valor) {
-    setDatos((prev) => ({
-      ...prev,
-      items: prev.items.map((item, i) => (i === indice ? { ...item, [campo]: valor } : item)),
-    }))
-  }
-
-  function agregarItem() {
-    setDatos((prev) => ({ ...prev, items: [...prev.items, { ...ITEM_VACIO }] }))
-  }
-
-  function quitarItem(indice) {
-    setDatos((prev) => ({
-      ...prev,
-      items: prev.items.length === 1 ? prev.items : prev.items.filter((_, i) => i !== indice),
-    }))
-  }
-
   async function manejarSubmit(e) {
     e.preventDefault()
     setError('')
     setGuardando(true)
     try {
       if (esNuevo) {
-        const nuevo = await crearProceso({ tenantId, compradorId: usuario.id, datos })
-        for (const provId of invitadosNuevos) {
-          try {
-            await invitarProveedor({ tenantId, procesoId: nuevo.id, proveedorId: provId })
-          } catch {
-          }
-        }
+        await crearProceso({ tenantId, compradorId: usuario.id, datos })
       } else {
         await actualizarProceso({ tenantId, id, datos })
       }
@@ -122,54 +80,14 @@ export function ProcesoFormPage() {
     }
   }
 
-  function agregarInvitadoNuevo() {
-    if (!proveedorInvitado || invitadosNuevos.includes(proveedorInvitado)) return
-    setInvitadosNuevos((prev) => [...prev, proveedorInvitado])
-    setProveedorInvitado('')
-  }
-
-  function quitarInvitadoNuevo(id) {
-    setInvitadosNuevos((prev) => prev.filter((p) => p !== id))
-  }
-
-  async function enviar() {
+  async function publicar() {
     setError('')
     setGuardando(true)
     try {
-      await enviarAAprobacion({ tenantId, id })
+      await publicarProceso({ tenantId, id })
       navigate('/compras')
     } catch (err) {
       setError(err.message)
-      setGuardando(false)
-    }
-  }
-
-  async function invitar() {
-    if (!proveedorInvitado) return
-    setError('')
-    setGuardando(true)
-    try {
-      await invitarProveedor({ tenantId, procesoId: id, proveedorId: proveedorInvitado })
-      setProveedorInvitado('')
-      const actualizadas = await listarInvitacionesDeProceso({ tenantId, procesoId: id })
-      setInvitaciones(actualizadas)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setGuardando(false)
-    }
-  }
-
-  // Rechazado -> vuelve a borrador y queda editable en la misma pantalla.
-  async function corregir() {
-    setError('')
-    setGuardando(true)
-    try {
-      const actualizado = await volverABorrador({ tenantId, id })
-      setProceso(actualizado)
-    } catch (err) {
-      setError(err.message)
-    } finally {
       setGuardando(false)
     }
   }
@@ -197,29 +115,21 @@ export function ProcesoFormPage() {
 
       {!editable && !esNuevo && (
         <div className="alerta alerta--info">
-          Este proceso ya está en el circuito de aprobación, por eso no se puede editar.
+          Este proceso ya fue publicado, por eso no se puede editar.
         </div>
       )}
 
-      {proceso?.estado === ESTADO_PROCESO.ADJUDICADO && proceso.adjudicacion && (
+      {proceso?.adjudicacion && (
         <div className="alerta alerta--ok">
-          Adjudicado a {proceso.adjudicacion.proveedor} el {proceso.adjudicacion.fecha}.
+          {proceso.estado === ESTADO_PROCESO.APROBADA
+            ? `Adjudicado y aprobado: ${proceso.adjudicacion.proveedor} (${proceso.adjudicacion.fecha}).`
+            : `Adjudicado a ${proceso.adjudicacion.proveedor}, pendiente de aprobación de la Autoridad.`}
         </div>
       )}
 
-      {proceso?.estado === ESTADO_PROCESO.RECHAZADO && (
+      {proceso?.aprobacion?.estado === 'rechazada' && (
         <div className="alerta alerta--error">
-          {proceso.motivoRechazo && (
-            <p>Rechazado por el aprobador. Motivo: {proceso.motivoRechazo}</p>
-          )}
-          <button
-            className="btn btn--primario"
-            onClick={corregir}
-            disabled={guardando}
-            style={{ marginTop: 8 }}
-          >
-            Corregir y reenviar
-          </button>
+          La Autoridad rechazó la adjudicación. Motivo: {proceso.aprobacion.motivo}
         </div>
       )}
 
@@ -264,163 +174,6 @@ export function ProcesoFormPage() {
           />
         </label>
 
-        <fieldset className="form__seccion">
-          <legend>Items del proceso</legend>
-          {datos.items.map((item, indice) => (
-            <div className="item-linea" key={indice}>
-              <input
-                placeholder="Descripcion"
-                value={item.description}
-                onChange={(e) => actualizarItem(indice, 'description', e.target.value)}
-                disabled={!editable}
-              />
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                placeholder="Cantidad"
-                value={item.quantity}
-                onChange={(e) => actualizarItem(indice, 'quantity', e.target.value)}
-                disabled={!editable}
-              />
-              <input
-                placeholder="Unidad"
-                value={item.unit}
-                onChange={(e) => actualizarItem(indice, 'unit', e.target.value)}
-                disabled={!editable}
-              />
-              <input
-                type="number"
-                min="0"
-                placeholder="Precio unit."
-                value={item.estimatedUnitPrice}
-                onChange={(e) => actualizarItem(indice, 'estimatedUnitPrice', e.target.value)}
-                disabled={!editable}
-              />
-              {editable && (
-                <button type="button" className="btn btn--texto" onClick={() => quitarItem(indice)}>
-                  Quitar
-                </button>
-              )}
-            </div>
-          ))}
-          {editable && (
-            <button type="button" className="btn btn--texto" onClick={agregarItem}>
-              + Agregar item
-            </button>
-          )}
-        </fieldset>
-
-        {proveedores.length > 0 && (
-          <fieldset className="form__seccion" style={{ marginTop: 24 }}>
-            <legend>{esNuevo ? 'Seleccionar proveedores a invitar' : 'Invitacion de proveedores'}</legend>
-
-            <div className="filtros">
-              <select
-                value={proveedorInvitado}
-                onChange={(e) => setProveedorInvitado(e.target.value)}
-              >
-                <option value="">Seleccionar proveedor</option>
-                {proveedores.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.razonSocial} - {p.cuit}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="btn btn--primario"
-                onClick={esNuevo ? agregarInvitadoNuevo : invitar}
-                disabled={!proveedorInvitado || guardando}
-              >
-                {esNuevo ? 'Agregar' : 'Invitar'}
-              </button>
-            </div>
-
-            {esNuevo && invitadosNuevos.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {invitadosNuevos.map((provId) => {
-                  const prov = proveedores.find((p) => p.id === provId)
-                  return (
-                    <span
-                      key={provId}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '4px 10px',
-                        background: 'var(--color-primario-bg)',
-                        borderRadius: 999,
-                        fontSize: 13,
-                      }}
-                    >
-                      {prov?.razonSocial ?? provId}
-                      <button
-                        type="button"
-                        onClick={() => quitarInvitadoNuevo(provId)}
-                        style={{
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--color-texto-suave)',
-                          padding: 0,
-                          fontSize: 16,
-                          lineHeight: 1,
-                        }}
-                        title="Quitar"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-
-            {invitaciones.length > 0 && (
-              <>
-                <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--color-borde)' }} />
-                <table className="tabla">
-                  <thead>
-                    <tr>
-                      <th>Proveedor</th>
-                      <th>CUIT</th>
-                      <th>Invitado</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invitaciones.map((inv) => (
-                      <tr key={inv.id}>
-                        <td>{inv.supplierBusinessName}</td>
-                        <td>{inv.supplierCuit}</td>
-                        <td>{inv.invitedAtUtc?.slice(0, 10)}</td>
-                        <td>
-                          <span className={`badge ${claseEstadoInvitacion(inv.status)}`}>
-                            {etiquetaEstadoInvitacion(inv.status)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-
-            {!esNuevo && invitaciones.length === 0 && (
-              <p className="form__seccion-ayuda" style={{ marginTop: 8 }}>
-                Todavia no se invitaron proveedores a este proceso.
-              </p>
-            )}
-
-            {esNuevo && invitadosNuevos.length === 0 && (
-              <p className="form__seccion-ayuda" style={{ marginTop: 8 }}>
-                Selecciona los proveedores que queres invitar. Se invitaran automaticamente al crear el proceso.
-              </p>
-            )}
-          </fieldset>
-        )}
-
         <div className="form__acciones">
           <button
             type="button"
@@ -434,28 +187,66 @@ export function ProcesoFormPage() {
               {guardando ? 'Guardando…' : 'Guardar'}
             </button>
           )}
-          {/* En edición de un borrador ya guardado, ofrecemos enviarlo a aprobación. */}
+          {/* En un borrador ya guardado, ofrecemos publicarlo. */}
           {!esNuevo && editable && (
             <button
               type="button"
               className="btn btn--primario"
-              onClick={enviar}
+              onClick={publicar}
               disabled={guardando}
             >
-              Enviar a aprobación
+              Publicar
             </button>
           )}
         </div>
       </form>
+
+      {/* Resumen de la subasta (si el proceso ya pasó por ella). */}
+      {subasta && <ResumenSubasta subasta={subasta} />}
     </section>
   )
 }
 
-function mapItem(item) {
-  return {
-    description: item.description ?? item.Description ?? '',
-    quantity: item.quantity ?? item.Quantity ?? 1,
-    unit: item.unit ?? item.Unit ?? 'unidad',
-    estimatedUnitPrice: item.estimatedUnitPrice ?? item.EstimatedUnitPrice ?? '',
-  }
+// Muestra cómo resultó la subasta del proceso: análisis + lances.
+function ResumenSubasta({ subasta }) {
+  const a = analisisSubasta(subasta)
+  const lances = [...subasta.lances].sort((x, y) => x.monto - y.monto)
+  return (
+    <div className="form">
+      <h2 className="form__titulo">Resultado de la subasta</h2>
+      <div className="perfil__solo-lectura">
+        <span>Proveedores que ofertaron: {a.oferentes}</span>
+        <span>Lances totales: {a.cantidadLances}</span>
+        <span>Presupuesto base: {formatearPesos(a.base)}</span>
+        <span>Mejor oferta: {formatearPesos(a.mejor)}</span>
+        <span>Baja lograda: {a.bajaPorcentaje.toFixed(1)}%</span>
+      </div>
+
+      <h3 className="form__subtitulo">Lances ({lances.length})</h3>
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>Proveedor</th>
+            <th>Monto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lances.map((l) => (
+            <tr key={l.id}>
+              <td>{l.proveedor}</td>
+              <td>{formatearPesos(l.monto)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function formatearPesos(monto) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(monto)
 }

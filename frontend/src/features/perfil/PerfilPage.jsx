@@ -2,7 +2,7 @@
 // Sirve para todos los roles internos (admin de tenant, comprador, etc.).
 
 import { useState } from 'react'
-import { useAuth } from '../../auth/useAuth.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import { actualizarPerfil, cambiarContrasena } from '../../api/usersApi.js'
 import { etiquetaRol } from '../../domain/roles.js'
 

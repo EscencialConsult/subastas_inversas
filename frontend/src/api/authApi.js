@@ -2,7 +2,7 @@ import { apiFetch, ApiError } from './client.js'
 
 function mapRole(backendRole) {
   if (backendRole === 'SuperAdmin') return 'super_admin'
-  if (backendRole === 'Admin') return 'admin_tenant'
+  if (backendRole === 'Admin') return 'administrador'
   if (backendRole === 'Comprador') return 'comprador'
   if (backendRole === 'Proveedor') return 'proveedor'
   if (backendRole === 'Evaluador') return 'evaluador'
@@ -33,7 +33,7 @@ export async function login({ email, password }) {
 
   const tenant = data.companyId ? {
     id: data.companyId,
-    nombre: 'Mi Organización',
+    nombre: data.companyName || 'Mi Organización',
     subdominio: 'org'
   } : null
 

@@ -3,11 +3,11 @@
 // La sesión es la fuente de verdad de "en qué tenant estoy" y "qué rol tengo".
 // De acá salen el menú y los permisos visuales de toda la app.
 
-import { useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { login as loginApi } from '../api/authApi.js'
-import { AuthContext } from './authContextValue.js'
 
 const CLAVE_STORAGE = 'sicst.sesion'
+const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [sesion, setSesion] = useState(() => leerSesionGuardada())
@@ -60,6 +60,13 @@ export function AuthProvider({ children }) {
   )
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth debe usarse dentro de <AuthProvider>')
+  return ctx
 }
 
 function leerSesionGuardada() {
