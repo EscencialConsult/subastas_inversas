@@ -516,3 +516,30 @@
   color: var(--color-texto-suave);
   margin: 0 0 12px;
 }
+
+/* ---- Portal ciudadano (público) ---- */
+.portal {
+  min-height: 100vh;
+}
+.portal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 32px;
+  background: var(--color-superficie);
+  border-bottom: 1px solid var(--color-borde);
+}
+.portal__marca {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+}
+.portal__sub {
+  font-size: 12px;
+  color: var(--color-texto-suave);
+}
+.portal__main {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}

@@ -24,6 +24,9 @@ import { PerfilPage } from './features/perfil/PerfilPage.jsx'
 import { PanelPage } from './features/dashboard/PanelPage.jsx'
 import { RegistroProveedorPage } from './features/proveedor/RegistroProveedorPage.jsx'
 import { ProveedorHomePage } from './features/proveedor/ProveedorHomePage.jsx'
+import { PortalLayout } from './features/publico/PortalLayout.jsx'
+import { PortalPublicoPage } from './features/publico/PortalPublicoPage.jsx'
+import { SubastaPublicaPage } from './features/publico/SubastaPublicaPage.jsx'
 import { ProcesosListPage } from './features/compras/ProcesosListPage.jsx'
 import { ProcesoFormPage } from './features/compras/ProcesoFormPage.jsx'
 import { AdjudicarPage } from './features/compras/AdjudicarPage.jsx'
@@ -44,6 +47,12 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           {/* Registro de proveedor: público, sin sesión. */}
           <Route path="/registro-proveedor" element={<RegistroProveedorPage />} />
+
+          {/* Portal ciudadano: público, sin sesión. */}
+          <Route element={<PortalLayout />}>
+            <Route path="/portal" element={<PortalPublicoPage />} />
+            <Route path="/portal/subasta/:procesoId" element={<SubastaPublicaPage />} />
+          </Route>
 
           {/* Todo lo de adentro exige sesión y usa el layout. */}
           <Route

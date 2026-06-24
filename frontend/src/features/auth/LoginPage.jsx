@@ -65,6 +65,9 @@ export function LoginPage() {
         <p className="login__registro">
           ¿Sos proveedor? <Link to="/registro-proveedor">Registrate acá</Link>
         </p>
+        <p className="login__registro">
+          <Link to="/portal">Ver portal público (sin ingresar)</Link>
+        </p>
 
         {/* Ayuda para probar el mock mientras no hay backend. */}
         <div className="login__ayuda">
