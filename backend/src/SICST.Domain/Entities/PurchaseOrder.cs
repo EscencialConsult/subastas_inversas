@@ -38,5 +38,8 @@ public class PurchaseOrder
 
     public string DocumentPath { get; set; } = string.Empty;
 
+    public Guid? DocumentTemplateId { get; set; }
+    public DocumentTemplate? DocumentTemplate { get; set; }
+
     public List<ReceptionConfirmation> Receptions { get; set; } = [];
 }

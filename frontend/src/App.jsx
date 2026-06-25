@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext.jsx'
 import { RutaProtegida } from './auth/RutaProtegida.jsx'
 import {
   puedeGestionarUsuarios,
+  puedeGestionarConfiguracion,
   puedeGestionarTenants,
   esProveedor,
   puedeGestionarCompras,
@@ -38,6 +39,7 @@ import { AdjudicacionesListPage } from './features/adjudicaciones/Adjudicaciones
 import { AdjudicacionDetailPage } from './features/adjudicaciones/AdjudicacionDetailPage.jsx'
 import { AuditoriaListPage } from './features/auditoria/AuditoriaListPage.jsx'
 import { AuditoriaDetailPage } from './features/auditoria/AuditoriaDetailPage.jsx'
+import { ConfiguracionPage } from './features/configuracion/ConfiguracionPage.jsx'
 
 export default function App() {
   return (
@@ -76,6 +78,15 @@ export default function App() {
 
             {/* Mi perfil: lo ve cualquier usuario logueado (sin guard de rol). */}
             <Route path="perfil" element={<PerfilPage />} />
+
+            <Route
+              path="configuracion"
+              element={
+                <RutaProtegida permiso={puedeGestionarConfiguracion}>
+                  <ConfiguracionPage />
+                </RutaProtegida>
+              }
+            />
 
             <Route
               path="proveedor"

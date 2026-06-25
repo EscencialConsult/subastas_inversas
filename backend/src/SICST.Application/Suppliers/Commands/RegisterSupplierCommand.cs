@@ -13,6 +13,7 @@ public record RegisterSupplierCommand : IRequest<SupplierRegistrationResponseDto
     public string Cuit { get; init; } = string.Empty;
     public string Email { get; init; } = string.Empty;
     public string Password { get; init; } = string.Empty;
+    public string BusinessCategory { get; init; } = string.Empty;
     public string Province { get; init; } = string.Empty;
     public string Locality { get; init; } = string.Empty;
 }
@@ -72,6 +73,7 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
             Cuit = cuit,
             BusinessName = request.BusinessName.Trim(),
             Email = email,
+            BusinessCategory = request.BusinessCategory.Trim(),
             Province = request.Province.Trim(),
             Locality = request.Locality.Trim(),
             Status = SupplierStatus.Pending,
@@ -116,6 +118,11 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
         {
             throw new InvalidOperationException("El email no tiene un formato valido.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BusinessCategory))
+        {
+            throw new InvalidOperationException("El rubro es obligatorio.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)

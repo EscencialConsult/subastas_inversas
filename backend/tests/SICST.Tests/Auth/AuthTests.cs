@@ -5,6 +5,7 @@ using SICST.Application.Common.Interfaces;
 using SICST.Domain.Entities;
 using SICST.Infrastructure.Security;
 using SICST.Persistence.Contexts;
+using SICST.Tests;
 using Xunit;
 
 namespace SICST.Tests.Auth;
@@ -17,7 +18,7 @@ public class AuthTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         
-        var context = new ApplicationDbContext(options);
+        var context = new ApplicationDbContext(options, new TestCurrentTenant());
         context.Database.EnsureCreated();
 
         var settings = new Dictionary<string, string?>
@@ -145,6 +146,131 @@ public class AuthTests
         Assert.NotEmpty(response.Token);
         Assert.Equal(email, response.Email);
         Assert.Equal("SuperAdmin", response.Role);
+    }
+
+    [Fact]
+    public async Task Login_ShouldReturnCompanyBranding_WhenUserHasCompany()
+    {
+        // Arrange
+        var (context, config) = CreateContextAndConfig();
+        var hasher = new PasswordHasher();
+        var jwtProvider = new JwtProvider(config);
+
+        var companyId = Guid.NewGuid();
+        var email = "tenant-admin@test.com";
+        var password = "CorrectPassword123!";
+
+        context.Companies.Add(new Company
+        {
+            Id = companyId,
+            Name = "Empresa Test",
+            Domain = "empresa-test",
+            Logo = "https://cdn.test/logo.png",
+            PrimaryColor = "#0055AA",
+            IsPublicEntity = true
+        });
+        context.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            PasswordHash = hasher.Hash(password),
+            FirstName = "Tenant",
+            LastName = "Admin",
+            Role = UserRole.Admin,
+            CompanyId = companyId
+        });
+        await context.SaveChangesAsync();
+
+        var handler = new LoginCommandHandler(context, hasher, jwtProvider);
+        var command = new LoginCommand { Email = email, Password = password };
+
+        // Act
+        var response = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(companyId, response.CompanyId);
+        Assert.Equal("Empresa Test", response.CompanyName);
+        Assert.Equal("https://cdn.test/logo.png", response.CompanyLogo);
+        Assert.Equal("#0055AA", response.CompanyPrimaryColor);
+    }
+
+    [Fact]
+    public async Task Login_ShouldRequireMfa_WhenMfaIsEnabled()
+    {
+        // Arrange
+        var (context, config) = CreateContextAndConfig();
+        var hasher = new PasswordHasher();
+        var jwtProvider = new JwtProvider(config);
+
+        var email = "mfa@test.com";
+        var password = "CorrectPassword123!";
+
+        context.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            PasswordHash = hasher.Hash(password),
+            FirstName = "Mfa",
+            LastName = "User",
+            Role = UserRole.Admin,
+            Active = true,
+            MfaEnabled = true,
+            MfaSecret = "JBSWY3DPEHPK3PXP"
+        });
+        await context.SaveChangesAsync();
+
+        var handler = new LoginCommandHandler(context, hasher, jwtProvider);
+
+        // Act
+        var response = await handler.Handle(
+            new LoginCommand { Email = email, Password = password },
+            CancellationToken.None);
+
+        // Assert
+        Assert.True(response.RequiresMfa);
+        Assert.True(response.MfaEnabled);
+        Assert.False(string.IsNullOrWhiteSpace(response.MfaToken));
+        Assert.Empty(response.Token);
+        Assert.Empty(response.RefreshToken);
+    }
+
+    [Fact]
+    public async Task RefreshToken_ShouldRotateToken_WhenRefreshTokenIsValid()
+    {
+        // Arrange
+        var (context, config) = CreateContextAndConfig();
+        var jwtProvider = new JwtProvider(config);
+
+        var refreshToken = RefreshTokenHelper.Generate();
+        var email = "refresh@test.com";
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            PasswordHash = "hash",
+            FirstName = "Refresh",
+            LastName = "User",
+            Role = UserRole.Admin,
+            Active = true,
+            RefreshTokenHash = RefreshTokenHelper.Hash(refreshToken),
+            RefreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(1)
+        };
+
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var handler = new RefreshTokenCommandHandler(context, jwtProvider);
+
+        // Act
+        var response = await handler.Handle(
+            new RefreshTokenCommand { Email = email, RefreshToken = refreshToken },
+            CancellationToken.None);
+
+        // Assert
+        Assert.NotEmpty(response.Token);
+        Assert.NotEmpty(response.RefreshToken);
+        Assert.NotEqual(refreshToken, response.RefreshToken);
+        Assert.Equal(RefreshTokenHelper.Hash(response.RefreshToken), user.RefreshTokenHash);
     }
 
     [Fact]

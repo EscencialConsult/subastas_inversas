@@ -44,6 +44,7 @@ function mapBackendUser(data) {
     email: data.email,
     rol: mapRoleToFrontend(data.role),
     activo: data.active,
+    mfaActivo: data.mfaEnabled,
     tenantId: data.companyId,
   }
 }
@@ -143,6 +144,7 @@ function mapUserData(data) {
     email: data.email,
     rol: mapRoleToFrontend(data.role),
     tenantId: data.companyId,
+    mfaActivo: data.mfaEnabled,
     activo: true,
   }
 }

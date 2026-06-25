@@ -43,6 +43,19 @@ public class InviteSupplierCommandHandler : IRequestHandler<InviteSupplierComman
             throw new InvalidOperationException("Proveedor no encontrado.");
         }
 
+        var companySupplier = await _context.CompanySuppliers
+            .FirstOrDefaultAsync(cs => cs.CompanyId == request.CompanyId && cs.SupplierId == request.SupplierId, cancellationToken);
+
+        if (companySupplier == null)
+        {
+            throw new InvalidOperationException("El proveedor no esta habilitado para esta empresa.");
+        }
+
+        if (companySupplier.Status == CompanySupplierStatus.Blocked)
+        {
+            throw new InvalidOperationException(companySupplier.WarningMessage ?? "El proveedor esta bloqueado para esta empresa.");
+        }
+
         var exists = await _context.Invitations
             .AnyAsync(i => i.PurchaseProcessId == request.PurchaseProcessId && i.SupplierId == request.SupplierId, cancellationToken);
 

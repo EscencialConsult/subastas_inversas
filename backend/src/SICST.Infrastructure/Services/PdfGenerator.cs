@@ -17,7 +17,7 @@ public class PdfGenerator : IPdfGenerator
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    public string GenerateAwardAct(PurchaseProcess process, Award award, Supplier supplier, User approver, List<Bid> bids)
+    public string GenerateAwardAct(PurchaseProcess process, Award award, Supplier supplier, User approver, List<Bid> bids, DocumentTemplate? template = null)
     {
         var relativePath = Path.Combine("wwwroot", "documents", "awards");
         var absolutePath = Path.Combine(Directory.GetCurrentDirectory(), relativePath);
@@ -95,6 +95,8 @@ public class PdfGenerator : IPdfGenerator
                             });
                         }
 
+                        AddTemplateContent(col, template, RenderAwardTemplate(template, process, award, supplier));
+
                         if (bids != null && bids.Any())
                         {
                             col.Item().Column(bCol =>
@@ -151,7 +153,7 @@ public class PdfGenerator : IPdfGenerator
         return fullPath;
     }
 
-    public string GenerateContract(PurchaseProcess process, Contract contract, Supplier supplier)
+    public string GenerateContract(PurchaseProcess process, Contract contract, Supplier supplier, DocumentTemplate? template = null)
     {
         var fullPath = CreateDocumentPath("contracts", contract.Id);
 
@@ -179,6 +181,7 @@ public class PdfGenerator : IPdfGenerator
                         col.Item().Text("Condiciones").Bold();
                         col.Item().Text(contract.Terms);
                     }
+                    AddTemplateContent(col, template, RenderContractTemplate(template, process, contract, supplier));
                 });
                 page.Footer().AlignCenter().Text(x =>
                 {
@@ -193,7 +196,7 @@ public class PdfGenerator : IPdfGenerator
         return fullPath;
     }
 
-    public string GeneratePurchaseOrder(PurchaseProcess process, PurchaseOrder order, Supplier supplier)
+    public string GeneratePurchaseOrder(PurchaseProcess process, PurchaseOrder order, Supplier supplier, DocumentTemplate? template = null)
     {
         var fullPath = CreateDocumentPath("purchase-orders", order.Id);
 
@@ -246,6 +249,7 @@ public class PdfGenerator : IPdfGenerator
                         col.Item().Text("Observaciones").Bold();
                         col.Item().Text(order.Observations);
                     }
+                    AddTemplateContent(col, template, RenderPurchaseOrderTemplate(template, process, order, supplier));
                 });
             });
         }).GeneratePdf(fullPath);
@@ -315,5 +319,79 @@ public class PdfGenerator : IPdfGenerator
         }
 
         return Path.Combine(absolutePath, $"{id}.pdf");
+    }
+
+    private static void AddTemplateContent(ColumnDescriptor col, DocumentTemplate? template, string renderedContent)
+    {
+        if (template == null || string.IsNullOrWhiteSpace(renderedContent))
+        {
+            return;
+        }
+
+        col.Item().PaddingTop(10).Column(templateCol =>
+        {
+            templateCol.Spacing(6);
+            templateCol.Item().Text($"Plantilla: {template.Name} v{template.Version}").Bold().FontColor(Colors.Blue.Darken2);
+            templateCol.Item().Text(renderedContent);
+        });
+    }
+
+    private static string RenderAwardTemplate(DocumentTemplate? template, PurchaseProcess process, Award award, Supplier supplier)
+    {
+        return RenderTemplate(template?.Content, new Dictionary<string, string>
+        {
+            ["process.code"] = process.Code,
+            ["process.title"] = process.Title,
+            ["supplier.businessName"] = supplier.BusinessName,
+            ["supplier.cuit"] = supplier.Cuit,
+            ["award.amount"] = award.Amount.ToString("C"),
+            ["document.date"] = DateTime.UtcNow.ToString("dd/MM/yyyy")
+        });
+    }
+
+    private static string RenderContractTemplate(DocumentTemplate? template, PurchaseProcess process, Contract contract, Supplier supplier)
+    {
+        return RenderTemplate(template?.Content, new Dictionary<string, string>
+        {
+            ["process.code"] = process.Code,
+            ["process.title"] = process.Title,
+            ["supplier.businessName"] = supplier.BusinessName,
+            ["supplier.cuit"] = supplier.Cuit,
+            ["contract.number"] = contract.Number,
+            ["contract.amount"] = contract.Amount.ToString("C"),
+            ["contract.terms"] = contract.Terms,
+            ["document.date"] = DateTime.UtcNow.ToString("dd/MM/yyyy")
+        });
+    }
+
+    private static string RenderPurchaseOrderTemplate(DocumentTemplate? template, PurchaseProcess process, PurchaseOrder order, Supplier supplier)
+    {
+        return RenderTemplate(template?.Content, new Dictionary<string, string>
+        {
+            ["process.code"] = process.Code,
+            ["process.title"] = process.Title,
+            ["supplier.businessName"] = supplier.BusinessName,
+            ["supplier.cuit"] = supplier.Cuit,
+            ["purchaseOrder.number"] = order.Number,
+            ["purchaseOrder.amount"] = order.Amount.ToString("C"),
+            ["purchaseOrder.expectedDeliveryDate"] = order.ExpectedDeliveryDateUtc?.ToString("dd/MM/yyyy") ?? "Sin fecha",
+            ["document.date"] = DateTime.UtcNow.ToString("dd/MM/yyyy")
+        });
+    }
+
+    private static string RenderTemplate(string? content, Dictionary<string, string> values)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return string.Empty;
+        }
+
+        var rendered = content;
+        foreach (var (key, value) in values)
+        {
+            rendered = rendered.Replace($"{{{{{key}}}}}", value);
+        }
+
+        return rendered;
     }
 }

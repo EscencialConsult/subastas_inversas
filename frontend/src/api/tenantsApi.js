@@ -11,6 +11,8 @@ export async function listarTenants({ busqueda = '', estado = '' } = {}) {
     id: c.id,
     nombre: c.name,
     subdominio: c.domain,
+    logo: c.logo ?? '',
+    colorPrimario: c.primaryColor ?? '',
     activo: c.isPublicEntity,
     cantidadUsuarios: 0, // placeholder; se puede resolver dinámicamente si es necesario
   }))
@@ -34,6 +36,8 @@ export async function obtenerTenant({ id }) {
     id: c.id,
     nombre: c.name,
     subdominio: c.domain,
+    logo: c.logo ?? '',
+    colorPrimario: c.primaryColor ?? '',
     activo: c.isPublicEntity,
   }
 }
@@ -65,11 +69,13 @@ export async function obtenerDetalleEmpresa({ id }) {
 }
 
 export async function crearTenant({ datos, admin }) {
-  const companyId = await apiFetch('/api/companies/with-admin', {
+  const resultado = await apiFetch('/api/companies/with-admin', {
     method: 'POST',
     body: JSON.stringify({
       name: datos.nombre,
       domain: datos.subdominio,
+      logo: datos.logo || null,
+      primaryColor: datos.colorPrimario || null,
       isPublicEntity: datos.activo,
       adminFirstName: admin.nombre,
       adminLastName: admin.apellido,
@@ -79,11 +85,14 @@ export async function crearTenant({ datos, admin }) {
 
   return {
     tenant: {
-      id: companyId,
+      id: resultado.companyId,
       nombre: datos.nombre,
       subdominio: datos.subdominio,
+      logo: datos.logo,
+      colorPrimario: datos.colorPrimario,
       activo: datos.activo,
     },
+    passwordTemporal: resultado.temporaryAdminPassword,
     admin: {
       nombre: admin.nombre,
       apellido: admin.apellido,
@@ -99,6 +108,8 @@ export async function actualizarTenant({ id, datos }) {
       id: id,
       name: datos.nombre,
       domain: datos.subdominio,
+      logo: datos.logo || null,
+      primaryColor: datos.colorPrimario || null,
       isPublicEntity: datos.activo,
     }),
   })
@@ -107,6 +118,8 @@ export async function actualizarTenant({ id, datos }) {
     id,
     nombre: datos.nombre,
     subdominio: datos.subdominio,
+    logo: datos.logo,
+    colorPrimario: datos.colorPrimario,
     activo: datos.activo,
   }
 }
@@ -125,6 +138,8 @@ export async function cambiarEstadoTenant({ id, activo }) {
     id,
     nombre: c.name,
     subdominio: c.domain,
+    logo: c.logo ?? '',
+    colorPrimario: c.primaryColor ?? '',
     activo: c.isPublicEntity,
   }
 }

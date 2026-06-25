@@ -1,13 +1,7 @@
 using SICST.Domain.Entities;
+using SICST.Application.Common.Interfaces;
 
 namespace SICST.Api.Tenancy;
-
-public interface ICurrentTenant
-{
-    Guid? CompanyId { get; set; }
-    string? Domain { get; set; }
-    Company? Company { get; set; }
-}
 
 public class CurrentTenant : ICurrentTenant
 {

@@ -22,10 +22,65 @@ namespace SICST.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("SICST.Domain.Entities.AccessLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("OccurredAtUtc");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Email", "OccurredAtUtc");
+
+                    b.ToTable("AccessLogs");
+                });
+
             modelBuilder.Entity("SICST.Domain.Entities.Approval", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ApprovalWorkflowLevelId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ApproverId")
@@ -47,6 +102,8 @@ namespace SICST.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ApprovalWorkflowLevelId");
 
                     b.HasIndex("ApproverId");
 
@@ -97,6 +154,36 @@ namespace SICST.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ApprovalWorkflows");
+                });
+
+            modelBuilder.Entity("SICST.Domain.Entities.ApprovalWorkflowLevel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AmountThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("ApprovalWorkflowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LevelOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RequiredRole")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovalWorkflowId", "LevelOrder")
+                        .IsUnique();
+
+                    b.ToTable("ApprovalWorkflowLevels");
                 });
 
             modelBuilder.Entity("SICST.Domain.Entities.Auction", b =>
@@ -247,6 +334,9 @@ namespace SICST.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid?>("DocumentTemplateId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Observations")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -261,6 +351,8 @@ namespace SICST.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AdjudicatedById");
+
+                    b.HasIndex("DocumentTemplateId");
 
                     b.HasIndex("SupplierId");
 
@@ -416,11 +508,22 @@ namespace SICST.Persistence.Migrations
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("EvaluatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("LinkedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("WarningMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.HasKey("Id");
 
@@ -456,6 +559,9 @@ namespace SICST.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid?>("DocumentTemplateId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("EndDateUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -490,6 +596,8 @@ namespace SICST.Persistence.Migrations
                     b.HasIndex("AwardId")
                         .IsUnique();
 
+                    b.HasIndex("DocumentTemplateId");
+
                     b.HasIndex("PurchaseProcessId");
 
                     b.HasIndex("SupplierId");
@@ -522,6 +630,14 @@ namespace SICST.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<decimal?>("MaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("MinAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -535,7 +651,53 @@ namespace SICST.Persistence.Migrations
                     b.HasIndex("CompanyId", "Name")
                         .IsUnique();
 
+                    b.HasIndex("CompanyId", "MinAmount", "MaxAmount");
+
                     b.ToTable("ContractingModes");
+                });
+
+            modelBuilder.Entity("SICST.Domain.Entities.DocumentTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("character varying(12000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "Type", "Active");
+
+                    b.HasIndex("CompanyId", "Type", "Version")
+                        .IsUnique();
+
+                    b.ToTable("DocumentTemplates");
                 });
 
             modelBuilder.Entity("SICST.Domain.Entities.Evaluation", b =>
@@ -680,6 +842,9 @@ namespace SICST.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid?>("DocumentTemplateId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("ExpectedDeliveryDateUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -710,6 +875,8 @@ namespace SICST.Persistence.Migrations
 
                     b.HasIndex("ContractId")
                         .IsUnique();
+
+                    b.HasIndex("DocumentTemplateId");
 
                     b.HasIndex("PurchaseProcessId");
 
@@ -877,6 +1044,11 @@ namespace SICST.Persistence.Migrations
                     b.Property<bool>("ArcaVerified")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("BusinessCategory")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<string>("BusinessName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -913,11 +1085,15 @@ namespace SICST.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessCategory");
+
                     b.HasIndex("Cuit")
                         .IsUnique();
 
                     b.HasIndex("UserId")
                         .IsUnique();
+
+                    b.HasIndex("Province", "Locality");
 
                     b.ToTable("Suppliers");
                 });
@@ -928,15 +1104,30 @@ namespace SICST.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("AlertSentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Sha256Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("StoragePath")
                         .IsRequired()
@@ -954,9 +1145,55 @@ namespace SICST.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SupplierId");
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("SupplierId", "Sha256Hash");
 
                     b.ToTable("SupplierDocuments");
+                });
+
+            modelBuilder.Entity("SICST.Domain.Entities.SupplierDocumentReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExceptionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("ReviewerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SupplierDocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Verdict")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewerId");
+
+                    b.HasIndex("SupplierDocumentId");
+
+                    b.HasIndex("SupplierDocumentId", "Action");
+
+                    b.ToTable("SupplierDocumentReviews");
                 });
 
             modelBuilder.Entity("SICST.Domain.Entities.User", b =>
@@ -988,9 +1225,25 @@ namespace SICST.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("MfaEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("MfaSecret")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("RefreshTokenExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RefreshTokenHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
 
                     b.Property<int>("Role")
                         .HasColumnType("integer");
@@ -1007,6 +1260,11 @@ namespace SICST.Persistence.Migrations
 
             modelBuilder.Entity("SICST.Domain.Entities.Approval", b =>
                 {
+                    b.HasOne("SICST.Domain.Entities.ApprovalWorkflowLevel", "ApprovalWorkflowLevel")
+                        .WithMany()
+                        .HasForeignKey("ApprovalWorkflowLevelId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SICST.Domain.Entities.User", "Approver")
                         .WithMany()
                         .HasForeignKey("ApproverId")
@@ -1018,6 +1276,8 @@ namespace SICST.Persistence.Migrations
                         .HasForeignKey("PurchaseProcessId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ApprovalWorkflowLevel");
 
                     b.Navigation("Approver");
 
@@ -1033,6 +1293,17 @@ namespace SICST.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("SICST.Domain.Entities.ApprovalWorkflowLevel", b =>
+                {
+                    b.HasOne("SICST.Domain.Entities.ApprovalWorkflow", "ApprovalWorkflow")
+                        .WithMany("Levels")
+                        .HasForeignKey("ApprovalWorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApprovalWorkflow");
                 });
 
             modelBuilder.Entity("SICST.Domain.Entities.Auction", b =>
@@ -1081,6 +1352,11 @@ namespace SICST.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("SICST.Domain.Entities.DocumentTemplate", "DocumentTemplate")
+                        .WithMany()
+                        .HasForeignKey("DocumentTemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SICST.Domain.Entities.PurchaseProcess", "PurchaseProcess")
                         .WithMany("Awards")
                         .HasForeignKey("PurchaseProcessId")
@@ -1094,6 +1370,8 @@ namespace SICST.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("AdjudicatedBy");
+
+                    b.Navigation("DocumentTemplate");
 
                     b.Navigation("PurchaseProcess");
 
@@ -1182,6 +1460,11 @@ namespace SICST.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SICST.Domain.Entities.DocumentTemplate", "DocumentTemplate")
+                        .WithMany()
+                        .HasForeignKey("DocumentTemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SICST.Domain.Entities.PurchaseProcess", "PurchaseProcess")
                         .WithMany("Contracts")
                         .HasForeignKey("PurchaseProcessId")
@@ -1198,12 +1481,25 @@ namespace SICST.Persistence.Migrations
 
                     b.Navigation("Company");
 
+                    b.Navigation("DocumentTemplate");
+
                     b.Navigation("PurchaseProcess");
 
                     b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("SICST.Domain.Entities.ContractingMode", b =>
+                {
+                    b.HasOne("SICST.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("SICST.Domain.Entities.DocumentTemplate", b =>
                 {
                     b.HasOne("SICST.Domain.Entities.Company", "Company")
                         .WithMany()
@@ -1277,6 +1573,11 @@ namespace SICST.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SICST.Domain.Entities.DocumentTemplate", "DocumentTemplate")
+                        .WithMany()
+                        .HasForeignKey("DocumentTemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SICST.Domain.Entities.PurchaseProcess", "PurchaseProcess")
                         .WithMany("PurchaseOrders")
                         .HasForeignKey("PurchaseProcessId")
@@ -1292,6 +1593,8 @@ namespace SICST.Persistence.Migrations
                     b.Navigation("Company");
 
                     b.Navigation("Contract");
+
+                    b.Navigation("DocumentTemplate");
 
                     b.Navigation("PurchaseProcess");
 
@@ -1395,6 +1698,24 @@ namespace SICST.Persistence.Migrations
                     b.Navigation("Supplier");
                 });
 
+            modelBuilder.Entity("SICST.Domain.Entities.SupplierDocumentReview", b =>
+                {
+                    b.HasOne("SICST.Domain.Entities.User", "Reviewer")
+                        .WithMany()
+                        .HasForeignKey("ReviewerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SICST.Domain.Entities.SupplierDocument", "SupplierDocument")
+                        .WithMany("Reviews")
+                        .HasForeignKey("SupplierDocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reviewer");
+
+                    b.Navigation("SupplierDocument");
+                });
+
             modelBuilder.Entity("SICST.Domain.Entities.User", b =>
                 {
                     b.HasOne("SICST.Domain.Entities.Company", "Company")
@@ -1403,6 +1724,11 @@ namespace SICST.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("SICST.Domain.Entities.ApprovalWorkflow", b =>
+                {
+                    b.Navigation("Levels");
                 });
 
             modelBuilder.Entity("SICST.Domain.Entities.Auction", b =>
@@ -1445,6 +1771,11 @@ namespace SICST.Persistence.Migrations
             modelBuilder.Entity("SICST.Domain.Entities.ReceptionConfirmation", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("SICST.Domain.Entities.SupplierDocument", b =>
+                {
+                    b.Navigation("Reviews");
                 });
 #pragma warning restore 612, 618
         }

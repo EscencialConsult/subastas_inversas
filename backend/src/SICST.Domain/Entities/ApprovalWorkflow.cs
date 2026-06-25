@@ -21,4 +21,22 @@ public class ApprovalWorkflow
     public bool Active { get; set; } = true;
 
     public DateTime CreatedAtUtc { get; set; }
+
+    public List<ApprovalWorkflowLevel> Levels { get; set; } = [];
+}
+
+public class ApprovalWorkflowLevel
+{
+    public Guid Id { get; set; }
+
+    public Guid ApprovalWorkflowId { get; set; }
+    public ApprovalWorkflow ApprovalWorkflow { get; set; } = null!;
+
+    public int LevelOrder { get; set; }
+
+    public UserRole RequiredRole { get; set; } = UserRole.Autoridad;
+
+    public decimal AmountThreshold { get; set; }
+
+    public DateTime CreatedAtUtc { get; set; }
 }

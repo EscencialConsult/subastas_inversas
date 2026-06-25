@@ -23,6 +23,9 @@ public class Award
 
     public string DocumentPath { get; set; } = string.Empty;
 
+    public Guid? DocumentTemplateId { get; set; }
+    public DocumentTemplate? DocumentTemplate { get; set; }
+
     public Contract? Contract { get; set; }
 
     public List<AwardItem> Items { get; set; } = [];

@@ -12,6 +12,7 @@ import {
   crearProceso,
   actualizarProceso,
   publicarProceso,
+  sugerirModalidadContratacion,
 } from '../../api/comprasApi.js'
 import { obtenerSubastaDeProceso, analisisSubasta } from '../../api/subastasApi.js'
 import {
@@ -21,7 +22,7 @@ import {
   claseEstado,
 } from '../../domain/compras.js'
 
-const VACIO = { titulo: '', descripcion: '', presupuestoEstimado: '' }
+const VACIO = { titulo: '', descripcion: '', presupuestoEstimado: '', modalidadContratacionId: '' }
 
 export function ProcesoFormPage() {
   const { id } = useParams()
@@ -35,6 +36,7 @@ export function ProcesoFormPage() {
   const [cargando, setCargando] = useState(!esNuevo)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+  const [modalidadSugerida, setModalidadSugerida] = useState(null)
 
   useEffect(() => {
     if (esNuevo) return
@@ -45,6 +47,7 @@ export function ProcesoFormPage() {
           titulo: p.titulo,
           descripcion: p.descripcion,
           presupuestoEstimado: String(p.presupuestoEstimado || ''),
+          modalidadContratacionId: p.modalidadContratacionId || '',
         })
         // La subasta es opcional: si el proceso no llegó a esa etapa, no existe.
         return obtenerSubastaDeProceso({ tenantId, procesoId: id })
@@ -59,8 +62,41 @@ export function ProcesoFormPage() {
   const editable = esNuevo || (proceso && esEditable(proceso.estado))
 
   function actualizar(campo, valor) {
+    if (campo === 'presupuestoEstimado' && (!valor || Number(valor) < 0)) {
+      setModalidadSugerida(null)
+      setDatos((prev) => ({ ...prev, [campo]: valor, modalidadContratacionId: '' }))
+      return
+    }
+
     setDatos((prev) => ({ ...prev, [campo]: valor }))
   }
+
+  useEffect(() => {
+    if (!editable || !tenantId) return
+
+    if (!datos.presupuestoEstimado) {
+      return
+    }
+
+    const amount = Number(datos.presupuestoEstimado)
+    if (!Number.isFinite(amount) || amount < 0) {
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      sugerirModalidadContratacion({ tenantId, monto: amount })
+        .then((modalidad) => {
+          setModalidadSugerida(modalidad)
+          setDatos((prev) => ({ ...prev, modalidadContratacionId: modalidad?.id ?? '' }))
+        })
+        .catch(() => {
+          setModalidadSugerida(null)
+          setDatos((prev) => ({ ...prev, modalidadContratacionId: '' }))
+        })
+    }, 300)
+
+    return () => clearTimeout(timeout)
+  }, [datos.presupuestoEstimado, editable, tenantId])
 
   async function manejarSubmit(e) {
     e.preventDefault()
@@ -173,6 +209,12 @@ export function ProcesoFormPage() {
             placeholder="500000"
           />
         </label>
+
+        {modalidadSugerida && (
+          <div className="alerta alerta--info">
+            Modalidad sugerida: {modalidadSugerida.name}
+          </div>
+        )}
 
         <div className="form__acciones">
           <button

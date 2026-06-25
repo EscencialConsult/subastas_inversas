@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Purchases.DTOs;
 using SICST.Domain.Entities;
 
@@ -49,6 +50,12 @@ public class IssuePurchaseOrderCommandHandler : IRequestHandler<IssuePurchaseOrd
         }
 
         var count = await _context.PurchaseOrders.CountAsync(o => o.CompanyId == request.CompanyId, cancellationToken);
+        var template = await DocumentTemplateRules.EnsureActiveTemplate(
+            _context,
+            request.CompanyId,
+            DocumentTemplateType.PurchaseOrder,
+            cancellationToken);
+
         var order = new PurchaseOrder
         {
             Id = Guid.NewGuid(),
@@ -62,10 +69,11 @@ public class IssuePurchaseOrderCommandHandler : IRequestHandler<IssuePurchaseOrd
             IssuedAtUtc = DateTime.UtcNow,
             ExpectedDeliveryDateUtc = request.ExpectedDeliveryDateUtc,
             Observations = request.Observations.Trim(),
-            DocumentPath = string.Empty
+            DocumentPath = string.Empty,
+            DocumentTemplateId = template.Id
         };
 
-        order.DocumentPath = _pdfGenerator.GeneratePurchaseOrder(contract.PurchaseProcess, order, contract.Supplier);
+        order.DocumentPath = _pdfGenerator.GeneratePurchaseOrder(contract.PurchaseProcess, order, contract.Supplier, template);
         _context.PurchaseOrders.Add(order);
         contract.PurchaseProcess.Status = PurchaseProcessStatus.PurchaseOrderIssued;
 

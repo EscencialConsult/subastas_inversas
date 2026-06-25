@@ -18,6 +18,9 @@ public class Approval
     public Guid ApproverId { get; set; }
     public User Approver { get; set; } = null!;
 
+    public Guid? ApprovalWorkflowLevelId { get; set; }
+    public ApprovalWorkflowLevel? ApprovalWorkflowLevel { get; set; }
+
     public ApprovalStatus Status { get; set; }
 
     public string Comments { get; set; } = string.Empty;

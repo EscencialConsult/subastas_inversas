@@ -16,7 +16,7 @@ public class AuctionHandlerTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        var context = new ApplicationDbContext(options);
+        var context = new ApplicationDbContext(options, new TestCurrentTenant());
         context.Database.EnsureCreated();
         return context;
     }
@@ -195,6 +195,7 @@ public class AuctionHandlerTests
             Cuit = $"30-{Random.Shared.Next(10000000, 99999999)}-1",
             BusinessName = "Proveedor Test",
             Email = supplierUser.Email,
+            BusinessCategory = "Servicios",
             Province = "Tucuman",
             Locality = "San Miguel",
             Status = SupplierStatus.Verified,

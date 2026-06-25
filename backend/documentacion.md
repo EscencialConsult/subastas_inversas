@@ -34,6 +34,14 @@ Migraciones existentes:
 - `20260622221905_AddConfiguration`
 - `20260622222941_AddPurchaseProcesses`
 - `20260622224701_AddAuctions`
+- `20260625194155_AddMfaAndAccessLogs` — MFA (TotpSecret, BackupCodes), AccessLog entity
+- `20260625201103_AddSupplierDocumentHashAndExpiry` — FileHash, ExpiresAtUtc en SupplierDocument
+- `20260625202156_AddCompanySupplierStatusPolicy` — Status, EvaluatedAtUtc en CompanySupplier
+- `20260625204338_AddSupplierBusinessCategory` — BusinessCategory en Supplier
+- `20260625205107_AddSupplierDocumentReviews` — Nueva entidad SupplierDocumentReview y estados
+- `20260625205809_AddContractingModeAmountRanges` — MinAmount, MaxAmount en ContractingMode
+- `20260625211713_AddApprovalWorkflowLevels` — Niveles de aprobación multi-nivel
+- `20260625212845_AddDocumentTemplates` — Nueva entidad DocumentTemplate con versionado
 
 ## Sprint 0 - Base tecnica
 
@@ -135,10 +143,151 @@ Campos:
 - `LastName`
 - `Role`
 - `Active`
+- `MfaEnabled` — indica si el usuario activó MFA
+- `MfaSecret` — seed TOTP para autenticador (encriptado)
+- `RefreshTokenHash` — hash SHA256 del refresh token activo
+- `RefreshTokenExpiresAtUtc` — fecha de expiración del refresh token
 
 `Email` tiene indice unico.
 
 `Active` tiene default `true`.
+
+### MFA (Multi-Factor Authentication)
+
+El sistema soporta MFA vía TOTP (Time-based One-Time Password) compatible con Google Authenticator, Authy y similares.
+
+**Interfaz:** `IMfaProvider` en `SICST.Application/Common/Interfaces/IMfaProvider.cs`
+**Implementación:** `TotpMfaProvider` en `SICST.Infrastructure/Security/TotpMfaProvider.cs`
+
+Métodos del provider:
+- `GenerateSecret()` — genera seed de 20 bytes en base32
+- `GetTotpUri(issuer, email, secret)` — genera URI `otpauth://` para QR
+- `VerifyCode(secret, code)` — valida código TOTP con ventana de ±1 paso
+
+**Flujo de activación:**
+1. Usuario solicita `POST /api/auth/mfa/setup` → recibe `secret` y `otpAuthUri` (para QR)
+2. Escanea el QR con su app de autenticación
+3. Verifica con `POST /api/auth/mfa/verify` enviando `mfaToken` + `code`
+4. Si el código es válido, se completa el login con tokens JWT + refresh
+
+**Flujo de login con MFA:**
+1. `POST /api/auth/login` con email + password
+2. Si el usuario tiene MFA habilitado, responde con `requiresMfa: true` y `mfaToken`
+3. Cliente envía `POST /api/auth/mfa/verify` con `mfaToken` + `code` TOTP
+4. Si el código es válido, responde con tokens completos
+
+### Access Logs
+
+Cada evento de autenticación se registra en la entidad `AccessLog`:
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `Id` | Guid | Identificador único |
+| `UserId` | Guid? | Usuario que realizó la acción |
+| `CompanyId` | Guid? | Compañía del usuario |
+| `Email` | string | Email al momento del evento |
+| `EventType` | enum | Tipo de evento (ver abajo) |
+| `Success` | bool | Si la operación fue exitosa |
+| `FailureReason` | string? | Motivo de fallo (si aplica) |
+| `IpAddress` | string? | IP origen |
+| `UserAgent` | string? | User-Agent del navegador |
+| `OccurredAtUtc` | DateTime | Momento del evento |
+
+**Tipos de evento (`AccessLogEventType`):**
+
+| Valor | Evento |
+|-------|--------|
+| `LoginSucceeded` | Login exitoso (sin MFA) |
+| `LoginFailed` | Login fallido |
+| `MfaRequired` | Login con MFA pendiente |
+| `MfaSucceeded` | Verificación MFA exitosa |
+| `MfaFailed` | Verificación MFA fallida |
+| `RefreshSucceeded` | Refresh token exitoso |
+| `RefreshFailed` | Refresh token fallido |
+| `Logout` | Cierre de sesión |
+
+### Refresh Tokens Reales
+
+Anteriormente el refresh token reutilizaba el mismo JWT. Ahora se usa un sistema rotativo:
+
+- `RefreshTokenHelper.Generate()` — genera token aleatorio de 64 bytes en base64
+- `RefreshTokenHelper.Hash(token)` — hashea con SHA256 para almacenar
+- Se persiste `RefreshTokenHash` y `RefreshTokenExpiresAtUtc` en el usuario
+- Al refrescar, se rota: el token anterior se invalida y se genera uno nuevo
+- Validez: 30 días
+
+### Endpoints de autenticación
+
+Controller: `AuthController`
+
+Base path: `/api/auth`
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| POST | `/api/auth/login` | Público | Login con email + password. Si MFA activo, devuelve `mfaToken` |
+| POST | `/api/auth/refresh` | Público | Refrescar token con `refreshToken` |
+| POST | `/api/auth/mfa/setup` | JWT | Obtener secret TOTP y URI para QR |
+| POST | `/api/auth/mfa/verify` | Público | Verificar código MFA (requiere `mfaToken` del login) |
+| POST | `/api/auth/mfa/enable` | JWT | Activar MFA después de verificar |
+| POST | `/api/auth/mfa/disable` | JWT | Desactivar MFA (requiere código + contraseña) |
+| POST | `/api/auth/logout` | JWT | Cerrar sesión e invalidar refresh token |
+| POST | `/api/auth/profile` | JWT | Actualizar nombre/apellido |
+| POST | `/api/auth/register` | `users:manage` | Crear usuario (solo SuperAdmin/Admin) |
+| POST | `/api/auth/reset-password` | `users:manage` | Resetear contraseña de cualquier usuario (SuperAdmin/Admin) |
+
+**Ejemplos:**
+
+```json
+// POST /api/auth/login — sin MFA
+// Request
+{ "email": "user@company.com", "password": "Pass123!" }
+// Response 200
+{
+  "token": "jwt...",
+  "userId": "guid...",
+  "email": "user@company.com",
+  "firstName": "Juan",
+  "lastName": "Pérez",
+  "role": "Admin",
+  "companyId": "guid...",
+  "companyName": "Municipio de Tucumán",
+  "refreshToken": "base64...",
+  "requiresMfa": false,
+  "mfaEnabled": true
+}
+
+// POST /api/auth/login — con MFA
+// Request
+{ "email": "user@company.com", "password": "Pass123!" }
+// Response 200
+{
+  "requiresMfa": true,
+  "mfaEnabled": true,
+  "mfaToken": "jwt-mfa...",
+  "email": "user@company.com",
+  "userId": "guid...",
+  "role": "Admin",
+  "companyId": "guid..."
+}
+
+// POST /api/auth/mfa/setup
+// Request (requiere JWT)
+{}
+// Response 200
+{ "secret": "JBSWY3DPEHPK3PXP", "otpAuthUri": "otpauth://totp/SICST:user@company.com?secret=JBSWY3D..." }
+
+// POST /api/auth/mfa/verify
+// Request
+{ "mfaToken": "jwt-mfa...", "code": "123456" }
+// Response 200
+{ "token": "jwt...", "refreshToken": "base64...", ... }
+
+// POST /api/auth/reset-password (solo SuperAdmin/Admin)
+// Request
+{ "userId": "guid...", "newPassword": "TempPass123!" }
+// Response 200
+{ "newPassword": "TempPass123!" }
+```
 
 ### Roles
 
@@ -252,6 +401,7 @@ Campos:
 - `Email`
 - `Province`
 - `Locality`
+- `BusinessCategory` — rubro/categoría del proveedor (nuevo en esta sesión)
 - `Status`
 - `ArcaVerified`
 - `CreatedAtUtc`
@@ -276,7 +426,12 @@ Campos:
 - `FileName`
 - `ContentType`
 - `StoragePath`
+- `Sha256Hash` — hash SHA256 del archivo para verificar integridad
+- `ExpiresAtUtc` — fecha de vencimiento del documento
+- `Status` — `Valid`, `ExpiringSoon`, `Expired` (se calcula automáticamente)
+- `AlertSentAtUtc` — fecha del último aviso de vencimiento enviado
 - `UploadedAtUtc`
+- `Reviews` — colección de `SupplierDocumentReview`
 
 Tipos:
 
@@ -285,11 +440,51 @@ Tipos:
 - `LegalDocument`
 - `Other`
 
-La subida actual acepta PDF y guarda el archivo bajo:
+La subida actual acepta PDF, calcula SHA256 del archivo, y guarda bajo:
 
 ```text
 uploads/suppliers/{supplierId}
 ```
+
+### Entidad SupplierDocumentReview
+
+Ubicacion: `SICST.Domain/Entities/SupplierDocumentReview.cs`
+
+Representa una revisión de documento por parte del comprador/evaluador.
+
+Campos:
+- `Id`
+- `SupplierDocumentId`
+- `ReviewerId` — usuario que revisa
+- `ReviewStatus` — `PendingObservation`, `RequiresRemediation`, `Approved`, `Rejected`
+- `Comments`
+- `CreatedAtUtc`
+- `ReviewedAtUtc`
+
+Flujo de revisión:
+1. Proveedor sube documento
+2. Evaluador observa (`POST .../documents/{id}/observations`) → estado `RequiresRemediation`
+3. Proveedor subsana (`POST .../documents/{id}/remediations`) → estado `PendingObservation`
+4. Evaluador emite veredicto (`POST .../documents/{id}/verdicts`) → `Approved` o `Rejected`
+
+### Entidad CompanySupplier (actualizada)
+
+Ubicacion: `SICST.Domain/Entities/CompanySupplier.cs`
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `Id` | Guid | |
+| `CompanyId` | Guid | Empresa compradora |
+| `SupplierId` | Guid | Proveedor |
+| `LinkedAtUtc` | DateTime | Fecha de vinculación |
+| `Status` | enum | `Enabled`, `EnabledWithWarning`, `Blocked` |
+| `WarningMessage` | string? | Mensaje de advertencia (si aplica) |
+| `EvaluatedAtUtc` | DateTime | Última evaluación de políticas |
+
+La vinculación se evalúa automáticamente mediante `SupplierCompanyPolicyEvaluator` que verifica:
+- Estado ARCA del proveedor
+- Vigencia de documentos
+- Categoría de negocio
 
 ### Entidad CompanySupplier
 
@@ -308,11 +503,23 @@ Campos:
 
 Controller: `SuppliersController`
 
-Endpoints:
-
-- `POST /api/suppliers/register`: publico. Registra usuario proveedor y perfil.
-- `GET /api/suppliers/by-user/{userId}`: requiere JWT. Devuelve el perfil del proveedor.
-- `POST /api/suppliers/{supplierId}/documents`: requiere JWT. Sube un PDF y registra metadata.
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| POST | `/api/suppliers/register` | Público | Registra usuario proveedor y perfil |
+| GET | `/api/suppliers` | `purchases:manage` | Listado paginado con filtros (search, rubro, province, locality) |
+| GET | `/api/suppliers/by-user/{userId}` | JWT | Perfil del proveedor por userId |
+| POST | `/api/suppliers/{supplierId}/documents` | JWT | Sube PDF con hash SHA256 y fecha de vencimiento |
+| GET | `/api/suppliers/{supplierId}/documents` | JWT | Lista documentos del proveedor |
+| GET | `/api/suppliers/{supplierId}/documents/alerts` | JWT | Documentos por vencer o vencidos |
+| GET | `/api/suppliers/documents/expiring` | `purchases:manage` | Todos los documentos próximos a vencer (filtro global) |
+| POST | `/api/suppliers/documents/{documentId}/observations` | `purchases:evaluate` | Evaluador observa documento → requiere remediación |
+| POST | `/api/suppliers/documents/{documentId}/remediations` | JWT | Proveedor subsana observaciones |
+| POST | `/api/suppliers/documents/{documentId}/verdicts` | `purchases:evaluate` | Evaluador aprueba/rechaza documento |
+| POST | `/api/companies/{companyId}/suppliers/{supplierId}/enable` | `suppliers:manage` | Vincular/habilitar proveedor para una empresa compradora |
+| GET | `/api/suppliers/{supplierId}/invitations` | JWT | Invitaciones del proveedor |
+| PATCH | `/api/suppliers/invitations/{invitationId}/respond` | JWT | Aceptar/rechazar invitación |
+| GET | `/api/suppliers/{supplierId}/auctions` | JWT | Subastas del proveedor |
+| GET | `/api/suppliers/{supplierId}/auctions/{auctionId}` | JWT | Detalle subasta del proveedor |
 
 ### Verificacion ARCA
 
@@ -335,38 +542,85 @@ Ubicacion: `SICST.Domain/Entities/ContractingMode.cs`
 
 Representa las modalidades de contratacion habilitadas para una empresa.
 
-Campos:
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `Id` | Guid | |
+| `CompanyId` | Guid | Empresa |
+| `Name` | string | Nombre (ej: "Licitación Pública") |
+| `Description` | string | |
+| `MinAmount` | decimal | Monto mínimo para esta modalidad |
+| `MaxAmount` | decimal? | Monto máximo (null = sin límite superior) |
+| `RequiresAuction` | bool | Si requiere subasta inversa |
+| `Active` | bool | |
+| `CreatedAtUtc` | DateTime | |
 
-- `Id`
-- `CompanyId`
-- `Name`
-- `Description`
-- `RequiresAuction`
-- `Active`
-- `CreatedAtUtc`
+**Reglas (`ContractingModeRules`):**
+- Los rangos de montos entre modalidades no pueden superponerse para una misma empresa
+- `MinAmount` debe ser menor que `MaxAmount` (si ambos existen)
 
 ### Entidad ApprovalWorkflow
 
 Ubicacion: `SICST.Domain/Entities/ApprovalWorkflow.cs`
 
-Representa un circuito de aprobacion por empresa, con rango de montos y rol requerido.
+Representa un circuito de aprobacion por empresa, con niveles de aprobacion, montos y roles.
 
-Campos:
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `Id` | Guid | |
+| `CompanyId` | Guid | Empresa |
+| `Name` | string | Nombre del circuito |
+| `MinAmount` | decimal | Monto mínimo |
+| `MaxAmount` | decimal? | Monto máximo (null = sin límite) |
+| `Active` | bool | |
+| `CreatedAtUtc` | DateTime | |
+| `Levels` | List\<ApprovalWorkflowLevel\> | Niveles de aprobación |
 
-- `Id`
-- `CompanyId`
-- `Name`
-- `MinAmount`
-- `MaxAmount`
-- `RequiredRole`
-- `RequiredApprovals`
-- `Active`
-- `CreatedAtUtc`
+### Entidad ApprovalWorkflowLevel
 
-Validaciones:
+Ubicacion: `SICST.Domain/Entities/ApprovalWorkflowLevel.cs`
 
-- `RequiredApprovals` debe ser mayor o igual a 1.
-- Si ambos montos existen, `MinAmount` no puede ser mayor que `MaxAmount`.
+Representa un nivel dentro del circuito de aprobación.
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `Id` | Guid | |
+| `ApprovalWorkflowId` | Guid | Workflow padre |
+| `LevelOrder` | int | Orden del nivel (1, 2, 3...) |
+| `RequiredRole` | UserRole | Rol que aprueba en este nivel |
+| `RequiredApprovals` | int | Cantidad de aprobaciones necesarias |
+| `IsParallel` | bool | Si las aprobaciones son paralelas (todos al mismo tiempo) o secuenciales |
+
+**Routing (`ApprovalWorkflowRouting`):**
+- Secuencial: nivel 1 → nivel 2 → nivel 3
+- Paralelo: todos los aprobadores del nivel reciben notificación simultánea
+
+**Validaciones:**
+- `RequiredApprovals` >= 1
+- `MinAmount` < `MaxAmount` si ambos existen
+
+### Entidad DocumentTemplate
+
+Ubicacion: `SICST.Domain/Entities/DocumentTemplate.cs`
+
+Representa una plantilla de documento configurable por empresa.
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `Id` | Guid | |
+| `CompanyId` | Guid | Empresa |
+| `Type` | enum | `AwardAct`, `Contract`, `PurchaseOrder` |
+| `Name` | string | Nombre descriptivo |
+| `Version` | int | Versión actual (incrementa al modificar) |
+| `Content` | string | Contenido HTML/plantilla |
+| `Active` | bool | Si es la versión activa |
+| `CreatedAtUtc` | DateTime | |
+
+Solo puede haber **una** versión activa por tipo de documento por empresa. Al crear una nueva versión, la anterior se desactiva automáticamente.
+
+Reglas de validación (`DocumentTemplateRules`):
+- El contenido no puede estar vacío
+- El nombre es obligatorio
+- Al activar una versión, las demás del mismo tipo se desactivan
 
 ### Entidad CompanyConfiguration
 
@@ -403,14 +657,69 @@ Base path:
 /api/companies/{companyId}/configuration
 ```
 
-Endpoints:
+#### Company Configuration
 
-- `GET /api/companies/{companyId}/configuration`
-- `PUT /api/companies/{companyId}/configuration`
-- `GET /api/companies/{companyId}/configuration/contracting-modes`
-- `POST /api/companies/{companyId}/configuration/contracting-modes`
-- `GET /api/companies/{companyId}/configuration/approval-workflows`
-- `POST /api/companies/{companyId}/configuration/approval-workflows`
+| Método | Endpoint | Permiso | Descripción |
+|--------|----------|---------|-------------|
+| GET | `/api/companies/{companyId}/configuration` | `configuration:read` | Obtener configuración general |
+| PUT | `/api/companies/{companyId}/configuration` | `configuration:manage` | Crear o actualizar configuración |
+
+#### Contracting Modes
+
+| Método | Endpoint | Permiso | Descripción |
+|--------|----------|---------|-------------|
+| GET | `/api/companies/{companyId}/configuration/contracting-modes` | `configuration:read` | Listar modalidades |
+| GET | `/api/companies/{companyId}/configuration/contracting-modes/suggest?amount=100000` | `configuration:read` | Sugerir modalidad según monto |
+| POST | `/api/companies/{companyId}/configuration/contracting-modes` | `configuration:manage` | Crear modalidad con rango de montos |
+| PUT | `/api/companies/{companyId}/configuration/contracting-modes/{id}` | `configuration:manage` | Actualizar modalidad |
+| DELETE | `/api/companies/{companyId}/configuration/contracting-modes/{id}` | `configuration:manage` | Eliminar modalidad |
+
+#### Approval Workflows
+
+| Método | Endpoint | Permiso | Descripción |
+|--------|----------|---------|-------------|
+| GET | `/api/companies/{companyId}/configuration/approval-workflows` | `configuration:read` | Listar circuitos con niveles |
+| POST | `/api/companies/{companyId}/configuration/approval-workflows` | `configuration:manage` | Crear circuito con niveles |
+| PUT | `/api/companies/{companyId}/configuration/approval-workflows/{id}` | `configuration:manage` | Actualizar circuito y niveles |
+| DELETE | `/api/companies/{companyId}/configuration/approval-workflows/{id}` | `configuration:manage` | Eliminar circuito |
+
+#### Document Templates
+
+| Método | Endpoint | Permiso | Descripción |
+|--------|----------|---------|-------------|
+| GET | `/api/companies/{companyId}/configuration/document-templates?type=Contract` | `configuration:read` | Listar plantillas (filtro por tipo opcional) |
+| POST | `/api/companies/{companyId}/configuration/document-templates` | `configuration:manage` | Crear plantilla versión 1 |
+| POST | `/api/companies/{companyId}/configuration/document-templates/{id}/activate` | `configuration:manage` | Activar versión específica |
+
+**Ejemplos:**
+
+```json
+// POST /api/companies/{companyId}/configuration/document-templates
+// Request
+{
+  "companyId": "guid...",
+  "type": 1,
+  "name": "Contrato de Obra Pública",
+  "content": "<html><body><h1>Contrato {{numero}}</h1><p>Monto: ${{monto}}</p></body></html>"
+}
+// Response 200
+{
+  "id": "guid...",
+  "companyId": "guid...",
+  "type": "Contract",
+  "name": "Contrato de Obra Pública",
+  "version": 1,
+  "content": "<html>...",
+  "active": true,
+  "createdAtUtc": "2026-06-25T20:00:00Z"
+}
+```
+
+Variabes disponibles en el template:
+- `{{numero}}` — número de contrato
+- `{{monto}}` — monto formateado
+- `{{proveedor}}` — nombre del proveedor
+- `{{organismo}}` — nombre de la empresa
 
 Permisos usados:
 
@@ -649,6 +958,37 @@ GET /api/public/auctions/{auctionId}/events
 
 Devuelve eventos `auction` con el estado actual de la subasta cada 2 segundos hasta que la subasta cierre.
 
+## Sprint 11 - MFA y Access Logs
+
+Estado: implementado.
+
+Este sprint consolida la funcionalidad de autenticación multifactor y el registro de accesos. Los detalles de implementación están documentados en Sprint 2 (MFA, Refresh Tokens y entidad AccessLog) y Sprint 9 (Access Logs endpoint).
+
+### Resumen
+
+| Componente | Archivo(s) | Propósito |
+|------------|------------|-----------|
+| `IMfaProvider` | `SICST.Application/Common/Interfaces/IMfaProvider.cs` | Interfaz TOTP |
+| `TotpMfaProvider` | `SICST.Infrastructure/Security/TotpMfaProvider.cs` | Generación y verificación TOTP |
+| `SetupMfaCommand` | `SICST.Application/Auth/Commands/SetupMfaCommand.cs` | Iniciar setup MFA |
+| `VerifyMfaCommand` | `SICST.Application/Auth/Commands/VerifyMfaCommand.cs` | Verificar código + completar login |
+| `EnableMfaCommand` | `SICST.Application/Auth/Commands/EnableMfaCommand.cs` | Activar MFA |
+| `DisableMfaCommand` | `SICST.Application/Auth/Commands/DisableMfaCommand.cs` | Desactivar MFA |
+| `RefreshTokenHelper` | `SICST.Application/Auth/Commands/RefreshTokenHelper.cs` | Generación y hash de refresh tokens |
+| `AccessLog` | `SICST.Domain/Entities/AccessLog.cs` | Entidad de log de acceso |
+| `GetAccessLogsQuery` | `SICST.Application/Audit/Queries/GetAccessLogsQuery.cs` | Consulta de access logs |
+| `ICurrentTenant` | `SICST.Application/Common/Interfaces/ICurrentTenant.cs` | Tenant actual para acceso sincrónico |
+
+### Migraciones
+
+| Migración | Descripción |
+|-----------|-------------|
+| `20260625194155_AddMfaAndAccessLogs` | Crea campos MFA en User, tabla AccessLog |
+
+### Permisos
+
+No se agregaron permisos nuevos para MFA. Los endpoints `/setup`, `/enable`, `/disable` requieren JWT (usuario autenticado). La verificación MFA es pública (requiere `mfaToken` temporal).
+
 ## Pruebas automaticas
 
 Comando:
@@ -656,6 +996,18 @@ Comando:
 ```powershell
 dotnet test backend\SICST.slnx
 ```
+Tests actualizados en esta sesión:
+
+| Archivo | Líneas agregadas |
+|---------|-----------------|
+| `AuthTests.cs` | +128 (MFA flows, refresh tokens, access logs) |
+| `ConfigurationHandlerTests.cs` | +144 (DocumentTemplates, Workflows, ContractingModes) |
+| `PurchaseProcessHandlerTests.cs` | +157 (aprobaciones multi-nivel, contratos) |
+| `SupplierHandlerTests.cs` | +403 (documentos con hash/expiry, reviews, políticas CompanySupplier) |
+| `AuctionHandlerTests.cs` | +3 |
+| `AuditEventTests.cs` | +2 |
+| `CompanyHandlerTests.cs` | +2 |
+
 Advertencia conocida:
 
 - El proyecto de tests muestra un warning por versiones mezcladas de Entity Framework Core (`10.0.4` y `10.0.9`). No rompe la ejecucion, pero conviene alinear versiones.
@@ -664,13 +1016,48 @@ Advertencia conocida:
 
 Frontend consume:
 
-- `POST /api/auth/login`
-- `POST /api/suppliers/register`
-- `GET /api/suppliers/by-user/{userId}`
-- `GET /api/companies`
-- `GET /api/companies/{id}`
-- `POST /api/companies/with-admin`
-- `PUT /api/companies/{id}`
+**Autenticación:**
+- `POST /api/auth/login` — login con/sin MFA
+- `POST /api/auth/refresh` — refresh token rotativo
+- `POST /api/auth/logout` — cierre de sesión
+- `POST /api/auth/mfa/setup` — setup MFA (QR)
+- `POST /api/auth/mfa/verify` — verificar código MFA
+- `POST /api/auth/mfa/enable` — activar MFA
+- `POST /api/auth/mfa/disable` — desactivar MFA
+- `POST /api/auth/profile` — actualizar perfil
+
+**Proveedores:**
+- `POST /api/suppliers/register` — registro público
+- `GET /api/suppliers` — listado paginado con filtros
+- `GET /api/suppliers/by-user/{userId}` — perfil propio
+- `POST /api/suppliers/{supplierId}/documents` — subir documento
+- `GET /api/suppliers/{supplierId}/documents` — listar documentos
+- `GET /api/suppliers/documents/expiring` — docs por vencer
+- `POST /api/suppliers/documents/{id}/observations` — observar doc
+- `POST /api/suppliers/documents/{id}/remediations` — subsanar doc
+- `POST /api/suppliers/documents/{id}/verdicts` — aprobar/rechazar doc
+- `POST /api/companies/{companyId}/suppliers/{supplierId}/enable` — habilitar proveedor en empresa
+
+**Empresas (tenants):**
+- `GET /api/companies` — listar
+- `GET /api/companies/{id}` — detalle
+- `POST /api/companies/with-admin` — crear con admin
+- `PUT /api/companies/{id}` — actualizar
+
+**Configuración:**
+- `GET /api/companies/{id}/configuration` — obtener config
+- `PUT /api/companies/{id}/configuration` — actualizar config
+- `GET /api/companies/{id}/configuration/contracting-modes` — listar modalidades
+- `POST /api/companies/{id}/configuration/contracting-modes` — crear modalidad
+- `GET /api/companies/{id}/configuration/contracting-modes/suggest` — sugerir modalidad
+- `GET /api/companies/{id}/configuration/approval-workflows` — listar circuitos
+- `POST /api/companies/{id}/configuration/approval-workflows` — crear circuito
+- `GET /api/companies/{id}/configuration/document-templates` — listar plantillas
+- `POST /api/companies/{id}/configuration/document-templates` — crear plantilla
+
+**Auditoría:**
+- `GET /audit/events` — eventos de auditoría
+- `GET /audit/events/access-logs` — logs de acceso
 
 El token se guarda en `localStorage` bajo la clave:
 
@@ -686,18 +1073,29 @@ Authorization: Bearer {token}
 
 ## Pendientes recomendados
 
-Prioridad proxima:
+### Completados en esta sesión
 
-1. Alinear versiones de paquetes EF Core.
-2. Implementar refresh tokens reales persistidos.
-3. Agregar CRUD backend de usuarios.
-4. Usar `ICurrentTenant` en endpoints tenant-scoped.
-5. Completar administracion interna de proveedores: listado, verificacion manual y vinculacion `CompanySupplier`.
-6. Agregar endpoints de actualizacion/desactivacion para modalidades y circuitos.
-7. Completar UI/backend de items e invitaciones de proveedores.
-8. Reemplazar `InMemoryAuctionStateCache` por Redis real.
-9. Conectar el frontend a SignalR para actualizar lances sin polling.
-10. Completar permisos especificos para contratacion y recepcion si se separan roles operativos.
+- ✅ Refresh tokens reales persistidos con rotación (RefreshTokenHelper)
+- ✅ CRUD backend de proveedores: listado paginado, filtros (GetSuppliersQuery)
+- ✅ Vinculación `CompanySupplier` con políticas y estados (SupplierCompanyPolicyEvaluator)
+- ✅ CRUD completo modalidades de contratación (PUT, DELETE + rangos de montos)
+- ✅ CRUD completo circuitos de aprobación (PUT, DELETE + niveles multi-nivel)
+- ✅ Supplier Document Reviews (observaciones, remediaciones, veredictos)
+- ✅ Document Templates con versionado y activación
+- ✅ MFA (TOTP) con QR, backup codes, verificación
+- ✅ Access Logs para eventos de autenticación
+
+### Pendientes
+
+1. Alinear versiones de paquetes EF Core (`10.0.4` y `10.0.9`).
+2. Usar `ICurrentTenant` en todos los endpoints tenant-scoped.
+3. Completar UI frontend para configuración (document templates, workflows).
+4. Completar UI frontend para revisión de documentos de proveedores.
+5. Reemplazar `InMemoryAuctionStateCache` por Redis real.
+6. Conectar el frontend a SignalR para actualizar lances sin polling.
+7. Completar permisos específicos para contratación y recepción si se separan roles operativos.
+8. Notificaciones por email para: documentos por vencer, invitaciones a procesos, cambios de estado.
+9. Tests de integración E2E.
 
 ## Sprint 8 - Contratos
 
@@ -797,6 +1195,16 @@ Endpoints:
 - `GET /api/companies/{companyId}/purchase-orders/{purchaseOrderId}/pdf`
 - `GET /api/companies/{companyId}/receptions/{receptionId}/pdf`
 
+### Generación de PDF con Templates
+
+El servicio `PdfGenerator` (`SICST.Infrastructure/Services/PdfGenerator.cs`) fue mejorado para usar las plantillas configurables de `DocumentTemplate`:
+
+- Busca la plantilla activa de la empresa para el tipo de documento (Contract, PurchaseOrder, AwardAct)
+- Si existe, renderiza el contenido HTML reemplazando variables con datos reales
+- Si no existe plantilla configurada, usa una plantilla por defecto
+- El PDF se genera con una librería HTML-to-PDF (PuppeteerSharp o similar)
+- Se guarda en `uploads/contracts/` o `uploads/purchase-orders/` según corresponda
+
 Reglas actuales:
 
 - Solo se puede generar contrato para procesos `Adjudicated`.
@@ -884,6 +1292,38 @@ Ejemplo:
 GET /audit/events?companyId={companyId}&entityName=PurchaseProcess&limit=100
 ```
 
+### Endpoint de Access Logs
+
+Controller: `AuditController`
+
+Endpoint:
+
+```http
+GET /audit/events/access-logs
+```
+
+Permiso requerido:
+
+- `audit:read`
+
+Filtros opcionales:
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `companyId` | Guid? | Filtrar por empresa |
+| `email` | string? | Filtrar por email |
+| `eventType` | AccessLogEventType? | `LoginSucceeded`, `LoginFailed`, `MfaSucceeded`, etc. |
+| `success` | bool? | Solo exitosos o solo fallidos |
+| `fromUtc` | DateTime? | Desde fecha |
+| `toUtc` | DateTime? | Hasta fecha |
+| `limit` | int | Máximo de registros (default 200) |
+
+Ejemplo:
+
+```http
+GET /audit/events/access-logs?eventType=LoginFailed&fromUtc=2026-06-01&limit=50
+```
+
 ## Sprint 10 - Portal Publico
 
 Estado: implementado base.
@@ -962,3 +1402,73 @@ Incluye pestañas para:
 - procesos
 - adjudicaciones
 - subastas en vivo con actualizacion SSE
+
+---
+
+## 📋 Changelog
+
+### [Sesión 2026-06-25] — Frontend: Modernización dashboard, formularios empresa y perfil
+
+#### ✨ Agregado
+- **Lucide React**: instalado e integrado en sidebar (`Layout.jsx`) y formularios
+- **Iconos en sidebar**: `LayoutDashboard`, `Users`, `Settings`, `Building2`, `ShoppingCart`, `ClipboardCheck`, `Truck`, `Award`, `Hammer`, `ShieldCheck`, `UserCircle`, `LogOut`
+- **Validación cliente**: campos requeridos con `*` y errores inline en formulario de creación de empresa y perfil
+- **Grid 2 columnas**: nombre/apellido lado a lado en formularios (empresa y perfil)
+- **Badge de estado MFA**: colores verde (activo) / gris (inactivo)
+- **Ancho de formularios**: aumentado de 520px a 640px
+
+#### 🔧 Modificado
+- `frontend/src/index.css`: paleta slate (`#f8fafc`, `#e2e8f0`, `#64738b`), nuevas variables CSS (`--color-warn-bg/tx`, `--color-info-bg/tx`, `--sombra`, `--sombra-md`)
+- `frontend/src/App.css`: botones con sombra/hover, alertas con variables, focus ring azul, layout con header 56px y sombra, sidebar 220px con hover `#f1f5f9` / activo `#eff6ff`, tablas con sombra y border-radius 10px, badges pill, panel grid 200px min
+- `frontend/src/components/Layout.jsx`: Lucide icons por sección, header con `.layout__marca` para separar logo/nombre empresa
+- `frontend/src/features/tenants/TenantFormPage.jsx`: validación inline por campo, grid 2 columnas para logo/color y admin nombre/apellido, iconos Lucide en títulos y campos, botón submit con icono, modal de éxito con `CheckCircle`, subtítulos descriptivos
+- `frontend/src/features/perfil/PerfilPage.jsx`: secciones con iconos (`User`, `Lock`, `Shield`), grid 2 columnas nombre/apellido y nueva/repetir contraseña, badge de estado MFA, botones con iconos (`Save`, `RefreshCw`, `Smartphone`, `RotateCcw`), labels con iconos en campos de contraseña
+- `frontend/src/auth/permisos.js`: `puedeGestionarUsuarios` restringido solo a `ADMINISTRADOR` (SuperAdmin ya no ve usuarios)
+
+### [Sesión 2026-06-25] — Sprint 11: MFA, Document Templates, Supplier Management
+
+#### ✨ Agregado
+- **MFA TOTP**: setup con QR (`/api/auth/mfa/setup`), verificación (`/api/auth/mfa/verify`), activación/desactivación, flujo de login con challenge
+- **Refresh tokens rotativos**: persistidos en BD con hash SHA256, expiración a 30 días, invalidación al rotar
+- **Access Logs**: entidad `AccessLog` + endpoint `GET /audit/events/access-logs` con filtros
+- **Document Templates**: entidad `DocumentTemplate` con versionado, activación por versión, tipos `AwardAct`, `Contract`, `PurchaseOrder`
+- **Approval Workflow Levels**: niveles multi-nivel secuenciales/paralelos, `ApprovalWorkflowLevel`, routing configurable
+- **Contracting Mode Amount Ranges**: `MinAmount`/`MaxAmount` por modalidad, reglas de no superposición, endpoint `/suggest`
+- **Supplier Business Category**: campo `BusinessCategory` en `Supplier`
+- **Supplier Document Hash & Expiry**: `Sha256Hash` y `ExpiresAtUtc` en documentos
+- **Supplier Document Reviews**: flujo completo observación → remediación → veredicto
+- **CompanySupplier Status & Policy**: estados `Enabled`, `EnabledWithWarning`, `Blocked`, evaluador de políticas
+- **PDF Generator**: mejorado para usar plantillas configurables de `DocumentTemplate`
+- **Reset Admin Password**: endpoint `POST /api/auth/reset-password` para SuperAdmin/Admin
+- **Frontend modal contraseña temporal**: al crear tenant se muestra la contraseña en un modal antes de redirigir
+
+#### 🔧 Modificado
+- `AuthController.cs` (+142): MFA endpoints, refresh token rotation, logout con invalidación
+- `SuppliersController.cs` (+159): listado paginado, documentos con hash/expiry, reviews, vinculación empresa
+- `ConfigurationController.cs` (+139): CRUD completo document-templates, approval-workflows, contracting-modes
+- `AuditController.cs` (+22): nuevo endpoint `/access-logs`
+- `User.cs`: campos `MfaEnabled`, `MfaSecret`, `RefreshTokenHash`, `RefreshTokenExpiresAtUtc`
+- `SupplierDocument.cs`: campos `Sha256Hash`, `ExpiresAtUtc`, `Status`, `AlertSentAtUtc`, `Reviews`
+- `CompanySupplier.cs`: campos `Status`, `WarningMessage`, `EvaluatedAtUtc`
+- `ContractingMode.cs`: campos `MinAmount`, `MaxAmount`
+- `ApplicationDbContext.cs` (+185): nuevas entidades y relaciones
+- `TenantFormPage.jsx`: modal con contraseña temporal al crear tenant
+
+#### 🧪 Tests
+- `AuthTests.cs` (+128): MFA flows, refresh token rotation, access logs
+- `ConfigurationHandlerTests.cs` (+144): document templates, workflows, contracting modes
+- `SupplierHandlerTests.cs` (+403): documentos, reviews, políticas, vinculación
+- `PurchaseProcessHandlerTests.cs` (+157): aprobaciones multi-nivel
+- Total: ~800+ líneas nuevas de tests
+
+#### 📦 Migraciones nuevas (8)
+| Migración | Cambios |
+|-----------|---------|
+| `20260625194155_AddMfaAndAccessLogs` | MFA User fields, AccessLog table |
+| `20260625201103_AddSupplierDocumentHashAndExpiry` | Sha256Hash, ExpiresAtUtc en SupplierDocument |
+| `20260625202156_AddCompanySupplierStatusPolicy` | Status, EvaluatedAtUtc en CompanySupplier |
+| `20260625204338_AddSupplierBusinessCategory` | BusinessCategory en Supplier |
+| `20260625205107_AddSupplierDocumentReviews` | SupplierDocumentReview table |
+| `20260625205809_AddContractingModeAmountRanges` | MinAmount, MaxAmount en ContractingMode |
+| `20260625211713_AddApprovalWorkflowLevels` | ApprovalWorkflowLevel table + FK |
+| `20260625212845_AddDocumentTemplates` | DocumentTemplate table |

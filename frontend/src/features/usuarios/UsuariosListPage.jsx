@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { listarUsuarios, cambiarEstadoUsuario } from '../../api/usersApi.js'
+import { resetPassword } from '../../api/authApi.js'
 import { ROLE_INFO, etiquetaRol } from '../../domain/roles.js'
 
 export function UsuariosListPage() {
@@ -14,12 +15,15 @@ export function UsuariosListPage() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
+  const [resetModal, setResetModal] = useState(null) // { usuario, nuevaPass }
+
   // Filtros
   const [busqueda, setBusqueda] = useState('')
   const [rol, setRol] = useState('')
   const [estado, setEstado] = useState('') // '', 'activos', 'inactivos'
 
   async function cargar() {
+    if (!tenantId) return
     setCargando(true)
     setError('')
     try {
@@ -47,6 +51,42 @@ export function UsuariosListPage() {
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  function generarPass() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let pass = ''
+    for (let i = 0; i < 12; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return pass + 'Aa1!'
+  }
+
+  async function manejarResetPass(usuario) {
+    const nuevaPass = generarPass()
+    try {
+      const res = await resetPassword({ userId: usuario.id, newPassword: nuevaPass })
+      setResetModal({ usuario, nuevaPass: res.newPassword })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (!tenantId) {
+    return (
+      <section>
+        <div className="encabezado">
+          <h1>Usuarios</h1>
+        </div>
+        <div className="alerta alerta--info">
+          Seleccioná una empresa desde{' '}
+          <button className="btn btn--texto" onClick={() => navigate('/tenants')}>
+            Tenants
+          </button>{' '}
+          y luego ingresá a su detalle para administrar sus usuarios.
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -122,11 +162,51 @@ export function UsuariosListPage() {
                   <button className="btn btn--texto" onClick={() => alternarEstado(u)}>
                     {u.activo ? 'Desactivar' : 'Activar'}
                   </button>
+                  <button className="btn btn--texto btn--texto-peligro" onClick={() => manejarResetPass(u)}>
+                    Resetear pass
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {resetModal && (
+        <div className="modal-overlay" onClick={() => setResetModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal__header">
+              <h2>Contraseña restablecida</h2>
+            </div>
+            <div className="modal__body">
+              <p>
+                Se restableció la contraseña de <strong>{resetModal.usuario.nombre} {resetModal.usuario.apellido}</strong> ({resetModal.usuario.email}).
+              </p>
+              <div className="alerta alerta--info">
+                <strong>Nueva contraseña temporal:</strong>
+              </div>
+              <div className="contrasenia-temporal">
+                <code>{resetModal.nuevaPass}</code>
+                <button
+                  type="button"
+                  className="btn btn--icono"
+                  title="Copiar contraseña"
+                  onClick={() => navigator.clipboard.writeText(resetModal.nuevaPass)}
+                >
+                  📋
+                </button>
+              </div>
+              <p className="campo__ayuda">
+                El usuario deberá cambiar esta contraseña al iniciar sesión. Copiala ahora antes de cerrar.
+              </p>
+            </div>
+            <div className="modal__footer">
+              <button className="btn btn--primario" onClick={() => { setResetModal(null); cargar() }}>
+                Entendido, cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   )

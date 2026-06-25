@@ -68,6 +68,13 @@ export async function obtenerProceso({ tenantId, id }) {
   return mapProceso(data)
 }
 
+export async function sugerirModalidadContratacion({ tenantId, monto }) {
+  const amount = Number(monto)
+  if (!Number.isFinite(amount) || amount < 0) return null
+
+  return apiFetch(`/api/companies/${tenantId}/configuration/contracting-modes/suggest?amount=${amount}`)
+}
+
 export async function crearProceso({ tenantId, compradorId, datos }) {
   validar(datos)
 
@@ -79,6 +86,7 @@ export async function crearProceso({ tenantId, compradorId, datos }) {
       title: datos.titulo.trim(),
       description: datos.descripcion?.trim() ?? '',
       estimatedBudget: Number(datos.presupuestoEstimado) || 0,
+      contractingModeId: datos.modalidadContratacionId || null,
       items: normalizarItems(datos.items),
     }),
   })
@@ -97,6 +105,7 @@ export async function actualizarProceso({ tenantId, id, datos }) {
       title: datos.titulo.trim(),
       description: datos.descripcion?.trim() ?? '',
       estimatedBudget: Number(datos.presupuestoEstimado) || 0,
+      contractingModeId: datos.modalidadContratacionId || null,
       items: normalizarItems(datos.items),
     }),
   })
@@ -163,6 +172,7 @@ function mapProceso(p) {
     titulo: p.title,
     descripcion: p.description,
     presupuestoEstimado: p.estimatedBudget,
+    modalidadContratacionId: p.contractingModeId ?? '',
     estado: ESTADOS_BACK_TO_FRONT[p.status] ?? ESTADO_PROCESO.BORRADOR,
     creadoEn: p.createdAtUtc?.slice(0, 10),
     publicadoEn: p.publishedAtUtc?.slice(0, 10) ?? null,

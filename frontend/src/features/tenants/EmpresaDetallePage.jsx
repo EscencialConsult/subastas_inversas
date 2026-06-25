@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { obtenerDetalleEmpresa } from '../../api/tenantsApi.js'
+import { resetPassword } from '../../api/authApi.js'
 import { etiquetaRol } from '../../domain/roles.js'
 
 export function EmpresaDetallePage() {
@@ -13,6 +14,7 @@ export function EmpresaDetallePage() {
   const [data, setData] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+  const [resetModal, setResetModal] = useState(null)
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -23,6 +25,22 @@ export function EmpresaDetallePage() {
     }, 0)
     return () => clearTimeout(t)
   }, [id])
+
+  function generarPass() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let pass = ''
+    for (let i = 0; i < 12; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length))
+    return pass + 'Aa1!'
+  }
+
+  async function manejarResetPass(usuario) {
+    try {
+      const res = await resetPassword({ userId: usuario.id, newPassword: generarPass() })
+      setResetModal({ usuario, nuevaPass: res.newPassword })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   if (cargando) return <p className="estado-cargando">Cargando…</p>
   if (!data) return <div className="alerta alerta--error">{error}</div>
@@ -96,6 +114,7 @@ export function EmpresaDetallePage() {
               <th>Email</th>
               <th>Rol</th>
               <th>Estado</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -111,10 +130,52 @@ export function EmpresaDetallePage() {
                     {u.activo ? 'Activo' : 'Inactivo'}
                   </span>
                 </td>
+                <td className="tabla__acciones">
+                  <button className="btn btn--texto btn--texto-peligro" onClick={() => manejarResetPass(u)}>
+                    Resetear pass
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {resetModal && (
+        <div className="modal-overlay" onClick={() => setResetModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal__header">
+              <h2>Contraseña restablecida</h2>
+            </div>
+            <div className="modal__body">
+              <p>
+                Se restableció la contraseña de <strong>{resetModal.usuario.nombre} {resetModal.usuario.apellido}</strong> ({resetModal.usuario.email}).
+              </p>
+              <div className="alerta alerta--info">
+                <strong>Nueva contraseña temporal:</strong>
+              </div>
+              <div className="contrasenia-temporal">
+                <code>{resetModal.nuevaPass}</code>
+                <button
+                  type="button"
+                  className="btn btn--icono"
+                  title="Copiar contraseña"
+                  onClick={() => navigator.clipboard.writeText(resetModal.nuevaPass)}
+                >
+                  📋
+                </button>
+              </div>
+              <p className="campo__ayuda">
+                El usuario deberá cambiar esta contraseña al iniciar sesión. Copiala ahora antes de cerrar.
+              </p>
+            </div>
+            <div className="modal__footer">
+              <button className="btn btn--primario" onClick={() => setResetModal(null)}>
+                Entendido, cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   )

@@ -5,8 +5,8 @@ namespace SICST.Application.Common.Interfaces;
 
 public interface IPdfGenerator
 {
-    string GenerateAwardAct(PurchaseProcess process, Award award, Supplier supplier, User approver, List<Bid> bids);
-    string GenerateContract(PurchaseProcess process, Contract contract, Supplier supplier);
-    string GeneratePurchaseOrder(PurchaseProcess process, PurchaseOrder order, Supplier supplier);
+    string GenerateAwardAct(PurchaseProcess process, Award award, Supplier supplier, User approver, List<Bid> bids, DocumentTemplate? template = null);
+    string GenerateContract(PurchaseProcess process, Contract contract, Supplier supplier, DocumentTemplate? template = null);
+    string GeneratePurchaseOrder(PurchaseProcess process, PurchaseOrder order, Supplier supplier, DocumentTemplate? template = null);
     string GenerateReceptionConfirmation(PurchaseOrder order, ReceptionConfirmation reception);
 }

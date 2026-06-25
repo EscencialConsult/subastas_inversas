@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SICST.Application.Common.Security;
 using SICST.Application.Users.Commands;
 using SICST.Application.Users.Queries;
 
@@ -8,7 +9,7 @@ namespace SICST.Api.Controllers;
 
 [ApiController]
 [Route("api/companies/{companyId}/users")]
-[Authorize]
+[Authorize(Policy = PermissionCodes.UsersManage)]
 public class UsersController : ControllerBase
 {
     private readonly ISender _sender;

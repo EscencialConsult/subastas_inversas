@@ -12,5 +12,10 @@ public class AuthResponseDto
     public string Role { get; set; } = string.Empty;
     public Guid? CompanyId { get; set; }
     public string? CompanyName { get; set; }
+    public string? CompanyLogo { get; set; }
+    public string? CompanyPrimaryColor { get; set; }
     public string RefreshToken { get; set; } = string.Empty;
+    public bool RequiresMfa { get; set; }
+    public bool MfaEnabled { get; set; }
+    public string? MfaToken { get; set; }
 }

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Configuration.DTOs;
 using SICST.Domain.Entities;
 
@@ -15,6 +16,7 @@ public record CreateApprovalWorkflowCommand : IRequest<ApprovalWorkflowDto>
     public UserRole RequiredRole { get; init; } = UserRole.Autoridad;
     public int RequiredApprovals { get; init; } = 1;
     public bool Active { get; init; } = true;
+    public List<ApprovalWorkflowLevelInputDto> Levels { get; init; } = [];
 }
 
 public class CreateApprovalWorkflowCommandHandler : IRequestHandler<CreateApprovalWorkflowCommand, ApprovalWorkflowDto>
@@ -29,7 +31,12 @@ public class CreateApprovalWorkflowCommandHandler : IRequestHandler<CreateApprov
     public async Task<ApprovalWorkflowDto> Handle(CreateApprovalWorkflowCommand request, CancellationToken cancellationToken)
     {
         await EnsureCompanyExists(request.CompanyId, cancellationToken);
-        Validate(request);
+        var levels = ApprovalWorkflowRules.NormalizeLevels(
+            request.Levels,
+            request.RequiredRole,
+            request.RequiredApprovals,
+            request.MinAmount);
+        ApprovalWorkflowRules.Validate(request.Name, request.MinAmount, request.MaxAmount, levels);
 
         var nameExists = await _context.ApprovalWorkflows
             .AnyAsync(w => w.CompanyId == request.CompanyId && w.Name.ToLower() == request.Name.ToLower(), cancellationToken);
@@ -37,6 +44,17 @@ public class CreateApprovalWorkflowCommandHandler : IRequestHandler<CreateApprov
         if (nameExists)
         {
             throw new InvalidOperationException("Ya existe un circuito con ese nombre.");
+        }
+
+        if (request.Active)
+        {
+            await ApprovalWorkflowRules.EnsureNoOverlap(
+                _context,
+                request.CompanyId,
+                request.MinAmount,
+                request.MaxAmount,
+                null,
+                cancellationToken);
         }
 
         var entity = new ApprovalWorkflow
@@ -47,15 +65,23 @@ public class CreateApprovalWorkflowCommandHandler : IRequestHandler<CreateApprov
             MinAmount = request.MinAmount,
             MaxAmount = request.MaxAmount,
             RequiredRole = request.RequiredRole,
-            RequiredApprovals = request.RequiredApprovals,
+            RequiredApprovals = levels.Count,
             Active = request.Active,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            Levels = levels.Select(level => new ApprovalWorkflowLevel
+            {
+                Id = Guid.NewGuid(),
+                LevelOrder = level.LevelOrder,
+                RequiredRole = level.RequiredRole,
+                AmountThreshold = level.AmountThreshold,
+                CreatedAtUtc = DateTime.UtcNow
+            }).ToList()
         };
 
         _context.ApprovalWorkflows.Add(entity);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return ToDto(entity);
+        return ApprovalWorkflowRules.ToDto(entity);
     }
 
     private async Task EnsureCompanyExists(Guid companyId, CancellationToken cancellationToken)
@@ -66,36 +92,4 @@ public class CreateApprovalWorkflowCommandHandler : IRequestHandler<CreateApprov
         }
     }
 
-    private static void Validate(CreateApprovalWorkflowCommand request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            throw new InvalidOperationException("El nombre del circuito es obligatorio.");
-        }
-
-        if (request.RequiredApprovals < 1)
-        {
-            throw new InvalidOperationException("El circuito requiere al menos una aprobacion.");
-        }
-
-        if (request.MinAmount.HasValue && request.MaxAmount.HasValue && request.MinAmount > request.MaxAmount)
-        {
-            throw new InvalidOperationException("El monto minimo no puede ser mayor al monto maximo.");
-        }
-    }
-
-    private static ApprovalWorkflowDto ToDto(ApprovalWorkflow entity)
-    {
-        return new ApprovalWorkflowDto
-        {
-            Id = entity.Id,
-            CompanyId = entity.CompanyId,
-            Name = entity.Name,
-            MinAmount = entity.MinAmount,
-            MaxAmount = entity.MaxAmount,
-            RequiredRole = entity.RequiredRole,
-            RequiredApprovals = entity.RequiredApprovals,
-            Active = entity.Active
-        };
-    }
 }

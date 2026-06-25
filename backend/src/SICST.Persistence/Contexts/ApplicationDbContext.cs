@@ -10,9 +10,22 @@ namespace SICST.Persistence.Contexts;
 
 public class ApplicationDbContext : DbContext, IApplicationDbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    private static readonly HashSet<string> SensitiveAuditProperties =
+    [
+        nameof(User.PasswordHash),
+        nameof(User.MfaSecret),
+        nameof(User.RefreshTokenHash),
+        nameof(User.RefreshTokenExpiresAtUtc)
+    ];
+
+    private readonly ICurrentTenant _currentTenant;
+
+    public ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options,
+        ICurrentTenant currentTenant)
         : base(options)
     {
+        _currentTenant = currentTenant;
     }
 
     public DbSet<Company> Companies => Set<Company>();
@@ -21,9 +34,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<SupplierDocument> SupplierDocuments => Set<SupplierDocument>();
+    public DbSet<SupplierDocumentReview> SupplierDocumentReviews => Set<SupplierDocumentReview>();
     public DbSet<CompanySupplier> CompanySuppliers => Set<CompanySupplier>();
     public DbSet<ContractingMode> ContractingModes => Set<ContractingMode>();
     public DbSet<ApprovalWorkflow> ApprovalWorkflows => Set<ApprovalWorkflow>();
+    public DbSet<ApprovalWorkflowLevel> ApprovalWorkflowLevels => Set<ApprovalWorkflowLevel>();
+    public DbSet<DocumentTemplate> DocumentTemplates => Set<DocumentTemplate>();
     public DbSet<CompanyConfiguration> CompanyConfigurations => Set<CompanyConfiguration>();
     public DbSet<PurchaseProcess> PurchaseProcesses => Set<PurchaseProcess>();
     public DbSet<PurchaseItem> PurchaseItems => Set<PurchaseItem>();
@@ -40,13 +56,38 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<ReceptionConfirmation> ReceptionConfirmations => Set<ReceptionConfirmation>();
     public DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems => Set<ReceptionConfirmationItem>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<AccessLog> AccessLogs => Set<AccessLog>();
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (ChangeTracker.Entries<SupplierDocumentReview>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException("Los dictamenes y revisiones documentales son inmutables.");
+        }
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                var companyIdProp = entry.Entity.GetType().GetProperty("CompanyId");
+                if (companyIdProp != null && companyIdProp.CanWrite)
+                {
+                    var currentValue = companyIdProp.GetValue(entry.Entity) as Guid?;
+                    if ((currentValue == null || currentValue == Guid.Empty) && _currentTenant.CompanyId.HasValue)
+                    {
+                        companyIdProp.SetValue(entry.Entity, _currentTenant.CompanyId.Value);
+                    }
+                }
+            }
+        }
+
         var auditEntries = ChangeTracker.Entries()
             .Where(entry =>
                 entry.Entity is not AuditEvent &&
-                entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                entry.Entity is not AccessLog &&
+                entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted &&
+                HasAuditableChanges(entry))
             .Select(CreatePendingAuditEvent)
             .ToList();
 
@@ -99,6 +140,10 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Active).IsRequired().HasDefaultValue(true);
+            entity.Property(e => e.MfaEnabled).IsRequired().HasDefaultValue(false);
+            entity.Property(e => e.MfaSecret).HasMaxLength(128);
+            entity.Property(e => e.RefreshTokenHash).HasMaxLength(256);
+            entity.Property(e => e.RefreshTokenExpiresAtUtc);
             
             entity.HasOne(e => e.Company)
                 .WithMany()
@@ -133,8 +178,11 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.Cuit).IsRequired().HasMaxLength(13);
             entity.Property(e => e.BusinessName).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.BusinessCategory).IsRequired().HasMaxLength(120);
             entity.Property(e => e.Province).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Locality).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.BusinessCategory);
+            entity.HasIndex(e => new { e.Province, e.Locality });
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.ArcaVerified).IsRequired();
             entity.Property(e => e.CreatedAtUtc).IsRequired();
@@ -153,6 +201,13 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.ContentType).IsRequired().HasMaxLength(100);
             entity.Property(e => e.StoragePath).IsRequired().HasMaxLength(500);
             entity.Property(e => e.UploadedAtUtc).IsRequired();
+            entity.Property(e => e.Sha256Hash).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.ExpiresAtUtc).IsRequired();
+            entity.Property(e => e.Status).IsRequired().HasConversion<string>();
+            entity.Property(e => e.AlertSentAtUtc);
+            entity.HasIndex(e => new { e.SupplierId, e.Sha256Hash });
+            entity.HasIndex(e => e.ExpiresAtUtc);
+            entity.HasIndex(e => e.Status);
 
             entity.HasOne(e => e.Supplier)
                 .WithMany()
@@ -160,11 +215,36 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<SupplierDocumentReview>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.SupplierDocumentId);
+            entity.HasIndex(e => new { e.SupplierDocumentId, e.Action });
+            entity.Property(e => e.Action).IsRequired().HasConversion<string>();
+            entity.Property(e => e.Verdict).HasConversion<string>();
+            entity.Property(e => e.Notes).IsRequired().HasMaxLength(2000);
+            entity.Property(e => e.ExceptionReason).HasMaxLength(2000);
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+
+            entity.HasOne(e => e.SupplierDocument)
+                .WithMany(e => e.Reviews)
+                .HasForeignKey(e => e.SupplierDocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Reviewer)
+                .WithMany()
+                .HasForeignKey(e => e.ReviewerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<CompanySupplier>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.CompanyId, e.SupplierId }).IsUnique();
             entity.Property(e => e.LinkedAtUtc).IsRequired();
+            entity.Property(e => e.Status).IsRequired().HasConversion<string>();
+            entity.Property(e => e.WarningMessage).HasMaxLength(500);
+            entity.Property(e => e.EvaluatedAtUtc).IsRequired();
 
             entity.HasOne(e => e.Company)
                 .WithMany()
@@ -183,9 +263,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.HasIndex(e => new { e.CompanyId, e.Name }).IsUnique();
             entity.Property(e => e.Name).IsRequired().HasMaxLength(150);
             entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.MinAmount).HasPrecision(18, 2);
+            entity.Property(e => e.MaxAmount).HasPrecision(18, 2);
             entity.Property(e => e.RequiresAuction).IsRequired();
             entity.Property(e => e.Active).IsRequired().HasDefaultValue(true);
             entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.HasIndex(e => new { e.CompanyId, e.MinAmount, e.MaxAmount });
 
             entity.HasOne(e => e.Company)
                 .WithMany()
@@ -211,6 +294,21 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<ApprovalWorkflowLevel>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.ApprovalWorkflowId, e.LevelOrder }).IsUnique();
+            entity.Property(e => e.LevelOrder).IsRequired();
+            entity.Property(e => e.RequiredRole).IsRequired();
+            entity.Property(e => e.AmountThreshold).HasPrecision(18, 2);
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+
+            entity.HasOne(e => e.ApprovalWorkflow)
+                .WithMany(e => e.Levels)
+                .HasForeignKey(e => e.ApprovalWorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<CompanyConfiguration>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -221,6 +319,24 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.AuctionExtensionMinutes).IsRequired();
             entity.Property(e => e.RequireSupplierVerification).IsRequired();
             entity.Property(e => e.UpdatedAtUtc).IsRequired();
+
+            entity.HasOne(e => e.Company)
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DocumentTemplate>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.CompanyId, e.Type, e.Version }).IsUnique();
+            entity.HasIndex(e => new { e.CompanyId, e.Type, e.Active });
+            entity.Property(e => e.Type).IsRequired().HasConversion<string>();
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(150);
+            entity.Property(e => e.Version).IsRequired();
+            entity.Property(e => e.Content).IsRequired().HasMaxLength(12000);
+            entity.Property(e => e.Active).IsRequired().HasDefaultValue(true);
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
 
             entity.HasOne(e => e.Company)
                 .WithMany()
@@ -386,6 +502,11 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .WithMany()
                 .HasForeignKey(e => e.AdjudicatedById)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.DocumentTemplate)
+                .WithMany()
+                .HasForeignKey(e => e.DocumentTemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AwardItem>(entity =>
@@ -423,6 +544,11 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .WithMany()
                 .HasForeignKey(e => e.ApproverId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.ApprovalWorkflowLevel)
+                .WithMany()
+                .HasForeignKey(e => e.ApprovalWorkflowLevelId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Contract>(entity =>
@@ -458,6 +584,11 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .WithMany()
                 .HasForeignKey(e => e.SupplierId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.DocumentTemplate)
+                .WithMany()
+                .HasForeignKey(e => e.DocumentTemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<PurchaseOrder>(entity =>
@@ -492,6 +623,11 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .WithMany()
                 .HasForeignKey(e => e.SupplierId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.DocumentTemplate)
+                .WithMany()
+                .HasForeignKey(e => e.DocumentTemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ReceptionConfirmation>(entity =>
@@ -546,6 +682,36 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.Hash).IsRequired().HasMaxLength(64);
         });
 
+        modelBuilder.Entity<AccessLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.CompanyId);
+            entity.HasIndex(e => e.OccurredAtUtc);
+            entity.HasIndex(e => new { e.Email, e.OccurredAtUtc });
+            entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.EventType).IsRequired().HasConversion<string>();
+            entity.Property(e => e.Success).IsRequired();
+            entity.Property(e => e.FailureReason).HasMaxLength(300);
+            entity.Property(e => e.IpAddress).HasMaxLength(80);
+            entity.Property(e => e.UserAgent).HasMaxLength(500);
+            entity.Property(e => e.OccurredAtUtc).IsRequired();
+        });
+
+        // Configuración de Filtros Globales Multiempresa
+        modelBuilder.Entity<User>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<CompanySupplier>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<ContractingMode>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<ApprovalWorkflow>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<DocumentTemplate>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<CompanyConfiguration>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<PurchaseProcess>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<Auction>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<AuditEvent>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<Contract>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<AccessLog>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+
         base.OnModelCreating(modelBuilder);
     }
 
@@ -565,6 +731,16 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             },
             Payload = BuildPayload(entry)
         };
+    }
+
+    private static bool HasAuditableChanges(EntityEntry entry)
+    {
+        if (entry.State != EntityState.Modified)
+        {
+            return true;
+        }
+
+        return entry.Properties.Any(p => p.IsModified && !SensitiveAuditProperties.Contains(p.Metadata.Name));
     }
 
     private static string ResolveEntityId(EntityEntry entry)
@@ -596,6 +772,11 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
         foreach (var property in entry.Properties.OrderBy(p => p.Metadata.Name))
         {
+            if (SensitiveAuditProperties.Contains(property.Metadata.Name))
+            {
+                continue;
+            }
+
             if (entry.State == EntityState.Modified && !property.IsModified)
             {
                 continue;

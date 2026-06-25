@@ -13,6 +13,10 @@ export function puedeGestionarUsuarios(rol) {
   return rol === ROLES.ADMINISTRADOR
 }
 
+export function puedeGestionarConfiguracion(rol) {
+  return rol === ROLES.ADMINISTRADOR
+}
+
 export function puedeGestionarTenants(rol) {
   return rol === ROLES.SUPER_ADMIN
 }

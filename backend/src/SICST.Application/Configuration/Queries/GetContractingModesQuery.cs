@@ -27,6 +27,8 @@ public class GetContractingModesQueryHandler : IRequestHandler<GetContractingMod
                 CompanyId = m.CompanyId,
                 Name = m.Name,
                 Description = m.Description,
+                MinAmount = m.MinAmount,
+                MaxAmount = m.MaxAmount,
                 RequiresAuction = m.RequiresAuction,
                 Active = m.Active
             })

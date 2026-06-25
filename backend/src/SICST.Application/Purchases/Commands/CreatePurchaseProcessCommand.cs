@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Purchases.DTOs;
 using SICST.Domain.Entities;
 
@@ -28,15 +29,16 @@ public class CreatePurchaseProcessCommandHandler : IRequestHandler<CreatePurchas
 
     public async Task<PurchaseProcessDto> Handle(CreatePurchaseProcessCommand request, CancellationToken cancellationToken)
     {
-        await ValidateReferences(request, cancellationToken);
         Validate(request.Title, request.EstimatedBudget, request.Items);
+        await ValidateReferences(request, cancellationToken);
+        var contractingModeId = await ResolveContractingModeId(request, cancellationToken);
 
         var process = new PurchaseProcess
         {
             Id = Guid.NewGuid(),
             CompanyId = request.CompanyId,
             BuyerId = request.BuyerId,
-            ContractingModeId = request.ContractingModeId,
+            ContractingModeId = contractingModeId,
             Code = await GenerateCode(request.CompanyId, cancellationToken),
             Title = request.Title.Trim(),
             Description = request.Description.Trim(),
@@ -75,13 +77,29 @@ public class CreatePurchaseProcessCommandHandler : IRequestHandler<CreatePurchas
         if (request.ContractingModeId.HasValue)
         {
             var modeExists = await _context.ContractingModes
-                .AnyAsync(m => m.Id == request.ContractingModeId && m.CompanyId == request.CompanyId, cancellationToken);
+                .AnyAsync(m => m.Id == request.ContractingModeId && m.CompanyId == request.CompanyId && m.Active, cancellationToken);
 
             if (!modeExists)
             {
                 throw new InvalidOperationException("Modalidad de contratacion no encontrada para la empresa.");
             }
         }
+    }
+
+    private async Task<Guid?> ResolveContractingModeId(CreatePurchaseProcessCommand request, CancellationToken cancellationToken)
+    {
+        if (request.ContractingModeId.HasValue)
+        {
+            return request.ContractingModeId;
+        }
+
+        var suggestedMode = await ContractingModeRules.FindSuggestedMode(
+            _context,
+            request.CompanyId,
+            request.EstimatedBudget,
+            cancellationToken);
+
+        return suggestedMode?.Id;
     }
 
     private static void Validate(string title, decimal estimatedBudget, List<PurchaseItemInputDto> items)

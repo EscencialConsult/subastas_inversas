@@ -63,6 +63,7 @@ public class UpdateProfileCommandHandler : IRequestHandler<UpdateProfileCommand,
             Role = user.Role.ToString(),
             CompanyId = user.CompanyId,
             CompanyName = companyName,
+            MfaEnabled = user.MfaEnabled,
         };
     }
 }

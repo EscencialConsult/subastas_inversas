@@ -19,4 +19,5 @@ public class ContractDto
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? SignedAtUtc { get; set; }
     public string DocumentUrl { get; set; } = string.Empty;
+    public Guid? DocumentTemplateId { get; set; }
 }

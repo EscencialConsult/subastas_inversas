@@ -69,6 +69,7 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
                 Email = u.Email,
                 Role = u.Role.ToString(),
                 Active = u.Active,
+                MfaEnabled = u.MfaEnabled,
                 CompanyId = u.CompanyId,
             })
             .ToListAsync(cancellationToken);

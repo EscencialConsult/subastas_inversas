@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Purchases.DTOs;
 using SICST.Domain.Entities;
 
@@ -47,7 +48,7 @@ public class UpdatePurchaseProcessCommandHandler : IRequestHandler<UpdatePurchas
             throw new InvalidOperationException("El proceso tiene datos invalidos.");
         }
 
-        process.ContractingModeId = request.ContractingModeId;
+        process.ContractingModeId = await ResolveContractingModeId(request, cancellationToken);
         process.Title = request.Title.Trim();
         process.Description = request.Description.Trim();
         process.EstimatedBudget = request.EstimatedBudget;
@@ -65,5 +66,29 @@ public class UpdatePurchaseProcessCommandHandler : IRequestHandler<UpdatePurchas
 
         await _context.SaveChangesAsync(cancellationToken);
         return PurchaseProcessMapping.ToDto(process);
+    }
+
+    private async Task<Guid?> ResolveContractingModeId(UpdatePurchaseProcessCommand request, CancellationToken cancellationToken)
+    {
+        if (request.ContractingModeId.HasValue)
+        {
+            var modeExists = await _context.ContractingModes
+                .AnyAsync(m => m.Id == request.ContractingModeId && m.CompanyId == request.CompanyId && m.Active, cancellationToken);
+
+            if (!modeExists)
+            {
+                throw new InvalidOperationException("Modalidad de contratacion no encontrada para la empresa.");
+            }
+
+            return request.ContractingModeId;
+        }
+
+        var suggestedMode = await ContractingModeRules.FindSuggestedMode(
+            _context,
+            request.CompanyId,
+            request.EstimatedBudget,
+            cancellationToken);
+
+        return suggestedMode?.Id;
     }
 }

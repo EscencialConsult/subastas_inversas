@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { listarBitacoraAccesos } from '../../api/auditoriaApi.js'
 import { listarProcesos } from '../../api/comprasApi.js'
 import {
   ESTADO_INFO,
@@ -16,18 +17,27 @@ export function AuditoriaListPage() {
   const navigate = useNavigate()
 
   const [procesos, setProcesos] = useState([])
+  const [accesos, setAccesos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
   const [busqueda, setBusqueda] = useState('')
   const [estado, setEstado] = useState('')
+  const [emailAcceso, setEmailAcceso] = useState('')
+  const [exitoAcceso, setExitoAcceso] = useState('')
 
   async function cargar() {
     setCargando(true)
     setError('')
     try {
       const lista = await listarProcesos({ tenantId, busqueda, estado })
+      const bitacora = await listarBitacoraAccesos({
+        tenantId,
+        email: emailAcceso,
+        exito: exitoAcceso,
+      })
       setProcesos(lista)
+      setAccesos(bitacora)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -39,7 +49,7 @@ export function AuditoriaListPage() {
     const t = setTimeout(cargar, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, busqueda, estado])
+  }, [tenantId, busqueda, estado, emailAcceso, exitoAcceso])
 
   return (
     <section>
@@ -114,6 +124,60 @@ export function AuditoriaListPage() {
           </tbody>
         </table>
       )}
+
+      <div className="encabezado auditoria__subheader">
+        <h2 className="form__titulo">Bitacora de accesos</h2>
+      </div>
+
+      <div className="filtros">
+        <input
+          className="filtros__busqueda"
+          placeholder="Filtrar por email..."
+          value={emailAcceso}
+          onChange={(e) => setEmailAcceso(e.target.value)}
+        />
+        <select value={exitoAcceso} onChange={(e) => setExitoAcceso(e.target.value)}>
+          <option value="">Todos los resultados</option>
+          <option value="ok">Exitosos</option>
+          <option value="error">Fallidos</option>
+        </select>
+      </div>
+
+      {!cargando && accesos.length === 0 ? (
+        <div className="estado-vacio">
+          <p>No hay accesos que coincidan con el filtro.</p>
+        </div>
+      ) : (
+        !cargando && (
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Email</th>
+                <th>Evento</th>
+                <th>Resultado</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accesos.map((a) => (
+                <tr key={a.id}>
+                  <td>{formatearFecha(a.fecha)}</td>
+                  <td>{a.email || '-'}</td>
+                  <td>{a.eventoTexto}</td>
+                  <td>
+                    <span className={a.exito ? 'badge badge--ok' : 'badge badge--error'}>
+                      {a.exito ? 'OK' : 'Fallido'}
+                    </span>
+                    {a.motivo && <small className="campo__ayuda"> {a.motivo}</small>}
+                  </td>
+                  <td>{a.ip || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      )}
     </section>
   )
 }
@@ -145,4 +209,12 @@ function exportarCSV(procesos) {
 function celdaCSV(valor) {
   const texto = String(valor ?? '')
   return /[";\n\r]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto
+}
+
+function formatearFecha(fecha) {
+  if (!fecha) return '-'
+  return new Intl.DateTimeFormat('es-AR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(fecha))
 }

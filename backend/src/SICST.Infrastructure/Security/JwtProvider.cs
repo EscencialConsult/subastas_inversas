@@ -31,6 +31,7 @@ public class JwtProvider : IJwtProvider
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
             new Claim("name", $"{user.FirstName} {user.LastName}"),
@@ -47,9 +48,36 @@ public class JwtProvider : IJwtProvider
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public bool IsValidForUser(string token, string email)
+    public string GenerateMfaToken(User user)
     {
-        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(email))
+        var secretKey = _configuration["Jwt:Secret"]
+            ?? throw new InvalidOperationException("JWT Secret is not configured.");
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email),
+            new Claim("purpose", "mfa")
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: _configuration["Jwt:Issuer"],
+            audience: _configuration["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public bool TryGetMfaUserId(string token, out Guid userId)
+    {
+        userId = Guid.Empty;
+
+        if (string.IsNullOrWhiteSpace(token))
         {
             return false;
         }
@@ -74,8 +102,10 @@ public class JwtProvider : IJwtProvider
             var principal = new JwtSecurityTokenHandler()
                 .ValidateToken(token, validationParameters, out _);
 
-            var tokenEmail = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
-            return string.Equals(tokenEmail, email, StringComparison.OrdinalIgnoreCase);
+            var purpose = principal.FindFirst("purpose")?.Value;
+            var subject = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+            return purpose == "mfa" && Guid.TryParse(subject, out userId);
         }
         catch
         {

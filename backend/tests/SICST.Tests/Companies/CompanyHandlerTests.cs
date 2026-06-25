@@ -14,7 +14,7 @@ public class CompanyHandlerTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         
-        var context = new ApplicationDbContext(options);
+        var context = new ApplicationDbContext(options, new SICST.Tests.TestCurrentTenant());
         context.Database.EnsureCreated();
         return context;
     }

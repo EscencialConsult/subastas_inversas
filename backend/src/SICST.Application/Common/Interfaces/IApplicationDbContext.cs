@@ -11,9 +11,12 @@ public interface IApplicationDbContext
     DbSet<RolePermission> RolePermissions { get; }
     DbSet<Supplier> Suppliers { get; }
     DbSet<SupplierDocument> SupplierDocuments { get; }
+    DbSet<SupplierDocumentReview> SupplierDocumentReviews { get; }
     DbSet<CompanySupplier> CompanySuppliers { get; }
     DbSet<ContractingMode> ContractingModes { get; }
     DbSet<ApprovalWorkflow> ApprovalWorkflows { get; }
+    DbSet<ApprovalWorkflowLevel> ApprovalWorkflowLevels { get; }
+    DbSet<DocumentTemplate> DocumentTemplates { get; }
     DbSet<CompanyConfiguration> CompanyConfigurations { get; }
     DbSet<PurchaseProcess> PurchaseProcesses { get; }
     DbSet<PurchaseItem> PurchaseItems { get; }
@@ -30,6 +33,7 @@ public interface IApplicationDbContext
     DbSet<ReceptionConfirmation> ReceptionConfirmations { get; }
     DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems { get; }
     DbSet<AuditEvent> AuditEvents { get; }
+    DbSet<AccessLog> AccessLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

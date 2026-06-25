@@ -17,5 +17,6 @@ public class PurchaseOrderDto
     public DateTime? ExpectedDeliveryDateUtc { get; set; }
     public string Observations { get; set; } = string.Empty;
     public string DocumentUrl { get; set; } = string.Empty;
+    public Guid? DocumentTemplateId { get; set; }
     public List<ReceptionConfirmationDto> Receptions { get; set; } = [];
 }

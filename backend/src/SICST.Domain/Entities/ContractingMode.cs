@@ -12,6 +12,10 @@ public class ContractingMode
 
     public string Description { get; set; } = string.Empty;
 
+    public decimal MinAmount { get; set; }
+
+    public decimal? MaxAmount { get; set; }
+
     public bool RequiresAuction { get; set; } = true;
 
     public bool Active { get; set; } = true;

@@ -23,7 +23,7 @@ public class PurchaseProcessHandlerTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        var context = new ApplicationDbContext(options);
+        var context = new ApplicationDbContext(options, new SICST.Tests.TestCurrentTenant());
         context.Database.EnsureCreated();
         return context;
     }
@@ -61,6 +61,44 @@ public class PurchaseProcessHandlerTests
     }
 
     [Fact]
+    public async Task CreatePurchaseProcess_ShouldAssignSuggestedContractingModeByBudget()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        var directMode = new ContractingMode
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Name = "Compra directa",
+            MinAmount = 0,
+            MaxAmount = 100000,
+            Active = true
+        };
+        var auctionMode = new ContractingMode
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Name = "Subasta inversa",
+            MinAmount = 100000.01m,
+            MaxAmount = null,
+            Active = true
+        };
+        context.ContractingModes.AddRange(directMode, auctionMode);
+        await context.SaveChangesAsync();
+
+        var result = await new CreatePurchaseProcessCommandHandler(context)
+            .Handle(new CreatePurchaseProcessCommand
+            {
+                CompanyId = companyId,
+                BuyerId = buyerId,
+                Title = "Compra de equipamiento",
+                EstimatedBudget = 250000
+            }, CancellationToken.None);
+
+        Assert.Equal(auctionMode.Id, result.ContractingModeId);
+    }
+
+    [Fact]
     public async Task PublishPurchaseProcess_ShouldMoveDraftToPublished()
     {
         using var context = CreateDbContext();
@@ -83,11 +121,86 @@ public class PurchaseProcessHandlerTests
     }
 
     [Fact]
+    public async Task ApprovalWorkflow_ShouldRouteApprovalsByOrderedLevelsAndRole()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        var adminId = await SeedUser(context, companyId, UserRole.Admin, "admin");
+        var authorityId = await SeedUser(context, companyId, UserRole.Autoridad, "autoridad");
+
+        context.ApprovalWorkflows.Add(new ApprovalWorkflow
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Name = "Circuito alto monto",
+            MinAmount = 0,
+            MaxAmount = null,
+            RequiredRole = UserRole.Admin,
+            RequiredApprovals = 2,
+            Active = true,
+            CreatedAtUtc = DateTime.UtcNow,
+            Levels =
+            [
+                new ApprovalWorkflowLevel
+                {
+                    Id = Guid.NewGuid(),
+                    LevelOrder = 1,
+                    RequiredRole = UserRole.Admin,
+                    AmountThreshold = 0,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new ApprovalWorkflowLevel
+                {
+                    Id = Guid.NewGuid(),
+                    LevelOrder = 2,
+                    RequiredRole = UserRole.Autoridad,
+                    AmountThreshold = 1_000_000,
+                    CreatedAtUtc = DateTime.UtcNow
+                }
+            ]
+        });
+        await context.SaveChangesAsync();
+
+        var created = await new CreatePurchaseProcessCommandHandler(context)
+            .Handle(new CreatePurchaseProcessCommand
+            {
+                CompanyId = companyId,
+                BuyerId = buyerId,
+                Title = "Compra de maquinaria",
+                EstimatedBudget = 2_000_000
+            }, CancellationToken.None);
+
+        var published = await new PublishPurchaseProcessCommandHandler(context)
+            .Handle(new PublishPurchaseProcessCommand(companyId, created.Id), CancellationToken.None);
+
+        Assert.NotNull(published);
+        Assert.Equal(PurchaseProcessStatus.PendingApproval, published.Status);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ApprovePurchaseProcessCommandHandler(context)
+                .Handle(new ApprovePurchaseProcessCommand(companyId, created.Id, authorityId), CancellationToken.None));
+
+        var firstApproval = await new ApprovePurchaseProcessCommandHandler(context)
+            .Handle(new ApprovePurchaseProcessCommand(companyId, created.Id, adminId), CancellationToken.None);
+
+        Assert.NotNull(firstApproval);
+        Assert.Equal(PurchaseProcessStatus.PendingApproval, firstApproval.Status);
+
+        var finalApproval = await new ApprovePurchaseProcessCommandHandler(context)
+            .Handle(new ApprovePurchaseProcessCommand(companyId, created.Id, authorityId), CancellationToken.None);
+
+        Assert.NotNull(finalApproval);
+        Assert.Equal(PurchaseProcessStatus.Approved, finalApproval.Status);
+        Assert.Equal(2, await context.Approvals.CountAsync(a => a.PurchaseProcessId == created.Id));
+    }
+
+    [Fact]
     public async Task InviteSupplier_ShouldPreventDuplicateInvitation()
     {
         using var context = CreateDbContext();
         var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
         var supplierId = await SeedSupplier(context);
+        await SeedCompanySupplier(context, companyId, supplierId);
         var process = await new CreatePurchaseProcessCommandHandler(context)
             .Handle(new CreatePurchaseProcessCommand
             {
@@ -168,6 +281,25 @@ public class PurchaseProcessHandlerTests
         return (company.Id, buyer.Id);
     }
 
+    private static async Task<Guid> SeedUser(ApplicationDbContext context, Guid companyId, UserRole role, string prefix)
+    {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Email = $"{prefix}-{Guid.NewGuid():N}@test.com",
+            PasswordHash = "hash",
+            FirstName = prefix,
+            LastName = "Test",
+            Role = role,
+            Active = true
+        };
+
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+        return user.Id;
+    }
+
     private static async Task<Guid> SeedSupplier(ApplicationDbContext context)
     {
         var user = new User
@@ -188,6 +320,7 @@ public class PurchaseProcessHandlerTests
             Cuit = $"30-{Random.Shared.Next(10000000, 99999999)}-1",
             BusinessName = "Proveedor Test",
             Email = user.Email,
+            BusinessCategory = "Servicios",
             Province = "Tucuman",
             Locality = "San Miguel",
             Status = SupplierStatus.Verified,
@@ -199,6 +332,21 @@ public class PurchaseProcessHandlerTests
         context.Suppliers.Add(supplier);
         await context.SaveChangesAsync();
         return supplier.Id;
+    }
+
+    private static async Task SeedCompanySupplier(ApplicationDbContext context, Guid companyId, Guid supplierId)
+    {
+        context.CompanySuppliers.Add(new CompanySupplier
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            SupplierId = supplierId,
+            Status = CompanySupplierStatus.Enabled,
+            LinkedAtUtc = DateTime.UtcNow,
+            EvaluatedAtUtc = DateTime.UtcNow
+        });
+
+        await context.SaveChangesAsync();
     }
 
     [Fact]
@@ -311,6 +459,7 @@ public class PurchaseProcessHandlerTests
 
         var dbAward = await context.Awards.FirstAsync(a => a.PurchaseProcessId == process.Id);
         Assert.Equal("/dummy/path/acta.pdf", dbAward.DocumentPath);
+        Assert.NotNull(dbAward.DocumentTemplateId);
     }
 
     [Fact]
@@ -566,17 +715,17 @@ public class PurchaseProcessHandlerTests
 
     private class MockPdfGenerator : IPdfGenerator
     {
-        public string GenerateAwardAct(PurchaseProcess process, Award award, Supplier supplier, User approver, List<Bid> bids)
+        public string GenerateAwardAct(PurchaseProcess process, Award award, Supplier supplier, User approver, List<Bid> bids, DocumentTemplate? template = null)
         {
             return "/dummy/path/acta.pdf";
         }
 
-        public string GenerateContract(PurchaseProcess process, Contract contract, Supplier supplier)
+        public string GenerateContract(PurchaseProcess process, Contract contract, Supplier supplier, DocumentTemplate? template = null)
         {
             return "/dummy/path/contract.pdf";
         }
 
-        public string GeneratePurchaseOrder(PurchaseProcess process, PurchaseOrder order, Supplier supplier)
+        public string GeneratePurchaseOrder(PurchaseProcess process, PurchaseOrder order, Supplier supplier, DocumentTemplate? template = null)
         {
             return "/dummy/path/order.pdf";
         }

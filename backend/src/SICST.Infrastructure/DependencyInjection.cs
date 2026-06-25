@@ -12,6 +12,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtProvider, JwtProvider>();
+        services.AddSingleton<IMfaProvider, TotpMfaProvider>();
         services.AddSingleton<IAuctionStateCache, InMemoryAuctionStateCache>();
         services.AddScoped<IPdfGenerator, PdfGenerator>();
         return services;

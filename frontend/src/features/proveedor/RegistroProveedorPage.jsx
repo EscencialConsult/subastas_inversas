@@ -10,6 +10,7 @@ const VACIO = {
   razonSocial: '',
   cuit: '',
   email: '',
+  rubro: '',
   provincia: '',
   localidad: '',
   password: '',
@@ -114,6 +115,12 @@ export function RegistroProveedorPage() {
               onChange={(valor) => actualizar('email', valor)}
               placeholder="ventas@empresa.com"
               autoComplete="username"
+            />
+            <Campo
+              label="Rubro"
+              value={datos.rubro}
+              onChange={(valor) => actualizar('rubro', valor)}
+              placeholder="Construccion, limpieza, tecnologia"
             />
 
             <div className="grid gap-4 sm:grid-cols-2">

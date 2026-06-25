@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Configuration.DTOs;
 using SICST.Domain.Entities;
 
@@ -11,6 +12,8 @@ public record CreateContractingModeCommand : IRequest<ContractingModeDto>
     public Guid CompanyId { get; init; }
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
+    public decimal MinAmount { get; init; }
+    public decimal? MaxAmount { get; init; }
     public bool RequiresAuction { get; init; } = true;
     public bool Active { get; init; } = true;
 }
@@ -33,6 +36,15 @@ public class CreateContractingModeCommandHandler : IRequestHandler<CreateContrac
             throw new InvalidOperationException("El nombre de la modalidad es obligatorio.");
         }
 
+        ContractingModeRules.ValidateRange(request.MinAmount, request.MaxAmount);
+        await ContractingModeRules.EnsureNoOverlap(
+            _context,
+            request.CompanyId,
+            request.MinAmount,
+            request.MaxAmount,
+            null,
+            cancellationToken);
+
         var nameExists = await _context.ContractingModes
             .AnyAsync(m => m.CompanyId == request.CompanyId && m.Name.ToLower() == request.Name.ToLower(), cancellationToken);
 
@@ -47,6 +59,8 @@ public class CreateContractingModeCommandHandler : IRequestHandler<CreateContrac
             CompanyId = request.CompanyId,
             Name = request.Name.Trim(),
             Description = request.Description.Trim(),
+            MinAmount = request.MinAmount,
+            MaxAmount = request.MaxAmount,
             RequiresAuction = request.RequiresAuction,
             Active = request.Active,
             CreatedAtUtc = DateTime.UtcNow
@@ -55,7 +69,7 @@ public class CreateContractingModeCommandHandler : IRequestHandler<CreateContrac
         _context.ContractingModes.Add(entity);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return ToDto(entity);
+        return ContractingModeRules.ToDto(entity);
     }
 
     private async Task EnsureCompanyExists(Guid companyId, CancellationToken cancellationToken)
@@ -66,16 +80,4 @@ public class CreateContractingModeCommandHandler : IRequestHandler<CreateContrac
         }
     }
 
-    private static ContractingModeDto ToDto(ContractingMode entity)
-    {
-        return new ContractingModeDto
-        {
-            Id = entity.Id,
-            CompanyId = entity.CompanyId,
-            Name = entity.Name,
-            Description = entity.Description,
-            RequiresAuction = entity.RequiresAuction,
-            Active = entity.Active
-        };
-    }
 }

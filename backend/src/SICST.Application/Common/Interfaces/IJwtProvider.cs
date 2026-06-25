@@ -5,5 +5,6 @@ namespace SICST.Application.Common.Interfaces;
 public interface IJwtProvider
 {
     string Generate(User user);
-    bool IsValidForUser(string token, string email);
+    string GenerateMfaToken(User user);
+    bool TryGetMfaUserId(string token, out Guid userId);
 }

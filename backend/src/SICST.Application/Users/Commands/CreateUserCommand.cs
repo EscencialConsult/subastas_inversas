@@ -74,6 +74,7 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
             Email = user.Email,
             Role = user.Role.ToString(),
             Active = user.Active,
+            MfaEnabled = user.MfaEnabled,
             CompanyId = user.CompanyId,
             TemporaryPassword = tempPassword,
         };

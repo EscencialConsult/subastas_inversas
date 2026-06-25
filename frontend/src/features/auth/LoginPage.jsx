@@ -18,20 +18,39 @@ const USUARIOS_DEMO = [
 ]
 
 export function LoginPage() {
-  const { login, cargando } = useAuth()
+  const { login, verificarMfa, cargando } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const destino = location.state?.from?.pathname ?? '/'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [mfaToken, setMfaToken] = useState('')
+  const [mfaCode, setMfaCode] = useState('')
+  const [usuarioPendiente, setUsuarioPendiente] = useState(null)
   const [error, setError] = useState('')
 
   async function manejarSubmit(e) {
     e.preventDefault()
     setError('')
     try {
-      await login({ email, password })
+      const respuesta = await login({ email, password })
+      if (respuesta?.requiereMfa) {
+        setMfaToken(respuesta.mfaToken)
+        setUsuarioPendiente(respuesta.usuarioPendiente)
+        return
+      }
+      navigate(destino, { replace: true })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function manejarMfa(e) {
+    e.preventDefault()
+    setError('')
+    try {
+      await verificarMfa({ mfaToken, code: mfaCode })
       navigate(destino, { replace: true })
     } catch (err) {
       setError(err.message)
@@ -41,6 +60,9 @@ export function LoginPage() {
   function usarDemo(usuario) {
     setEmail(usuario.email)
     setPassword(usuario.password)
+    setMfaToken('')
+    setMfaCode('')
+    setUsuarioPendiente(null)
   }
 
   return (
@@ -68,7 +90,7 @@ export function LoginPage() {
       <section className="mx-auto grid min-h-[calc(100vh-68px)] max-w-xl px-4 py-8 sm:px-8 lg:items-center lg:py-12">
         <form
           className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:p-7"
-          onSubmit={manejarSubmit}
+          onSubmit={mfaToken ? manejarMfa : manejarSubmit}
         >
           <div>
             <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
@@ -76,7 +98,9 @@ export function LoginPage() {
             </span>
             <h1 className="mt-2 text-2xl font-black text-slate-950">Ingresa a tu cuenta</h1>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              Usa el email asignado para entrar al panel correspondiente.
+              {mfaToken
+                ? `Ingresa el codigo de tu app autenticadora${usuarioPendiente?.email ? ` para ${usuarioPendiente.email}` : ''}.`
+                : 'Usa el email asignado para entrar al panel correspondiente.'}
             </p>
           </div>
 
@@ -86,6 +110,7 @@ export function LoginPage() {
             </div>
           )}
 
+          {!mfaToken ? (
           <div className="mt-5 grid gap-4">
             <label className="grid gap-1.5">
               <span className="text-sm font-bold text-slate-700">Email</span>
@@ -111,16 +136,42 @@ export function LoginPage() {
               />
             </label>
           </div>
+          ) : (
+            <div className="mt-5 grid gap-4">
+              <label className="grid gap-1.5">
+                <span className="text-sm font-bold text-slate-700">Codigo MFA</span>
+                <input
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  placeholder="123456"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                />
+              </label>
+              <button
+                className="text-left text-sm font-black text-sky-800 hover:underline"
+                type="button"
+                onClick={() => {
+                  setMfaToken('')
+                  setMfaCode('')
+                  setUsuarioPendiente(null)
+                }}
+              >
+                Usar otra cuenta
+              </button>
+            </div>
+          )}
 
           <button
             className="mt-5 w-full rounded-md bg-sky-700 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-sky-800 disabled:cursor-default disabled:opacity-60"
             type="submit"
             disabled={cargando}
           >
-            {cargando ? 'Ingresando...' : 'Ingresar'}
+            {cargando ? 'Ingresando...' : mfaToken ? 'Verificar codigo' : 'Ingresar'}
           </button>
 
-          <div className="mt-5 grid gap-2 text-center text-sm font-semibold">
+          {!mfaToken && <div className="mt-5 grid gap-2 text-center text-sm font-semibold">
             <p className="text-slate-600">
               Sos proveedor?{' '}
               <Link className="font-black text-sky-800 hover:underline" to="/registro-proveedor">
@@ -130,9 +181,9 @@ export function LoginPage() {
             <Link className="font-black text-sky-800 hover:underline" to="/portal">
               Ver portal publico sin ingresar
             </Link>
-          </div>
+          </div>}
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          {!mfaToken && <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-black text-slate-800">Usuarios de prueba</h2>
@@ -157,7 +208,7 @@ export function LoginPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
         </form>
       </section>
     </main>

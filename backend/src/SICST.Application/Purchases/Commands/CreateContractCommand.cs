@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Purchases.DTOs;
 using SICST.Domain.Entities;
 
@@ -61,6 +62,12 @@ public class CreateContractCommandHandler : IRequestHandler<CreateContractComman
         }
 
         var count = await _context.Contracts.CountAsync(c => c.CompanyId == request.CompanyId, cancellationToken);
+        var template = await DocumentTemplateRules.EnsureActiveTemplate(
+            _context,
+            request.CompanyId,
+            DocumentTemplateType.Contract,
+            cancellationToken);
+
         var contract = new Contract
         {
             Id = Guid.NewGuid(),
@@ -76,10 +83,11 @@ public class CreateContractCommandHandler : IRequestHandler<CreateContractComman
             Terms = request.Terms.Trim(),
             CreatedAtUtc = DateTime.UtcNow,
             SignedAtUtc = DateTime.UtcNow,
-            DocumentPath = string.Empty
+            DocumentPath = string.Empty,
+            DocumentTemplateId = template.Id
         };
 
-        contract.DocumentPath = _pdfGenerator.GenerateContract(process, contract, award.Supplier);
+        contract.DocumentPath = _pdfGenerator.GenerateContract(process, contract, award.Supplier, template);
         _context.Contracts.Add(contract);
         process.Status = PurchaseProcessStatus.Contracted;
 

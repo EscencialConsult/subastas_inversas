@@ -5,6 +5,7 @@ using SICST.Application.Common.Security;
 using SICST.Application.Configuration.Commands;
 using SICST.Application.Configuration.DTOs;
 using SICST.Application.Configuration.Queries;
+using SICST.Domain.Entities;
 
 namespace SICST.Api.Controllers;
 
@@ -63,6 +64,21 @@ public class ConfigurationController : ControllerBase
         return Ok(modes);
     }
 
+    [HttpGet("contracting-modes/suggest")]
+    [Authorize(Policy = PermissionCodes.ConfigurationRead)]
+    public async Task<ActionResult<ContractingModeDto?>> SuggestContractingMode(Guid companyId, [FromQuery] decimal amount)
+    {
+        try
+        {
+            var mode = await _sender.Send(new SuggestContractingModeQuery(companyId, amount));
+            return Ok(mode);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("contracting-modes")]
     [Authorize(Policy = PermissionCodes.ConfigurationManage)]
     public async Task<ActionResult<ContractingModeDto>> CreateContractingMode(
@@ -78,6 +94,44 @@ public class ConfigurationController : ControllerBase
         {
             var mode = await _sender.Send(command);
             return Ok(mode);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("contracting-modes/{id:guid}")]
+    [Authorize(Policy = PermissionCodes.ConfigurationManage)]
+    public async Task<ActionResult<ContractingModeDto>> UpdateContractingMode(
+        Guid companyId,
+        Guid id,
+        [FromBody] UpdateContractingModeCommand command)
+    {
+        if (companyId != command.CompanyId || id != command.Id)
+        {
+            return BadRequest(new { message = "El ID de la URL no coincide con el cuerpo." });
+        }
+
+        try
+        {
+            var mode = await _sender.Send(command);
+            return Ok(mode);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("contracting-modes/{id:guid}")]
+    [Authorize(Policy = PermissionCodes.ConfigurationManage)]
+    public async Task<IActionResult> DeleteContractingMode(Guid companyId, Guid id)
+    {
+        try
+        {
+            await _sender.Send(new DeleteContractingModeCommand(companyId, id));
+            return NoContent();
         }
         catch (InvalidOperationException ex)
         {
@@ -108,6 +162,91 @@ public class ConfigurationController : ControllerBase
         {
             var workflow = await _sender.Send(command);
             return Ok(workflow);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("approval-workflows/{id:guid}")]
+    [Authorize(Policy = PermissionCodes.ConfigurationManage)]
+    public async Task<ActionResult<ApprovalWorkflowDto>> UpdateApprovalWorkflow(
+        Guid companyId,
+        Guid id,
+        [FromBody] UpdateApprovalWorkflowCommand command)
+    {
+        if (companyId != command.CompanyId || id != command.Id)
+        {
+            return BadRequest(new { message = "El ID de la URL no coincide con el cuerpo." });
+        }
+
+        try
+        {
+            var workflow = await _sender.Send(command);
+            return Ok(workflow);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("approval-workflows/{id:guid}")]
+    [Authorize(Policy = PermissionCodes.ConfigurationManage)]
+    public async Task<IActionResult> DeleteApprovalWorkflow(Guid companyId, Guid id)
+    {
+        try
+        {
+            await _sender.Send(new DeleteApprovalWorkflowCommand(companyId, id));
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("document-templates")]
+    [Authorize(Policy = PermissionCodes.ConfigurationRead)]
+    public async Task<ActionResult<List<DocumentTemplateDto>>> GetDocumentTemplates(
+        Guid companyId,
+        [FromQuery] DocumentTemplateType? type)
+    {
+        var templates = await _sender.Send(new GetDocumentTemplatesQuery(companyId, type));
+        return Ok(templates);
+    }
+
+    [HttpPost("document-templates")]
+    [Authorize(Policy = PermissionCodes.ConfigurationManage)]
+    public async Task<ActionResult<DocumentTemplateDto>> CreateDocumentTemplateVersion(
+        Guid companyId,
+        [FromBody] CreateDocumentTemplateVersionCommand command)
+    {
+        if (companyId != command.CompanyId)
+        {
+            return BadRequest(new { message = "El ID de empresa de la URL no coincide con el cuerpo." });
+        }
+
+        try
+        {
+            var template = await _sender.Send(command);
+            return Ok(template);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("document-templates/{id:guid}/activate")]
+    [Authorize(Policy = PermissionCodes.ConfigurationManage)]
+    public async Task<ActionResult<DocumentTemplateDto>> ActivateDocumentTemplate(Guid companyId, Guid id)
+    {
+        try
+        {
+            var template = await _sender.Send(new ActivateDocumentTemplateCommand(companyId, id));
+            return Ok(template);
         }
         catch (InvalidOperationException ex)
         {

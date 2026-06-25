@@ -10,6 +10,7 @@ using SICST.Application.Suppliers.Queries;
 using SICST.Domain.Entities;
 using SICST.Application.Common.Security;
 using SICST.Application.Common.Models;
+using System.Security.Cryptography;
 
 namespace SICST.Api.Controllers;
 
@@ -43,10 +44,46 @@ public class SuppliersController : ControllerBase
 
     [Authorize(Policy = PermissionCodes.PurchasesManage)]
     [HttpGet]
-    public async Task<ActionResult<PagedResult<SupplierDto>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+    public async Task<ActionResult<PagedResult<SupplierDto>>> GetAll(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] Guid? companyId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? rubro = null,
+        [FromQuery] string? province = null,
+        [FromQuery] string? locality = null,
+        [FromQuery] string? proximity = null)
     {
-        var suppliers = await _sender.Send(new GetSuppliersQuery(pageNumber, pageSize));
+        var suppliers = await _sender.Send(new GetSuppliersQuery(
+            pageNumber,
+            pageSize,
+            companyId,
+            search,
+            rubro,
+            province,
+            locality,
+            proximity));
         return Ok(suppliers);
+    }
+
+    [Authorize(Policy = PermissionCodes.SuppliersManage)]
+    [HttpPost("/api/companies/{companyId:guid}/suppliers/{supplierId:guid}/enable")]
+    public async Task<ActionResult<CompanySupplierDto>> EnableForCompany(Guid companyId, Guid supplierId)
+    {
+        try
+        {
+            var result = await _sender.Send(new EnableSupplierForCompanyCommand
+            {
+                CompanyId = companyId,
+                SupplierId = supplierId
+            });
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [Authorize]
@@ -69,11 +106,17 @@ public class SuppliersController : ControllerBase
     public async Task<ActionResult<SupplierDocumentDto>> UploadDocument(
         Guid supplierId,
         [FromForm] SupplierDocumentType type,
+        [FromForm] DateTime expiresAtUtc,
         [FromForm] IFormFile file)
     {
         if (file == null || file.Length == 0)
         {
             return BadRequest(new { message = "El archivo es obligatorio." });
+        }
+
+        if (expiresAtUtc == default)
+        {
+            return BadRequest(new { message = "La fecha de vencimiento es obligatoria." });
         }
 
         if (!string.Equals(file.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
@@ -92,6 +135,8 @@ public class SuppliersController : ControllerBase
             await file.CopyToAsync(stream);
         }
 
+        var sha256Hash = Convert.ToHexString(SHA256.HashData(await System.IO.File.ReadAllBytesAsync(fullPath))).ToLowerInvariant();
+
         try
         {
             var result = await _sender.Send(new RegisterSupplierDocumentCommand
@@ -100,7 +145,9 @@ public class SuppliersController : ControllerBase
                 Type = type,
                 FileName = file.FileName,
                 ContentType = file.ContentType,
-                StoragePath = Path.Combine("uploads", "suppliers", supplierId.ToString(), safeFileName)
+                StoragePath = Path.Combine("uploads", "suppliers", supplierId.ToString(), safeFileName),
+                Sha256Hash = sha256Hash,
+                ExpiresAtUtc = expiresAtUtc
             });
 
             return Ok(result);
@@ -109,6 +156,112 @@ public class SuppliersController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [Authorize]
+    [HttpGet("{supplierId:guid}/documents")]
+    public async Task<ActionResult<List<SupplierDocumentDto>>> GetDocuments(Guid supplierId)
+    {
+        try
+        {
+            var documents = await _sender.Send(new GetSupplierDocumentsQuery(supplierId));
+            return Ok(documents);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    [HttpPost("documents/{documentId:guid}/observations")]
+    public async Task<ActionResult<SupplierDocumentReviewDto>> ObserveDocument(
+        Guid documentId,
+        [FromBody] ObserveSupplierDocumentCommand command)
+    {
+        if (documentId != command.DocumentId)
+        {
+            return BadRequest(new { message = "El ID de la URL no coincide con el cuerpo." });
+        }
+
+        try
+        {
+            return Ok(await _sender.Send(command));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize]
+    [HttpPost("documents/{documentId:guid}/remediations")]
+    public async Task<ActionResult<SupplierDocumentReviewDto>> RemediateDocument(
+        Guid documentId,
+        [FromBody] SubmitSupplierDocumentRemediationCommand command)
+    {
+        if (documentId != command.DocumentId)
+        {
+            return BadRequest(new { message = "El ID de la URL no coincide con el cuerpo." });
+        }
+
+        try
+        {
+            return Ok(await _sender.Send(command));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    [HttpPost("documents/{documentId:guid}/verdicts")]
+    public async Task<ActionResult<SupplierDocumentReviewDto>> IssueDocumentVerdict(
+        Guid documentId,
+        [FromBody] IssueSupplierDocumentVerdictCommand command)
+    {
+        if (documentId != command.DocumentId)
+        {
+            return BadRequest(new { message = "El ID de la URL no coincide con el cuerpo." });
+        }
+
+        try
+        {
+            return Ok(await _sender.Send(command));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize]
+    [HttpGet("{supplierId:guid}/documents/alerts")]
+    public async Task<ActionResult<List<SupplierDocumentDto>>> GetDocumentAlerts(Guid supplierId, [FromQuery] int daysAhead = 30)
+    {
+        try
+        {
+            var documents = await _sender.Send(new GetSupplierDocumentsQuery(supplierId));
+            var alerts = documents
+                .Where(d => d.Status is SupplierDocumentStatus.ExpiringSoon or SupplierDocumentStatus.Expired)
+                .Where(d => d.ExpiresAtUtc <= DateTime.UtcNow.AddDays(Math.Max(0, daysAhead)))
+                .ToList();
+
+            return Ok(alerts);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    [HttpGet("documents/expiring")]
+    public async Task<ActionResult<List<SupplierDocumentDto>>> GetExpiringDocuments([FromQuery] int daysAhead = 30)
+    {
+        var documents = await _sender.Send(new GetExpiringSupplierDocumentsQuery(daysAhead));
+        return Ok(documents);
     }
 
     [Authorize]

@@ -27,6 +27,7 @@ public class GetSupplierByUserIdQueryHandler : IRequestHandler<GetSupplierByUser
                 Cuit = s.Cuit,
                 BusinessName = s.BusinessName,
                 Email = s.Email,
+                BusinessCategory = s.BusinessCategory,
                 Province = s.Province,
                 Locality = s.Locality,
                 Status = s.Status,

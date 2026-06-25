@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Purchases.DTOs;
 using SICST.Domain.Entities;
 
@@ -33,7 +34,18 @@ public class PublishPurchaseProcessCommandHandler : IRequestHandler<PublishPurch
             throw new InvalidOperationException("Solo se puede publicar un proceso en borrador.");
         }
 
-        process.Status = PurchaseProcessStatus.Approved;
+        var workflow = await ApprovalWorkflowRules.FindWorkflowForAmount(
+            _context,
+            request.CompanyId,
+            process.EstimatedBudget,
+            cancellationToken);
+        var requiredLevels = workflow == null
+            ? []
+            : ApprovalWorkflowRouting.GetRequiredLevels(workflow, process.EstimatedBudget);
+
+        process.Status = requiredLevels.Count == 0
+            ? PurchaseProcessStatus.Approved
+            : PurchaseProcessStatus.PendingApproval;
         process.PublishedAtUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 

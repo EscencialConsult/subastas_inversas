@@ -38,6 +38,9 @@ public class Contract
 
     public string DocumentPath { get; set; } = string.Empty;
 
+    public Guid? DocumentTemplateId { get; set; }
+    public DocumentTemplate? DocumentTemplate { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
 
     public DateTime? SignedAtUtc { get; set; }

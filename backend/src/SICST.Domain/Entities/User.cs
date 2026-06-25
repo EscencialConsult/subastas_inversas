@@ -27,6 +27,14 @@ public class User
 
     public bool Active { get; set; } = true;
 
+    public bool MfaEnabled { get; set; }
+
+    public string? MfaSecret { get; set; }
+
+    public string? RefreshTokenHash { get; set; }
+
+    public DateTime? RefreshTokenExpiresAtUtc { get; set; }
+
     // Navigation and Foreign Key to Company
     public Guid? CompanyId { get; set; }
     public Company? Company { get; set; }

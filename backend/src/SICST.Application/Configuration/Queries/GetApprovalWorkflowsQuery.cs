@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Configuration.DTOs;
 
 namespace SICST.Application.Configuration.Queries;
@@ -18,21 +19,13 @@ public class GetApprovalWorkflowsQueryHandler : IRequestHandler<GetApprovalWorkf
 
     public async Task<List<ApprovalWorkflowDto>> Handle(GetApprovalWorkflowsQuery request, CancellationToken cancellationToken)
     {
-        return await _context.ApprovalWorkflows
+        var workflows = await _context.ApprovalWorkflows
+            .Include(w => w.Levels)
             .Where(w => w.CompanyId == request.CompanyId)
             .OrderBy(w => w.MinAmount)
             .ThenBy(w => w.Name)
-            .Select(w => new ApprovalWorkflowDto
-            {
-                Id = w.Id,
-                CompanyId = w.CompanyId,
-                Name = w.Name,
-                MinAmount = w.MinAmount,
-                MaxAmount = w.MaxAmount,
-                RequiredRole = w.RequiredRole,
-                RequiredApprovals = w.RequiredApprovals,
-                Active = w.Active
-            })
             .ToListAsync(cancellationToken);
+
+        return workflows.Select(ApprovalWorkflowRules.ToDto).ToList();
     }
 }

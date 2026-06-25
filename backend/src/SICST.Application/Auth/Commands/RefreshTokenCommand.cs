@@ -27,23 +27,48 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, A
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower(), cancellationToken);
 
-        if (user == null || !user.Active || !_jwtProvider.IsValidForUser(request.RefreshToken, request.Email))
+        var tokenHash = RefreshTokenHelper.Hash(request.RefreshToken);
+        if (user == null ||
+            !user.Active ||
+            user.RefreshTokenHash != tokenHash ||
+            user.RefreshTokenExpiresAtUtc == null ||
+            user.RefreshTokenExpiresAtUtc <= DateTime.UtcNow)
         {
             throw new UnauthorizedAccessException("Invalid refresh token.");
         }
 
+        string? companyName = null;
+        string? companyLogo = null;
+        string? companyPrimaryColor = null;
+        if (user.CompanyId.HasValue)
+        {
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.Id == user.CompanyId.Value, cancellationToken);
+            companyName = company?.Name;
+            companyLogo = company?.Logo;
+            companyPrimaryColor = company?.PrimaryColor;
+        }
+
         var token = _jwtProvider.Generate(user);
+        var refreshToken = RefreshTokenHelper.Generate();
+        user.RefreshTokenHash = RefreshTokenHelper.Hash(refreshToken);
+        user.RefreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(30);
+        await _context.SaveChangesAsync(cancellationToken);
 
         return new AuthResponseDto
         {
             Token = token,
-            RefreshToken = token,
+            RefreshToken = refreshToken,
             UserId = user.Id,
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
             Role = user.Role.ToString(),
-            CompanyId = user.CompanyId
+            CompanyId = user.CompanyId,
+            CompanyName = companyName,
+            CompanyLogo = companyLogo,
+            CompanyPrimaryColor = companyPrimaryColor,
+            MfaEnabled = user.MfaEnabled
         };
     }
 }

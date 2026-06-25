@@ -63,6 +63,7 @@ public static class PurchaseProcessMapping
             Observaciones = award.Observations,
             Fecha = award.AdjudicatedAtUtc.ToString("yyyy-MM-dd"),
             ActaUrl = $"/api/companies/{process.CompanyId}/purchase-processes/{process.Id}/awards/{award.Id}/pdf",
+            DocumentTemplateId = award.DocumentTemplateId,
             Items = award.Items.Select(item => new AwardItemDto
             {
                 Id = item.Id,
@@ -93,7 +94,8 @@ public static class PurchaseProcessMapping
             Terms = contract.Terms,
             CreatedAtUtc = contract.CreatedAtUtc,
             SignedAtUtc = contract.SignedAtUtc,
-            DocumentUrl = $"/api/companies/{contract.CompanyId}/contracts/{contract.Id}/pdf"
+            DocumentUrl = $"/api/companies/{contract.CompanyId}/contracts/{contract.Id}/pdf",
+            DocumentTemplateId = contract.DocumentTemplateId
         };
     }
 
@@ -114,6 +116,7 @@ public static class PurchaseProcessMapping
             ExpectedDeliveryDateUtc = order.ExpectedDeliveryDateUtc,
             Observations = order.Observations,
             DocumentUrl = $"/api/companies/{order.CompanyId}/purchase-orders/{order.Id}/pdf",
+            DocumentTemplateId = order.DocumentTemplateId,
             Receptions = order.Receptions
                 .OrderByDescending(r => r.ReceivedAtUtc)
                 .Select(ToReceptionDto)

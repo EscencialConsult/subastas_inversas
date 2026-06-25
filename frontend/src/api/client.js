@@ -11,10 +11,11 @@ export class ApiError extends Error {
 
 export async function apiFetch(endpoint, options = {}) {
   const url = `${API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+  const isFormData = options.body instanceof FormData
   
   // Set default headers
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   }
 

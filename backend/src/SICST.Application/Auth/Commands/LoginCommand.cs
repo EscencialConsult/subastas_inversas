@@ -45,15 +45,39 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponseDto
             throw new UnauthorizedAccessException("Invalid email or password.");
         }
 
+        if (user.MfaEnabled)
+        {
+            return new AuthResponseDto
+            {
+                UserId = user.Id,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Role = user.Role.ToString(),
+                CompanyId = user.CompanyId,
+                RequiresMfa = true,
+                MfaEnabled = true,
+                MfaToken = _jwtProvider.GenerateMfaToken(user)
+            };
+        }
+
         string? companyName = null;
+        string? companyLogo = null;
+        string? companyPrimaryColor = null;
         if (user.CompanyId.HasValue)
         {
             var company = await _context.Companies
                 .FirstOrDefaultAsync(c => c.Id == user.CompanyId.Value, cancellationToken);
             companyName = company?.Name;
+            companyLogo = company?.Logo;
+            companyPrimaryColor = company?.PrimaryColor;
         }
 
         var token = _jwtProvider.Generate(user);
+        var refreshToken = RefreshTokenHelper.Generate();
+        user.RefreshTokenHash = RefreshTokenHelper.Hash(refreshToken);
+        user.RefreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(30);
+        await _context.SaveChangesAsync(cancellationToken);
 
         return new AuthResponseDto
         {
@@ -65,7 +89,10 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponseDto
             Role = user.Role.ToString(),
             CompanyId = user.CompanyId,
             CompanyName = companyName,
-            RefreshToken = token
+            CompanyLogo = companyLogo,
+            CompanyPrimaryColor = companyPrimaryColor,
+            RefreshToken = refreshToken,
+            MfaEnabled = user.MfaEnabled
         };
     }
 }

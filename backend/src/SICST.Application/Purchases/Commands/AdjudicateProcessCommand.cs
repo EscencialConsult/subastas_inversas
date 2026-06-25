@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Configuration;
 using SICST.Application.Purchases.DTOs;
 using SICST.Domain.Entities;
 
@@ -147,6 +148,12 @@ public class AdjudicateProcessCommandHandler : IRequestHandler<AdjudicateProcess
                 awardAmount = winningBid?.Amount ?? process.EstimatedBudget;
             }
 
+            var template = await DocumentTemplateRules.EnsureActiveTemplate(
+                _context,
+                request.CompanyId,
+                DocumentTemplateType.AwardAct,
+                cancellationToken);
+
             var award = new Award
             {
                 Id = Guid.NewGuid(),
@@ -157,10 +164,11 @@ public class AdjudicateProcessCommandHandler : IRequestHandler<AdjudicateProcess
                 AdjudicatedAtUtc = DateTime.UtcNow,
                 Observations = process.Evaluation.Observations,
                 DocumentPath = string.Empty,
+                DocumentTemplateId = template.Id,
                 Items = awardItems
             };
 
-            award.DocumentPath = _pdfGenerator.GenerateAwardAct(process, award, supplier, approver, bids);
+            award.DocumentPath = _pdfGenerator.GenerateAwardAct(process, award, supplier, approver, bids, template);
             _context.Awards.Add(award);
             createdAwards.Add(award);
         }

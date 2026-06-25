@@ -65,6 +65,7 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
             Email = user.Email,
             Role = user.Role.ToString(),
             Active = user.Active,
+            MfaEnabled = user.MfaEnabled,
             CompanyId = user.CompanyId,
         };
     }
