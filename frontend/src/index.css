@@ -1,3 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+
 :root {
   --color-fondo: #f4f5f7;
   --color-superficie: #ffffff;
@@ -14,7 +17,7 @@
   --color-error-tx: #b42318;
   --radio: 8px;
 
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Source Sans 3', system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--color-texto);
   background: var(--color-fondo);
 }

@@ -78,8 +78,6 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
-        
         // Define simple constraints for Company
         modelBuilder.Entity<Company>(entity =>
         {

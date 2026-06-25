@@ -36,10 +36,29 @@ public class PublicPortalController : ControllerBase
         return Ok(awards);
     }
 
+    [HttpGet("auctions")]
+    public async Task<ActionResult<List<PublicAuctionDto>>> GetAuctions([FromQuery] Guid? companyId)
+    {
+        var auctions = await _sender.Send(new GetPublicAuctionsQuery(companyId));
+        return Ok(auctions);
+    }
+
     [HttpGet("auctions/live")]
     public async Task<ActionResult<List<PublicAuctionDto>>> GetLiveAuctions([FromQuery] Guid? companyId)
     {
         var auctions = await _sender.Send(new GetPublicLiveAuctionsQuery(companyId));
         return Ok(auctions);
+    }
+
+    [HttpGet("purchase-processes/{purchaseProcessId:guid}/auction")]
+    public async Task<ActionResult<PublicAuctionDto>> GetAuctionByPurchaseProcess(Guid purchaseProcessId)
+    {
+        var auction = await _sender.Send(new GetPublicAuctionByPurchaseProcessQuery(purchaseProcessId));
+        if (auction == null)
+        {
+            return NotFound(new { message = "Subasta publica no encontrada para este proceso." });
+        }
+
+        return Ok(auction);
     }
 }

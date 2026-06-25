@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using SICST.Api.Auth;
@@ -10,18 +11,28 @@ using SICST.Api.Tenancy;
 using SICST.Application;
 using SICST.Application.Common.Security;
 using SICST.Application.Common.Interfaces;
-using SICST.Application.Common.Interfaces;
 using SICST.Infrastructure;
 using SICST.Persistence;
 using SICST.Persistence.Contexts;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<ICurrentTenant, CurrentTenant>();
+
+if (builder.Environment.IsDevelopment())
+{
+    var keysPath = Path.Combine(Path.GetTempPath(), "sicst-dataprotection-keys");
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+}
 
 // Configure CORS
 builder.Services.AddCors(options =>

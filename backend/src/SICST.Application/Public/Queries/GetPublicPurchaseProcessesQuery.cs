@@ -21,6 +21,7 @@ public class GetPublicPurchaseProcessesQueryHandler : IRequestHandler<GetPublicP
     {
         var publicStatuses = new[]
         {
+            PurchaseProcessStatus.PendingApproval,
             PurchaseProcessStatus.Approved,
             PurchaseProcessStatus.InAuction,
             PurchaseProcessStatus.Evaluation,
@@ -59,7 +60,8 @@ public class GetPublicPurchaseProcessesQueryHandler : IRequestHandler<GetPublicP
                 EstimatedBudget = p.EstimatedBudget,
                 Status = p.Status,
                 CreatedAtUtc = p.CreatedAtUtc,
-                PublishedAtUtc = p.PublishedAtUtc
+                PublishedAtUtc = p.PublishedAtUtc,
+                HasAuction = _context.Auctions.Any(a => a.PurchaseProcessId == p.Id)
             })
             .ToListAsync(cancellationToken);
     }

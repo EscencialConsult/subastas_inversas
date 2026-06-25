@@ -66,16 +66,3 @@ export async function apiFetch(endpoint, options = {}) {
 
   return cuerpo
 }
-
-// Re-exportamos simularRed para que el resto de las APIs simuladas sigan funcionando
-export function simularRed(resolver) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      try {
-        resolve(resolver())
-      } catch (error) {
-        reject(error)
-      }
-    }, 350)
-  })
-}

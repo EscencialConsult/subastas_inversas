@@ -1,5 +1,5 @@
-// Panel de inicio (dashboard). Es genérico: pide al backend (mock) el resumen
-// que corresponde al rol del usuario y lo dibuja. Así, agregar/ajustar un panel
+// Panel de inicio (dashboard). Es generico: pide al backend el resumen
+// que corresponde al rol del usuario y lo dibuja. Asi, agregar/ajustar un panel
 // es cambiar datos en dashboardApi, no esta pantalla.
 
 import { useEffect, useState } from 'react'

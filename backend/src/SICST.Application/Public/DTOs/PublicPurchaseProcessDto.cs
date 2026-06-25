@@ -14,4 +14,5 @@ public class PublicPurchaseProcessDto
     public PurchaseProcessStatus Status { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? PublishedAtUtc { get; set; }
+    public bool HasAuction { get; set; }
 }
