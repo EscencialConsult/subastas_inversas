@@ -394,4 +394,145 @@ public class PdfGenerator : IPdfGenerator
 
         return rendered;
     }
+
+    public string GenerateEvaluationAct(PurchaseProcess process, List<Invitation> invitations, User evaluator, string hash, string signature, byte[]? signatureImageBytes)
+    {
+        var fullPath = CreateDocumentPath("evaluation-acts", process.Id);
+
+        Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(11).FontColor(Colors.Grey.Darken3));
+
+                page.Header()
+                    .Column(column =>
+                    {
+                        column.Item().Text("SISTEMA DE COMPRAS PÚBLICAS Y SUBASTAS (SICST)").FontSize(10).SemiBold().FontColor(Colors.Blue.Medium);
+                        column.Item().Text("ACTA DE EVALUACIÓN DE PROVEEDORES").FontSize(20).Bold().FontColor(Colors.Blue.Darken2);
+                        column.Item().LineHorizontal(1).LineColor(Colors.Blue.Darken2);
+                    });
+
+                page.Content()
+                    .PaddingVertical(1, Unit.Centimetre)
+                    .Column(col =>
+                    {
+                        col.Spacing(15);
+
+                        col.Item().Text(t =>
+                        {
+                            t.Span("Por medio de la presente, se deja constancia de la evaluación y calificación de los proveedores que han aceptado participar en el proceso de compra referenciado, habiendo cumplido con los requisitos formales y técnicos. El presente documento, firmado y auditado, habilita el inicio de la subasta inversa correspondiente:").Italic();
+                        });
+
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.ConstantColumn(150);
+                                columns.RelativeColumn();
+                            });
+
+                            table.Cell().PaddingBottom(5).Text("Código de Proceso:").Bold();
+                            table.Cell().PaddingBottom(5).Text(process.Code);
+
+                            table.Cell().PaddingBottom(5).Text("Título del Proceso:").Bold();
+                            table.Cell().PaddingBottom(5).Text(process.Title);
+
+                            table.Cell().PaddingBottom(5).Text("Presupuesto Estimado:").Bold();
+                            table.Cell().PaddingBottom(5).Text($"{process.EstimatedBudget:C}");
+
+                            table.Cell().PaddingBottom(5).Text("Fecha del Acta:").Bold();
+                            table.Cell().PaddingBottom(5).Text($"{DateTime.UtcNow.ToLocalTime():dd/MM/yyyy HH:mm} (Hora Local)");
+                        });
+
+                        col.Item().Text("Resultado de Calificación de Proveedores:").Bold().FontSize(14).FontColor(Colors.Blue.Darken1);
+
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn();
+                                columns.ConstantColumn(100);
+                                columns.ConstantColumn(100);
+                                columns.RelativeColumn();
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Proveedor").Bold();
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("CUIT").Bold();
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Estado").Bold();
+                                header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Observaciones / Fundamentos").Bold();
+                            });
+
+                            foreach (var inv in invitations)
+                            {
+                                table.Cell().Padding(5).Text(inv.Supplier?.BusinessName ?? "Proveedor");
+                                table.Cell().Padding(5).Text(inv.Supplier?.Cuit ?? "N/A");
+                                
+                                var statusText = inv.QualificationStatus.ToString();
+                                table.Cell().Padding(5).Text(statusText).Bold();
+                                
+                                table.Cell().Padding(5).Text(inv.QualificationNotes ?? "-");
+                            }
+                        });
+
+                        col.Item().PaddingTop(10).Column(auditCol =>
+                        {
+                            auditCol.Spacing(5);
+                            auditCol.Item().Text("Seguridad e Inmutabilidad (SHA-256 & Firma Digital):").Bold().FontSize(12).FontColor(Colors.Grey.Darken2);
+                            auditCol.Item().Text(t =>
+                            {
+                                t.Span("Hash SHA-256: ").Bold();
+                                t.Span(hash).FontFamily("Courier New").FontSize(10);
+                            });
+                            auditCol.Item().Text(t =>
+                            {
+                                t.Span("Firma Digital: ").Bold();
+                                t.Span(signature).FontFamily("Courier New").FontSize(10);
+                            });
+                        });
+
+                        col.Item().PaddingTop(20).AlignRight().Width(200).Column(sigCol =>
+                        {
+                            sigCol.Spacing(5);
+                            
+                            if (signatureImageBytes != null && signatureImageBytes.Length > 0)
+                            {
+                                try
+                                {
+                                    sigCol.Item().Height(60).Image(signatureImageBytes);
+                                }
+                                catch
+                                {
+                                    sigCol.Item().Height(60).LineHorizontal(1).LineColor(Colors.Grey.Medium);
+                                }
+                            }
+                            else
+                            {
+                                sigCol.Item().Height(60).LineHorizontal(1).LineColor(Colors.Grey.Medium);
+                            }
+
+                            sigCol.Item().Text($"{evaluator.FirstName} {evaluator.LastName}").Bold();
+                            sigCol.Item().Text("Evaluador Firmante").FontSize(10).FontColor(Colors.Grey.Darken1);
+                        });
+                    });
+
+                page.Footer()
+                    .AlignCenter()
+                    .Text(x =>
+                    {
+                        x.Span("Página ");
+                        x.CurrentPageNumber();
+                        x.Span(" de ");
+                        x.TotalPages();
+                    });
+            });
+        }).GeneratePdf(fullPath);
+
+        return fullPath;
+    }
 }

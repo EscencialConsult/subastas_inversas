@@ -1,16 +1,36 @@
 import { apiFetch, ApiError } from './client.js'
 import { listarProcesos, listarProcesosParaAuditoria } from './comprasApi.js'
 
-const DURACION_MIN = 10
+const ESTADOS_SUBASTA = {
+  0: 'Open',
+  1: 'Closed',
+  2: 'Scheduled',
+  Open: 'Open',
+  Closed: 'Closed',
+  Scheduled: 'Scheduled',
+}
 
-export async function iniciarSubasta({ tenantId, procesoId, durationMinutes }) {
-  const customDuration = durationMinutes || Number(localStorage.getItem(`auction_duration_${procesoId}`)) || DURACION_MIN
+export async function iniciarSubasta({
+  tenantId,
+  procesoId,
+  basePrice,
+  minimumDecrementPercentage,
+  startsAtUtc,
+  durationMinutes,
+  autoExtensionMinutes,
+  pabThreshold,
+}) {
   const auction = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/auction/start`, {
     method: 'POST',
     body: JSON.stringify({
       companyId: tenantId,
       purchaseProcessId: procesoId,
-      durationMinutes: customDuration,
+      basePrice: Number(basePrice),
+      minimumDecrementPercentage: Number(minimumDecrementPercentage),
+      startsAtUtc: startsAtUtc || null,
+      durationMinutes: Number(durationMinutes),
+      autoExtensionMinutes: Number(autoExtensionMinutes),
+      pabThreshold: Number(pabThreshold),
     }),
   })
 
@@ -150,13 +170,17 @@ function mapSubasta(auction) {
       1,
       Math.round((new Date(auction.endsAtUtc).getTime() - new Date(auction.startsAtUtc).getTime()) / 60000),
     ),
-    estado: auction.status,
+    estado: ESTADOS_SUBASTA[auction.status] ?? auction.status,
+    autoExtensionMinutes: auction.autoExtensionMinutes,
+    pabThreshold: auction.pabThreshold,
     participantes: auction.participantSupplierIds ?? [],
     lances: (auction.bids ?? []).map((bid) => ({
       id: bid.id,
+      proveedorId: bid.supplierId,
       proveedor: bid.supplierName,
       monto: bid.amount,
       hace: formatearHace(bid.placedAtUtc),
+      isPab: Boolean(bid.isPab),
     })),
   }
 }

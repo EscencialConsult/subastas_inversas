@@ -32,7 +32,6 @@ public class SupplierHandlerTests
             BusinessName = "Insumos del Norte SRL",
             Cuit = "30-12345678-1",
             Email = "ventas@insumosnorte.com",
-            Password = "Proveedor123!",
             BusinessCategory = "Insumos",
             Province = "Tucuman",
             Locality = "San Miguel de Tucuman"
@@ -46,12 +45,14 @@ public class SupplierHandlerTests
         Assert.NotNull(user);
         Assert.NotNull(supplier);
         Assert.Equal(UserRole.Proveedor, user.Role);
-        Assert.True(user.Active);
+        Assert.False(user.Active);
         Assert.Null(user.CompanyId);
         Assert.Equal(user.Id, supplier.UserId);
         Assert.Equal("30-12345678-1", supplier.Cuit);
         Assert.Equal("Insumos", supplier.BusinessCategory);
-        Assert.Equal(SupplierStatus.Verified, supplier.Status);
+        Assert.Equal(SupplierStatus.Pending, supplier.Status);
+        Assert.Equal(ArcaVerificationStatus.Pending, supplier.ArcaVerificationStatus);
+        Assert.False(supplier.ArcaVerified);
     }
 
     [Fact]
@@ -65,7 +66,6 @@ public class SupplierHandlerTests
             BusinessName = "Proveedor Uno",
             Cuit = "30-12345678-1",
             Email = "uno@proveedor.com",
-            Password = "Proveedor123!",
             BusinessCategory = "Servicios",
             Province = "Tucuman",
             Locality = "Tafi Viejo"
@@ -137,7 +137,6 @@ public class SupplierHandlerTests
             BusinessName = "Proveedor Invalido CUIT",
             Cuit = "30-12345678-0", // mathematically invalid check digit (should be 9)
             Email = "invalido@proveedor.com",
-            Password = "Proveedor123!",
             BusinessCategory = "Servicios",
             Province = "Buenos Aires",
             Locality = "Tandil"

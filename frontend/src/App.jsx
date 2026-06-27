@@ -27,6 +27,7 @@ import { PanelPage } from './features/dashboard/PanelPage.jsx'
 import { RegistroProveedorPage } from './features/proveedor/RegistroProveedorPage.jsx'
 import { ProveedorHomePage } from './features/proveedor/ProveedorHomePage.jsx'
 import { ProveedorOportunidadesPage } from './features/proveedor/ProveedorOportunidadesPage.jsx'
+import { ProveedorSubastaLivePage } from './features/proveedor/ProveedorSubastaLivePage.jsx'
 import { PortalLayout } from './features/publico/PortalLayout.jsx'
 import { PortalPublicoPage } from './features/publico/PortalPublicoPage.jsx'
 import { SubastaPublicaPage } from './features/publico/SubastaPublicaPage.jsx'
@@ -109,6 +110,14 @@ export default function App() {
               element={
                 <RutaProtegida permiso={esProveedor}>
                   <ProveedorOportunidadesPage />
+                </RutaProtegida>
+              }
+            />
+            <Route
+              path="proveedor/subastas/:auctionId"
+              element={
+                <RutaProtegida permiso={esProveedor}>
+                  <ProveedorSubastaLivePage />
                 </RutaProtegida>
               }
             />

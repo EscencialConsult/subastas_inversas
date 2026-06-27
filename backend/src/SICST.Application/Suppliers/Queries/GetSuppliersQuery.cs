@@ -91,7 +91,11 @@ public class GetSuppliersQueryHandler : IRequestHandler<GetSuppliersQuery, Paged
                 Province = s.Province,
                 Locality = s.Locality,
                 Status = s.Status,
-                ArcaVerified = s.ArcaVerified
+                ArcaVerified = s.ArcaVerified,
+                ArcaVerificationStatus = s.ArcaVerificationStatus,
+                ArcaVerifiedAtUtc = s.ArcaVerifiedAtUtc,
+                ArcaVerificationNotes = s.ArcaVerificationNotes,
+                CredentialsSentAtUtc = s.CredentialsSentAtUtc
             })
             .ToListAsync(cancellationToken);
 

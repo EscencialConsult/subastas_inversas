@@ -8,6 +8,7 @@ using SICST.Application.Auctions.Commands;
 using SICST.Application.Auctions.DTOs;
 using SICST.Application.Auctions.Queries;
 using SICST.Application.Common.Security;
+using SICST.Domain.Entities;
 
 namespace SICST.Api.Controllers;
 
@@ -37,6 +38,14 @@ public class AuctionsController : ControllerBase
         try
         {
             var auction = await _sender.Send(command);
+            if (auction.Status == AuctionStatus.Open)
+            {
+                await _hubContext.Clients.Group(AuctionHub.GroupName(auction.Id)).SendAsync("AuctionOpened", auction);
+            }
+            else if (auction.Status == AuctionStatus.Scheduled)
+            {
+                await _hubContext.Clients.Group(AuctionHub.GroupName(auction.Id)).SendAsync("AuctionScheduled", auction);
+            }
             await _hubContext.Clients.Group(AuctionHub.GroupName(auction.Id)).SendAsync("AuctionUpdated", auction);
             return Ok(auction);
         }

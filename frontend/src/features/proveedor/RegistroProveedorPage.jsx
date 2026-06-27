@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { registrarProveedor } from '../../api/proveedoresApi.js'
-import { useAuth } from '../../auth/AuthContext.jsx'
 
 const VACIO = {
   razonSocial: '',
@@ -10,17 +9,13 @@ const VACIO = {
   rubro: '',
   provincia: '',
   localidad: '',
-  password: '',
-  repetir: '',
 }
 
 export function RegistroProveedorPage() {
-  const navigate = useNavigate()
-  const { login } = useAuth()
-
   const [datos, setDatos] = useState(VACIO)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
+  const [confirmacion, setConfirmacion] = useState('')
 
   function actualizar(campo, valor) {
     setDatos((prev) => ({ ...prev, [campo]: valor }))
@@ -29,11 +24,12 @@ export function RegistroProveedorPage() {
   async function manejarSubmit(e) {
     e.preventDefault()
     setError('')
+    setConfirmacion('')
     setEnviando(true)
     try {
-      await registrarProveedor({ datos })
-      await login({ email: datos.email, password: datos.password })
-      navigate('/proveedor', { replace: true })
+      const respuesta = await registrarProveedor({ datos })
+      setConfirmacion(respuesta.message || 'Tus datos fueron enviados a verificación.')
+      setDatos(VACIO)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -75,6 +71,9 @@ export function RegistroProveedorPage() {
 
           {error && (
             <div className="alerta alerta--error mt-16">{error}</div>
+          )}
+          {confirmacion && (
+            <div className="alerta alerta--info mt-16">{confirmacion}</div>
           )}
 
           <div className="public-form__grid">
@@ -131,29 +130,6 @@ export function RegistroProveedorPage() {
                 />
               </label>
             </div>
-
-            <div className="grid-2" style={{ gridColumn: '1 / -1' }}>
-              <label className="campo">
-                <span>Contrasena</span>
-                <input
-                  type="password"
-                  value={datos.password}
-                  onChange={(e) => actualizar('password', e.target.value)}
-                  autoComplete="new-password"
-                  placeholder="Minimo 6 caracteres"
-                />
-              </label>
-              <label className="campo">
-                <span>Repetir contrasena</span>
-                <input
-                  type="password"
-                  value={datos.repetir}
-                  onChange={(e) => actualizar('repetir', e.target.value)}
-                  autoComplete="new-password"
-                  placeholder="Repetir contrasena"
-                />
-              </label>
-            </div>
           </div>
 
           <button
@@ -161,7 +137,7 @@ export function RegistroProveedorPage() {
             type="submit"
             disabled={enviando}
           >
-            {enviando ? 'Registrando...' : 'Crear cuenta de proveedor'}
+            {enviando ? 'Enviando...' : 'Enviar a verificacion'}
           </button>
 
           <p className="text-center mt-16 text-sm text-suave">

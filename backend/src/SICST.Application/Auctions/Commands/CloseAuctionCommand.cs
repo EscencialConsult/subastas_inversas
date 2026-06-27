@@ -35,6 +35,10 @@ public class CloseAuctionCommandHandler : IRequestHandler<CloseAuctionCommand, A
         {
             throw new InvalidOperationException("La subasta ya esta cerrada.");
         }
+        if (auction.Status != AuctionStatus.Open)
+        {
+            throw new InvalidOperationException("Solo se puede cerrar una subasta abierta.");
+        }
 
         auction.Status = AuctionStatus.Closed;
         auction.ClosedAtUtc = DateTime.UtcNow;

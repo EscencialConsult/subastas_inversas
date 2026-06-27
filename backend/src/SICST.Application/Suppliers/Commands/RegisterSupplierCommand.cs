@@ -12,7 +12,6 @@ public record RegisterSupplierCommand : IRequest<SupplierRegistrationResponseDto
     public string BusinessName { get; init; } = string.Empty;
     public string Cuit { get; init; } = string.Empty;
     public string Email { get; init; } = string.Empty;
-    public string Password { get; init; } = string.Empty;
     public string BusinessCategory { get; init; } = string.Empty;
     public string Province { get; init; } = string.Empty;
     public string Locality { get; init; } = string.Empty;
@@ -58,11 +57,11 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
         {
             Id = Guid.NewGuid(),
             Email = email,
-            PasswordHash = _passwordHasher.Hash(request.Password),
+            PasswordHash = _passwordHasher.Hash(Guid.NewGuid().ToString("N")),
             FirstName = request.BusinessName.Trim(),
             LastName = string.Empty,
             Role = UserRole.Proveedor,
-            Active = true,
+            Active = false,
             CompanyId = null
         };
 
@@ -77,14 +76,11 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
             Province = request.Province.Trim(),
             Locality = request.Locality.Trim(),
             Status = SupplierStatus.Pending,
-            ArcaVerified = MockArcaVerification(cuit),
+            ArcaVerified = false,
+            ArcaVerificationStatus = ArcaVerificationStatus.Pending,
+            ArcaVerificationNotes = "Pendiente de verificación ARCA.",
             CreatedAtUtc = DateTime.UtcNow
         };
-
-        if (supplier.ArcaVerified)
-        {
-            supplier.Status = SupplierStatus.Verified;
-        }
 
         _context.Users.Add(user);
         _context.Suppliers.Add(supplier);
@@ -94,7 +90,9 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
         return new SupplierRegistrationResponseDto
         {
             UserId = user.Id,
-            SupplierId = supplier.Id
+            SupplierId = supplier.Id,
+            Status = supplier.ArcaVerificationStatus.ToString(),
+            Message = "Recibimos tus datos. Te enviaremos un email cuando ARCA complete la verificación."
         };
     }
 
@@ -120,11 +118,6 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
             throw new InvalidOperationException("El rubro es obligatorio.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
-        {
-            throw new InvalidOperationException("La contrasena debe tener al menos 6 caracteres.");
-        }
-
         if (string.IsNullOrWhiteSpace(request.Province))
         {
             throw new InvalidOperationException("La provincia es obligatoria.");
@@ -142,38 +135,4 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
         return $"{digits[..2]}-{digits.Substring(2, 8)}-{digits[10..]}";
     }
 
-    private static bool MockArcaVerification(string cuit)
-    {
-        return IsValidCuit(cuit) && !cuit.EndsWith("-0", StringComparison.Ordinal);
-    }
-
-    private static bool IsValidCuit(string cuit)
-    {
-        if (string.IsNullOrWhiteSpace(cuit)) return false;
-
-        var digits = new string(cuit.Where(char.IsDigit).ToArray());
-        if (digits.Length != 11) return false;
-
-        int[] multipliers = { 5, 4, 3, 2, 7, 6, 5, 4, 3, 2 };
-        int sum = 0;
-        for (int i = 0; i < 10; i++)
-        {
-            sum += (digits[i] - '0') * multipliers[i];
-        }
-
-        int remainder = sum % 11;
-        int checkDigit = digits[10] - '0';
-        int calculatedDigit = 11 - remainder;
-
-        if (calculatedDigit == 11)
-        {
-            calculatedDigit = 0;
-        }
-        else if (calculatedDigit == 10)
-        {
-            calculatedDigit = 9;
-        }
-
-        return checkDigit == calculatedDigit;
-    }
 }

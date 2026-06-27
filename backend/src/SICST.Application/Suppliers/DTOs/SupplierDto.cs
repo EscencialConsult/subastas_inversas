@@ -14,6 +14,10 @@ public class SupplierDto
     public string Locality { get; set; } = string.Empty;
     public SupplierStatus Status { get; set; }
     public bool ArcaVerified { get; set; }
+    public ArcaVerificationStatus ArcaVerificationStatus { get; set; }
+    public DateTime? ArcaVerifiedAtUtc { get; set; }
+    public string? ArcaVerificationNotes { get; set; }
+    public DateTime? CredentialsSentAtUtc { get; set; }
     public CompanySupplierStatus? CompanySupplierStatus { get; set; }
     public string? CompanySupplierWarning { get; set; }
     public bool? CompanySupplierStrictPolicy { get; set; }

@@ -361,6 +361,12 @@ function mapProceso(p) {
     motivoRechazo: p.rejectionReason ?? null,
     tieneSubasta: Boolean(p.hasAuction),
     specificationsHash: p.specificationsHash ?? null,
+    isEvaluationActSigned: Boolean(p.isEvaluationActSigned),
+    evaluationActHash: p.evaluationActHash ?? null,
+    evaluationActSignature: p.evaluationActSignature ?? null,
+    evaluationActSignedAtUtc: p.evaluationActSignedAtUtc ?? null,
+    evaluationActSignedById: p.evaluationActSignedById ?? null,
+    evaluationActSignedByName: p.evaluationActSignedByName ?? null,
     evaluacion: p.evaluation ? {
       evaluadorId: p.evaluation.evaluadorId,
       recomendadoProveedor: p.evaluation.recomendadoProveedor,
@@ -508,4 +514,16 @@ function normalizarItems(items = []) {
       unit: item.unit?.trim() || 'unidad',
       estimatedUnitPrice: item.estimatedUnitPrice ? Number(item.estimatedUnitPrice) : null,
     }))
+}
+
+export async function firmarActaEvaluacion({ tenantId, procesoId, evaluatorId, signatureImage }) {
+  const data = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/evaluation-act/sign`, {
+    method: 'POST',
+    body: JSON.stringify({ evaluatorId, signatureImageBase64: signatureImage }),
+  })
+  return mapProceso(data)
+}
+
+export function descargarActaEvaluacionUrl({ tenantId, procesoId }) {
+  return `/api/companies/${tenantId}/purchase-processes/${procesoId}/evaluation-act/pdf`
 }

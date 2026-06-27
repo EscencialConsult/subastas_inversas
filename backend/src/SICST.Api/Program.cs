@@ -2,11 +2,13 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using SICST.Api.Auth;
 using SICST.Api.Hubs;
 using SICST.Api.Middlewares;
+using SICST.Api.Services;
 using SICST.Api.Tenancy;
 using SICST.Application;
 using SICST.Application.Common.Security;
@@ -26,6 +28,8 @@ builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<ICurrentTenant, CurrentTenant>();
+builder.Services.AddHostedService<AuctionSchedulerService>();
+builder.Services.AddHostedService<SupplierArcaVerificationService>();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -47,7 +51,7 @@ builder.Services.AddCors(options =>
 
 // Register Clean Architecture layers
 builder.Services.AddApplicationServices();
-builder.Services.AddInfrastructureServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
 
 // Configure JWT Authentication
@@ -58,6 +62,20 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/auctions"))
+            {
+                context.Token = accessToken;
+            }
+
+            return Task.CompletedTask;
+        }
+    };
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -140,6 +158,9 @@ app.MapHub<AuctionHub>("/hubs/auctions");
 // Seed Database on startup
 using (var scope = app.Services.CreateScope())
 {
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await dbContext.Database.MigrateAsync();
+
     var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
     await DatabaseInitializer.SeedAsync(context, passwordHasher);

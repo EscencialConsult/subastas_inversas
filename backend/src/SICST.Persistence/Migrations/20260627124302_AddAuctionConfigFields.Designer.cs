@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SICST.Persistence.Contexts;
@@ -11,9 +12,11 @@ using SICST.Persistence.Contexts;
 namespace SICST.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260627124302_AddAuctionConfigFields")]
+    partial class AddAuctionConfigFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -418,11 +421,6 @@ namespace SICST.Persistence.Migrations
                     b.Property<Guid>("AuctionId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Hash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.Property<bool>("IsPab")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -430,14 +428,6 @@ namespace SICST.Persistence.Migrations
 
                     b.Property<DateTime>("PlacedAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PreviousHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<int>("SequenceNumber")
-                        .HasColumnType("integer");
 
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid");
@@ -447,9 +437,6 @@ namespace SICST.Persistence.Migrations
                     b.HasIndex("SupplierId");
 
                     b.HasIndex("AuctionId", "PlacedAtUtc");
-
-                    b.HasIndex("AuctionId", "SequenceNumber")
-                        .IsUnique();
 
                     b.ToTable("Bids");
                 });
@@ -1161,16 +1148,6 @@ namespace SICST.Persistence.Migrations
                     b.Property<bool>("ArcaVerified")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime?>("ArcaVerifiedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ArcaVerificationNotes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int>("ArcaVerificationStatus")
-                        .HasColumnType("integer");
-
                     b.Property<string>("BusinessCategory")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -1182,9 +1159,6 @@ namespace SICST.Persistence.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("CredentialsSentAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Cuit")

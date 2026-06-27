@@ -27,4 +27,12 @@ public class PurchaseProcessDto
     public List<PurchaseOrderDto> PurchaseOrders { get; set; } = [];
     public List<PurchaseItemDto> Items { get; set; } = [];
     public string? SpecificationsHash { get; set; }
+
+    // Evaluation Act properties
+    public bool IsEvaluationActSigned { get; set; }
+    public string? EvaluationActHash { get; set; }
+    public string? EvaluationActSignature { get; set; }
+    public DateTime? EvaluationActSignedAtUtc { get; set; }
+    public Guid? EvaluationActSignedById { get; set; }
+    public string? EvaluationActSignedByName { get; set; }
 }

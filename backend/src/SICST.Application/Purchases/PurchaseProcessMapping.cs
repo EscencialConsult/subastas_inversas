@@ -46,7 +46,13 @@ public static class PurchaseProcessMapping
                 Unit = item.Unit,
                 EstimatedUnitPrice = item.EstimatedUnitPrice
             }).ToList(),
-            SpecificationsHash = process.SpecificationsHash
+            SpecificationsHash = process.SpecificationsHash,
+            IsEvaluationActSigned = process.IsEvaluationActSigned,
+            EvaluationActHash = process.EvaluationActHash,
+            EvaluationActSignature = process.EvaluationActSignature,
+            EvaluationActSignedAtUtc = process.EvaluationActSignedAtUtc,
+            EvaluationActSignedById = process.EvaluationActSignedById,
+            EvaluationActSignedByName = process.EvaluationActSignedBy != null ? $"{process.EvaluationActSignedBy.FirstName} {process.EvaluationActSignedBy.LastName}" : null
         };
     }
 

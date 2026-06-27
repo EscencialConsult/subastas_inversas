@@ -684,6 +684,45 @@ public class PurchaseProcessesController : ControllerBase
         var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
         return File(fileBytes, "application/pdf", $"Recepcion-{reception.ReceivedAtUtc:yyyyMMdd}.pdf");
     }
+
+    [HttpPost("{id:guid}/evaluation-act/sign")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<PurchaseProcessDto>> SignEvaluationAct(Guid companyId, Guid id, [FromBody] SignEvaluationActRequest request)
+    {
+        try
+        {
+            var process = await _sender.Send(new SignEvaluationActCommand(companyId, id, request.EvaluatorId, request.SignatureImageBase64));
+            if (process == null)
+            {
+                return NotFound(new { message = "Proceso de compra no encontrado." });
+            }
+            return Ok(process);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/evaluation-act/pdf")]
+    [Authorize]
+    public async Task<IActionResult> GetEvaluationActPdf(Guid companyId, Guid id)
+    {
+        var process = await _sender.Send(new GetPurchaseProcessByIdQuery(companyId, id));
+        if (process == null || !process.IsEvaluationActSigned)
+        {
+            return NotFound(new { message = "El acta de evaluación no está firmada o no está disponible para este proceso." });
+        }
+
+        var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "documents", "evaluation-acts", $"{process.Id}.pdf");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NotFound(new { message = "El archivo físico del acta no fue encontrado en el servidor." });
+        }
+
+        var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+        return File(fileBytes, "application/pdf", $"Acta-Evaluacion-{process.Code}.pdf");
+    }
 }
 
 public record ApproveRequest(Guid ApproverId);
@@ -693,3 +732,4 @@ public record AdjudicateRequest(Guid AprobadorId, List<AwardSelectionInputDto>? 
 public record SaveEvaluationCriteriaRequest(Guid UserId, List<SaveEvaluationCriteriaItemDto> Criteria);
 public record EvaluateSuppliersRequest(Guid EvaluatorId, List<SaveSupplierEvaluationInputDto> SupplierEvaluations);
 public record QualifySupplierRequest(Guid EvaluatorId, string QualificationStatus, string? Notes);
+public record SignEvaluationActRequest(Guid EvaluatorId, string SignatureImageBase64);

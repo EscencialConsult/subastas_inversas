@@ -51,6 +51,14 @@ public class PurchaseProcess
 
     public string? SpecificationsHash { get; set; }
 
+    // Navigation properties for Evaluation Act (HU-052)
+    public bool IsEvaluationActSigned { get; set; }
+    public string? EvaluationActHash { get; set; }
+    public string? EvaluationActSignature { get; set; }
+    public DateTime? EvaluationActSignedAtUtc { get; set; }
+    public Guid? EvaluationActSignedById { get; set; }
+    public User? EvaluationActSignedBy { get; set; }
+
     // Navigation properties for Sprint 7
     public Evaluation? Evaluation { get; set; }
     public List<Award> Awards { get; set; } = [];

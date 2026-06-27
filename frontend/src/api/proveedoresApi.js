@@ -18,6 +18,17 @@ const ESTADOS_DOCUMENTO = {
   Expired: 'vencido',
 }
 
+const ESTADOS_ARCA = {
+  0: 'pendiente',
+  1: 'verificado',
+  2: 'rechazado',
+  3: 'fallido',
+  Pending: 'pendiente',
+  Verified: 'verificado',
+  Rejected: 'rechazado',
+  Failed: 'fallido',
+}
+
 const ESTADOS_EMPRESA_PROVEEDOR = {
   0: 'habilitado',
   1: 'habilitado_con_alerta',
@@ -45,6 +56,15 @@ const ESTADOS_INVITACION = {
   Rejected: 'rechazada',
 }
 
+const ESTADOS_SUBASTA = {
+  0: 'Open',
+  1: 'Closed',
+  2: 'Scheduled',
+  Open: 'Open',
+  Closed: 'Closed',
+  Scheduled: 'Scheduled',
+}
+
 export async function registrarProveedor({ datos }) {
   validar(datos)
 
@@ -54,7 +74,6 @@ export async function registrarProveedor({ datos }) {
       businessName: datos.razonSocial.trim(),
       cuit: datos.cuit.trim(),
       email: datos.email.trim(),
-      password: datos.password,
       businessCategory: datos.rubro.trim(),
       province: datos.provincia?.trim() || 'Sin informar',
       locality: datos.localidad?.trim() || 'Sin informar',
@@ -76,6 +95,10 @@ export async function obtenerProveedorDeUsuario({ usuarioId }) {
     localidad: proveedor.locality,
     estado: ESTADOS[proveedor.status] ?? 'pendiente',
     arcaVerificado: proveedor.arcaVerified,
+    estadoArca: ESTADOS_ARCA[proveedor.arcaVerificationStatus] ?? 'pendiente',
+    verificadoArcaEn: proveedor.arcaVerifiedAtUtc ?? null,
+    notasArca: proveedor.arcaVerificationNotes ?? '',
+    credencialesEnviadasEn: proveedor.credentialsSentAtUtc ?? null,
   }
 }
 
@@ -267,7 +290,7 @@ export async function obtenerSubastaProveedor({ proveedorId, auctionId }) {
 }
 
 export async function realizarLance({ tenantId, auctionId, supplierId, monto }) {
-  return apiFetch(`/api/companies/${tenantId}/auctions/${auctionId}/bids`, {
+  const data = await apiFetch(`/api/companies/${tenantId}/auctions/${auctionId}/bids`, {
     method: 'POST',
     body: JSON.stringify({
       auctionId,
@@ -275,6 +298,7 @@ export async function realizarLance({ tenantId, auctionId, supplierId, monto }) 
       amount: monto,
     }),
   })
+  return mapLance(data)
 }
 
 function mapSubastaProveedor(data) {
@@ -287,16 +311,29 @@ function mapSubastaProveedor(data) {
     precioBase: data.basePrice,
     precioActual: data.currentPrice,
     decrementoMinimo: data.minimumDecrementPercentage,
+    autoExtensionMinutes: data.autoExtensionMinutes,
+    pabThreshold: data.pabThreshold,
     inicioISO: data.startsAtUtc,
     finISO: data.endsAtUtc,
-    estado: data.status,
+    estado: ESTADOS_SUBASTA[data.status] ?? data.status,
     participantes: data.participantSupplierIds ?? [],
-    lances: (data.bids ?? []).map((bid) => ({
-      id: bid.id,
-      proveedor: bid.supplierName,
-      monto: bid.amount,
-      hace: formatearHace(bid.placedAtUtc),
-    })),
+    lances: (data.bids ?? []).map(mapLance),
+  }
+}
+
+function mapLance(bid) {
+  return {
+    id: bid.id,
+    subastaId: bid.auctionId,
+    proveedorId: bid.supplierId,
+    proveedor: bid.supplierName,
+    monto: bid.amount,
+    fechaServidor: bid.placedAtUtc,
+    hace: formatearHace(bid.placedAtUtc),
+    isPab: Boolean(bid.isPab),
+    secuencia: bid.sequenceNumber ?? 0,
+    hashPrevio: bid.previousHash ?? '',
+    hash: bid.hash ?? '',
   }
 }
 
@@ -312,6 +349,10 @@ function mapProveedor(proveedor) {
     estado: ESTADOS[proveedor.status] ?? 'pendiente',
     rubro: proveedor.businessCategory ?? '---',
     arcaVerificado: proveedor.arcaVerified,
+    estadoArca: ESTADOS_ARCA[proveedor.arcaVerificationStatus] ?? 'pendiente',
+    verificadoArcaEn: proveedor.arcaVerifiedAtUtc ?? null,
+    notasArca: proveedor.arcaVerificationNotes ?? '',
+    credencialesEnviadasEn: proveedor.credentialsSentAtUtc ?? null,
     estadoEmpresa: ESTADOS_EMPRESA_PROVEEDOR[proveedor.companySupplierStatus] ?? 'sin_habilitar',
     advertenciaEmpresa: proveedor.companySupplierWarning ?? '',
     politicaEstricta: proveedor.companySupplierStrictPolicy,
@@ -384,11 +425,5 @@ function validar(datos) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.email.trim())) {
     throw new ApiError('El email no tiene un formato valido.', 422)
   }
-  if (!datos.password || datos.password.length < 6) {
-    throw new ApiError('La contrasena debe tener al menos 6 caracteres.', 422)
-  }
   if (!datos.rubro?.trim()) throw new ApiError('El rubro es obligatorio.', 422)
-  if (datos.password !== datos.repetir) {
-    throw new ApiError('La contrasena y su repeticion no coinciden.', 422)
-  }
 }

@@ -14,6 +14,8 @@ public class AuctionDto
     public DateTime StartsAtUtc { get; set; }
     public DateTime EndsAtUtc { get; set; }
     public DateTime? ClosedAtUtc { get; set; }
+    public int AutoExtensionMinutes { get; set; }
+    public decimal PabThreshold { get; set; }
     public List<Guid> ParticipantSupplierIds { get; set; } = [];
     public List<BidDto> Bids { get; set; } = [];
 }

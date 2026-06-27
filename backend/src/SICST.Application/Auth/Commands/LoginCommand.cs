@@ -36,7 +36,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponseDto
 
         if (!user.Active)
         {
-            throw new UnauthorizedAccessException("User is inactive.");
+            throw new UnauthorizedAccessException("La cuenta aún no está activa. Si sos proveedor, esperá la verificación de ARCA.");
         }
 
         var isPasswordValid = _passwordHasher.Verify(request.Password, user.PasswordHash);

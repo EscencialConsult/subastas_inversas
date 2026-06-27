@@ -13,6 +13,7 @@ export function SubastaPublicaPage() {
   const [actualizando, setActualizando] = useState(false)
   const [error, setError] = useState('')
   const [restante, setRestante] = useState(null)
+  const [ahoraMs, setAhoraMs] = useState(() => Date.now())
 
   const cargar = useCallback(
     async ({ silencioso = false } = {}) => {
@@ -43,8 +44,13 @@ export function SubastaPublicaPage() {
 
   useEffect(() => {
     if (!subasta?.cierreEn) return
+    const inicio = new Date(subasta.inicioEn).getTime()
     const cierre = new Date(subasta.cierreEn).getTime()
-    const tick = () => setRestante(cierre - Date.now())
+    const tick = () => {
+      const ahora = Date.now()
+      setAhoraMs(ahora)
+      setRestante(ahora < inicio ? inicio - ahora : cierre - ahora)
+    }
     tick()
     const intervalo = setInterval(tick, 1000)
     return () => clearInterval(intervalo)
@@ -82,7 +88,14 @@ export function SubastaPublicaPage() {
     )
   }
 
-  const cerrada = restante !== null && restante <= 0
+  const inicioMs = new Date(subasta.inicioEn).getTime()
+  const programada = subasta.programada || ahoraMs < inicioMs
+  const cerrada = !programada && restante !== null && restante <= 0
+  const estadoBadge = cerrada
+    ? { texto: 'Finalizada', clase: 'badge--off' }
+    : programada
+      ? { texto: 'Programada', clase: 'badge--info' }
+      : { texto: 'Activa', clase: 'badge--ok' }
 
   return (
     <section className="flex flex--col gap-24">
@@ -104,8 +117,8 @@ export function SubastaPublicaPage() {
             </h1>
             <p className="hero__desc">{subasta.empresa}</p>
           </div>
-          <span className={`badge ${cerrada ? 'badge--off' : 'badge--ok'}`}>
-            {cerrada ? 'Finalizada' : 'Activa'}
+          <span className={`badge ${estadoBadge.clase}`}>
+            {estadoBadge.texto}
           </span>
         </div>
       </div>
@@ -119,7 +132,10 @@ export function SubastaPublicaPage() {
         <MetricCard etiqueta="Precio actual" valor={formatearPesos(subasta.precioActual)} destacado />
         <MetricCard etiqueta="Presupuesto base" valor={formatearPesos(subasta.precioBase)} />
         <MetricCard etiqueta="Ahorro estimado" valor={formatearPesos(ahorro)} />
-        <MetricCard etiqueta="Tiempo restante" valor={cerrada ? 'Finalizada' : formatearTiempo(restante)} />
+        <MetricCard
+          etiqueta={programada ? 'Inicia en' : 'Tiempo restante'}
+          valor={cerrada ? 'Finalizada' : formatearTiempo(restante)}
+        />
         <MetricCard etiqueta="Lances registrados" valor={subasta.cantidadLances} />
         <MetricCard etiqueta="Actualizacion" valor={actualizando ? 'Actualizando...' : 'Automatica'} />
       </div>

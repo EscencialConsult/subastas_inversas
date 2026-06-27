@@ -1,20 +1,21 @@
-// Pantalla de subasta — MAQUETA (monitor del comprador).
-//
-// Muestra cómo se vería la subasta inversa en vivo: mejor oferta actual,
-// reloj de cuenta regresiva y el historial de lances. El reloj y el botón
-// "Simular lance" son solo del frontend; la subasta real (lances en tiempo
-// real, reloj autoritativo del servidor) se hace con el backend.
+// Monitor de subasta para el comprador.
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { obtenerProceso } from '../../api/comprasApi.js'
 import {
-  obtenerSubastaDeProceso,
-  simularLance,
   cerrarSubasta,
   mejorOferta,
+  obtenerSubastaDeProceso,
+  simularLance,
 } from '../../api/subastasApi.js'
+
+const ESTADO_SUBASTA = {
+  Scheduled: { texto: 'Programada', clase: 'badge--info' },
+  Open: { texto: 'Abierta', clase: 'badge--ok' },
+  Closed: { texto: 'Cerrada', clase: 'badge--off' },
+}
 
 export function SubastaPage() {
   const { procesoId } = useParams()
@@ -25,7 +26,8 @@ export function SubastaPage() {
   const [subasta, setSubasta] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-  const [restante, setRestante] = useState(null) // ms hasta el cierre
+  const [restante, setRestante] = useState(null)
+  const [ahoraMs, setAhoraMs] = useState(() => Date.now())
 
   async function cargar() {
     try {
@@ -48,12 +50,15 @@ export function SubastaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, procesoId])
 
-  // Reloj de cuenta regresiva (solo maqueta, basado en el reloj del navegador).
   useEffect(() => {
     if (!subasta) return
-    const cierre =
-      new Date(subasta.inicioISO).getTime() + subasta.duracionMin * 60000
-    const tick = () => setRestante(cierre - Date.now())
+    const inicio = new Date(subasta.inicioISO).getTime()
+    const cierre = new Date(subasta.finISO).getTime()
+    const tick = () => {
+      const ahora = Date.now()
+      setAhoraMs(ahora)
+      setRestante(ahora < inicio ? inicio - ahora : cierre - ahora)
+    }
     tick()
     const intervalo = setInterval(tick, 1000)
     return () => clearInterval(intervalo)
@@ -78,25 +83,28 @@ export function SubastaPage() {
     }
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando subasta…</p>
-  if (!subasta || !proceso)
-    return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <p className="estado-cargando">Cargando subasta...</p>
+  if (!subasta || !proceso) return <div className="alerta alerta--error">{error}</div>
 
-  const cerrada = restante !== null && restante <= 0
+  const inicio = new Date(subasta.inicioISO).getTime()
+  const programada = subasta.estado === 'Scheduled' || ahoraMs < inicio
+  const abierta = subasta.estado === 'Open' && !programada
+  const cerrada = subasta.estado === 'Closed' || (!programada && restante !== null && restante <= 0)
+  const estado = cerrada ? ESTADO_SUBASTA.Closed : programada ? ESTADO_SUBASTA.Scheduled : ESTADO_SUBASTA.Open
   const mejor = mejorOferta(subasta)
-  // Lances ordenados del más reciente arriba.
   const lancesOrdenados = [...subasta.lances].reverse()
 
   return (
     <section>
       <div className="alerta alerta--info">
-        Maqueta de subasta. Los lances en tiempo real y el reloj del servidor se
-        implementan con el backend.
+        La apertura y el cierre se ejecutan automaticamente por el servidor.
       </div>
+
+      {error && <div className="alerta alerta--error">{error}</div>}
 
       <div className="encabezado">
         <h1>
-          Subasta · <code>{proceso.codigo}</code>
+          Subasta - <code>{proceso.codigo}</code>
         </h1>
         <button className="btn btn--texto" onClick={() => navigate('/compras')}>
           Volver
@@ -106,34 +114,67 @@ export function SubastaPage() {
 
       <div className="subasta__panel">
         <div className="subasta__card">
+          <span className="subasta__label">Estado</span>
+          <span className={`badge ${estado.clase}`}>{estado.texto}</span>
+        </div>
+        <div className="subasta__card">
           <span className="subasta__label">Mejor oferta actual</span>
           <span className="subasta__valor subasta__valor--destacado">
             {formatearPesos(mejor)}
           </span>
         </div>
         <div className="subasta__card">
-          <span className="subasta__label">Presupuesto base</span>
+          <span className="subasta__label">Precio base</span>
           <span className="subasta__valor">{formatearPesos(subasta.precioBase)}</span>
         </div>
         <div className="subasta__card">
-          <span className="subasta__label">Tiempo restante</span>
+          <span className="subasta__label">{programada ? 'Inicia en' : 'Tiempo restante'}</span>
           <span className="subasta__valor">
             {cerrada ? 'Finalizada' : formatearTiempo(restante)}
           </span>
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginTop: '15px', marginBottom: '25px', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
+        <div>
+          <span className="texto-muted" style={{ fontWeight: '600' }}>Decremento requerido: </span>
+          <strong>{subasta.decrementoMinimo}%</strong>
+        </div>
+        <div style={{ height: '16px', borderLeft: '1px solid #cbd5e1' }} />
+        <div>
+          <span className="texto-muted" style={{ fontWeight: '600' }}>Extension de ultimo minuto: </span>
+          <strong>{subasta.autoExtensionMinutes} min</strong>
+        </div>
+        {subasta.pabThreshold > 0 && (
+          <>
+            <div style={{ height: '16px', borderLeft: '1px solid #cbd5e1' }} />
+            <div>
+              <span className="texto-muted" style={{ fontWeight: '600' }}>Umbral PAB: </span>
+              <strong style={{ color: '#e11d48' }}>{formatearPesos(subasta.pabThreshold)}</strong>
+            </div>
+          </>
+        )}
+        <div style={{ height: '16px', borderLeft: '1px solid #cbd5e1' }} />
+        <div>
+          <span className="texto-muted" style={{ fontWeight: '600' }}>Inicio: </span>
+          <strong>{new Date(subasta.inicioISO).toLocaleString()}</strong>
+        </div>
+      </div>
+
       <div className="encabezado">
         <h2 className="form__titulo">Lances ({subasta.lances.length})</h2>
         <div className="tabla__acciones">
-          {!cerrada && (
+          {abierta && !cerrada && (
             <button className="btn btn--texto" onClick={nuevoLance}>
               Simular lance de proveedor
             </button>
           )}
-          <button className="btn btn--primario" onClick={cerrar}>
-            Cerrar subasta y enviar a evaluación
-          </button>
+          {abierta && !cerrada && (
+            <button className="btn btn--primario" onClick={cerrar}>
+              Cerrar subasta y enviar a evaluacion
+            </button>
+          )}
+          {programada && <span className="campo__ayuda">La subasta se abrira automaticamente.</span>}
         </div>
       </div>
 
@@ -142,14 +183,31 @@ export function SubastaPage() {
           <tr>
             <th>Proveedor</th>
             <th>Monto</th>
-            <th>Cuándo</th>
+            <th>Cuando</th>
           </tr>
         </thead>
         <tbody>
           {lancesOrdenados.map((l) => (
             <tr key={l.id}>
-              <td>{l.proveedor}</td>
-              <td>{formatearPesos(l.monto)}</td>
+              <td>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{l.proveedor}</span>
+                  {l.isPab && (
+                    <span
+                      className="badge badge--error"
+                      style={{ fontSize: '10px', padding: '1px 6px', fontWeight: 'bold' }}
+                      title="Esta oferta esta por debajo del umbral de Precio Anormalmente Bajo (PAB)"
+                    >
+                      PAB
+                    </span>
+                  )}
+                </div>
+              </td>
+              <td>
+                <span style={{ color: l.isPab ? '#e11d48' : 'inherit', fontWeight: l.isPab ? 'bold' : 'normal' }}>
+                  {formatearPesos(l.monto)}
+                </span>
+              </td>
               <td>{l.hace}</td>
             </tr>
           ))}
@@ -168,7 +226,7 @@ function formatearPesos(monto) {
 }
 
 function formatearTiempo(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000))
+  const total = Math.max(0, Math.floor((ms ?? 0) / 1000))
   const min = String(Math.floor(total / 60)).padStart(2, '0')
   const seg = String(total % 60).padStart(2, '0')
   return `${min}:${seg}`

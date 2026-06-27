@@ -12,6 +12,8 @@ public class SupplierAuctionDto
     public decimal BasePrice { get; set; }
     public decimal CurrentPrice { get; set; }
     public decimal MinimumDecrementPercentage { get; set; }
+    public int AutoExtensionMinutes { get; set; }
+    public decimal PabThreshold { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime StartsAtUtc { get; set; }
     public DateTime EndsAtUtc { get; set; }

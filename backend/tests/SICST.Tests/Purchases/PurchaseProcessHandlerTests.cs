@@ -482,6 +482,11 @@ public class PurchaseProcessHandlerTests
         var approvedResult = await approveHandler.Handle(new ApprovePurchaseProcessCommand(companyId, process.Id, authority.Id), CancellationToken.None);
         Assert.Equal(PurchaseProcessStatus.Approved, approvedResult.Status);
 
+        // Manually mark the evaluation act as signed for testing
+        var dbProcess = await context.PurchaseProcesses.FindAsync(process.Id);
+        dbProcess.IsEvaluationActSigned = true;
+        await context.SaveChangesAsync();
+
         // 5. Start Auction
         var fakeCache = new MockAuctionStateCache();
         var startAuctionHandler = new StartAuctionCommandHandler(context, fakeCache);
@@ -945,6 +950,11 @@ public class PurchaseProcessHandlerTests
         public string GenerateReceptionConfirmation(PurchaseOrder order, ReceptionConfirmation reception)
         {
             return "/dummy/path/reception.pdf";
+        }
+
+        public string GenerateEvaluationAct(PurchaseProcess process, List<Invitation> invitations, User evaluator, string hash, string signature, byte[]? signatureImageBytes)
+        {
+            return "/dummy/path/evalact.pdf";
         }
     }
 }

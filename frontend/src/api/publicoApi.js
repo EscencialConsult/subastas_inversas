@@ -26,6 +26,15 @@ const ESTADOS_BACK_TO_FRONT = {
   Received: ESTADO_PROCESO.APROBADA,
 }
 
+const ESTADOS_SUBASTA = {
+  0: 'Open',
+  1: 'Closed',
+  2: 'Scheduled',
+  Open: 'Open',
+  Closed: 'Closed',
+  Scheduled: 'Scheduled',
+}
+
 export async function listarProcesosPublicos({ busqueda = '', estado = '' } = {}) {
   const params = new URLSearchParams()
   if (busqueda.trim()) params.set('search', busqueda.trim())
@@ -104,7 +113,9 @@ export async function obtenerSubastaPublica({ procesoId }) {
 function mapearSubastaPublica(subasta) {
   const inicio = new Date(subasta.startsAtUtc)
   const cierre = new Date(subasta.endsAtUtc)
-  const finalizada = subasta.status === 'Closed' || subasta.status === 1 || cierre.getTime() <= Date.now()
+  const estadoSubasta = ESTADOS_SUBASTA[subasta.status] ?? subasta.status
+  const finalizada = estadoSubasta === 'Closed' || cierre.getTime() <= Date.now()
+  const programada = estadoSubasta === 'Scheduled' || inicio.getTime() > Date.now()
 
   return {
     id: subasta.id,
@@ -114,6 +125,8 @@ function mapearSubastaPublica(subasta) {
     titulo: subasta.processTitle,
     empresa: subasta.companyName,
     estadoProceso: finalizada ? ESTADO_PROCESO.CERRADA : ESTADO_PROCESO.EN_SUBASTA,
+    estadoSubasta,
+    programada,
     finalizada,
     precioBase: subasta.basePrice,
     precioActual: subasta.currentPrice,

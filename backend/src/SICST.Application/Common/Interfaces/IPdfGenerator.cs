@@ -9,4 +9,5 @@ public interface IPdfGenerator
     string GenerateContract(PurchaseProcess process, Contract contract, Supplier supplier, DocumentTemplate? template = null);
     string GeneratePurchaseOrder(PurchaseProcess process, PurchaseOrder order, Supplier supplier, DocumentTemplate? template = null);
     string GenerateReceptionConfirmation(PurchaseOrder order, ReceptionConfirmation reception);
+    string GenerateEvaluationAct(PurchaseProcess process, List<Invitation> invitations, User evaluator, string hash, string signature, byte[]? signatureImageBytes);
 }

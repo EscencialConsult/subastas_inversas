@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import {
   listarInvitacionesDeProveedor,
   listarSubastasProveedor,
   obtenerProveedorDeUsuario,
-  realizarLance,
   responderInvitacion,
 } from '../../api/proveedoresApi.js'
 
@@ -15,6 +15,7 @@ const ESTADO_INVITACION = {
 }
 
 const ESTADO_SUBASTA = {
+  Scheduled: { texto: 'Programada', clase: 'badge--info' },
   Open: { texto: 'Abierta', clase: 'badge--ok' },
   Closed: { texto: 'Cerrada', clase: 'badge--off' },
   Cancelled: { texto: 'Cancelada', clase: 'badge--error' },
@@ -22,6 +23,7 @@ const ESTADO_SUBASTA = {
 
 export function ProveedorOportunidadesPage() {
   const { usuario } = useAuth()
+  const navigate = useNavigate()
   const [proveedor, setProveedor] = useState(null)
   const [invitaciones, setInvitaciones] = useState([])
   const [subastas, setSubastas] = useState([])
@@ -29,10 +31,14 @@ export function ProveedorOportunidadesPage() {
   const [respondiendoId, setRespondiendoId] = useState(null)
   const [rechazandoId, setRechazandoId] = useState(null)
   const [motivoRechazoText, setMotivoRechazoText] = useState('')
-  const [ofertandoId, setOfertandoId] = useState(null)
   const [error, setError] = useState('')
   const [errorComercial, setErrorComercial] = useState('')
-  const [ofertas, setOfertas] = useState({})
+  const [ahoraMs, setAhoraMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    const intervalo = setInterval(() => setAhoraMs(Date.now()), 1000)
+    return () => clearInterval(intervalo)
+  }, [])
 
   useEffect(() => {
     obtenerProveedorDeUsuario({ usuarioId: usuario.id })
@@ -93,32 +99,6 @@ export function ProveedorOportunidadesPage() {
     await manejarRespuestaInvitacion(invitacionId, false, motivoRechazoText.trim())
     setRechazandoId(null)
     setMotivoRechazoText('')
-  }
-
-  const manejarLance = async (subasta) => {
-    const monto = Number(ofertas[subasta.id])
-    if (!Number.isFinite(monto) || monto <= 0) {
-      setErrorComercial('Ingresa un monto valido para ofertar.')
-      return
-    }
-
-    setOfertandoId(subasta.id)
-    setErrorComercial('')
-    try {
-      await realizarLance({
-        tenantId: subasta.tenantId,
-        auctionId: subasta.id,
-        supplierId: proveedor.id,
-        monto,
-      })
-      const actualizadas = await listarSubastasProveedor({ proveedorId: proveedor.id })
-      setSubastas(actualizadas)
-      setOfertas((actual) => ({ ...actual, [subasta.id]: '' }))
-    } catch (err) {
-      setErrorComercial(err.message)
-    } finally {
-      setOfertandoId(null)
-    }
   }
 
   if (cargando) return <p className="estado-cargando">Cargando...</p>
@@ -245,6 +225,7 @@ export function ProveedorOportunidadesPage() {
                 <tr>
                   <th>Proceso</th>
                   <th>Precio actual</th>
+                  <th>Inicio</th>
                   <th>Cierre</th>
                   <th>Estado</th>
                   <th>Oferta</th>
@@ -256,13 +237,14 @@ export function ProveedorOportunidadesPage() {
                     texto: subasta.estado,
                     clase: 'badge--off',
                   }
-                  const abierta = subasta.estado === 'Open'
+                  const abierta = subasta.estado === 'Open' && new Date(subasta.inicioISO).getTime() <= ahoraMs
                   return (
                     <tr key={subasta.id}>
                       <td>
                         <code>{subasta.codigo}</code> {subasta.titulo}
                       </td>
                       <td>{formatearPesos(subasta.precioActual)}</td>
+                      <td>{formatearFecha(subasta.inicioISO)}</td>
                       <td>{formatearFecha(subasta.finISO)}</td>
                       <td>
                         <span className={`badge ${estadoSubasta.clase}`}>{estadoSubasta.texto}</span>
@@ -270,29 +252,18 @@ export function ProveedorOportunidadesPage() {
                       <td>
                         {abierta ? (
                           <div className="tabla__acciones">
-                            <input
-                              type="number"
-                              min="0"
-                              value={ofertas[subasta.id] ?? ''}
-                              onChange={(event) =>
-                                setOfertas((actual) => ({
-                                  ...actual,
-                                  [subasta.id]: event.target.value,
-                                }))
-                              }
-                              placeholder="Monto"
-                            />
                             <button
                               className="btn btn--primario"
                               type="button"
-                              onClick={() => manejarLance(subasta)}
-                              disabled={ofertandoId === subasta.id}
+                              onClick={() => navigate(`/proveedor/subastas/${subasta.id}`)}
                             >
-                              {ofertandoId === subasta.id ? 'Enviando...' : 'Ofertar'}
+                              Entrar
                             </button>
                           </div>
                         ) : (
-                          <span className="campo__ayuda">Sin ofertas abiertas</span>
+                          <span className="campo__ayuda">
+                            {subasta.estado === 'Scheduled' ? 'Aun no abre' : 'Sin ofertas abiertas'}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -309,7 +280,10 @@ export function ProveedorOportunidadesPage() {
 
 function formatearFecha(fechaIso) {
   if (!fechaIso) return '---'
-  return new Intl.DateTimeFormat('es-AR', { dateStyle: 'short' }).format(new Date(fechaIso))
+  return new Intl.DateTimeFormat('es-AR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(fechaIso))
 }
 
 function formatearPesos(monto) {

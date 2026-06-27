@@ -51,7 +51,11 @@ public class GetSupplierAuctionsQueryHandler : IRequestHandler<GetSupplierAuctio
                 SupplierId = b.SupplierId,
                 SupplierName = b.Supplier.BusinessName,
                 Amount = b.Amount,
-                PlacedAtUtc = b.PlacedAtUtc
+                PlacedAtUtc = b.PlacedAtUtc,
+                IsPab = b.IsPab,
+                SequenceNumber = b.SequenceNumber,
+                PreviousHash = b.PreviousHash,
+                Hash = b.Hash
             })
             .ToList();
 
@@ -65,6 +69,8 @@ public class GetSupplierAuctionsQueryHandler : IRequestHandler<GetSupplierAuctio
             BasePrice = auction.BasePrice,
             CurrentPrice = bids.Count == 0 ? auction.BasePrice : bids.Min(b => b.Amount),
             MinimumDecrementPercentage = auction.MinimumDecrementPercentage,
+            AutoExtensionMinutes = auction.AutoExtensionMinutes,
+            PabThreshold = auction.PabThreshold,
             Status = auction.Status.ToString(),
             StartsAtUtc = auction.StartsAtUtc,
             EndsAtUtc = auction.EndsAtUtc,

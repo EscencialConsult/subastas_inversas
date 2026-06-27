@@ -3,7 +3,8 @@ namespace SICST.Domain.Entities;
 public enum AuctionStatus
 {
     Open,
-    Closed
+    Closed,
+    Scheduled
 }
 
 public class Auction
@@ -27,6 +28,10 @@ public class Auction
     public DateTime StartsAtUtc { get; set; }
 
     public DateTime EndsAtUtc { get; set; }
+
+    public int AutoExtensionMinutes { get; set; } = 3;
+
+    public decimal PabThreshold { get; set; }
 
     public DateTime? ClosedAtUtc { get; set; }
 

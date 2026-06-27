@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Auctions.DTOs;
@@ -17,18 +20,22 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
 {
     private readonly IApplicationDbContext _context;
     private readonly IAuctionStateCache _cache;
+    private readonly IAuctionBidLock _bidLock;
 
-    public PlaceBidCommandHandler(IApplicationDbContext context, IAuctionStateCache cache)
+    public PlaceBidCommandHandler(IApplicationDbContext context, IAuctionStateCache cache, IAuctionBidLock bidLock)
     {
         _context = context;
         _cache = cache;
+        _bidLock = bidLock;
     }
 
     public async Task<BidDto> Handle(PlaceBidCommand request, CancellationToken cancellationToken)
     {
+        using var bidLock = await _bidLock.AcquireAsync(request.AuctionId, cancellationToken);
+
         var auction = await _context.Auctions
             .Include(a => a.Participants)
-            .Include(a => a.Bids)
+            .Include(a => a.Bids).ThenInclude(b => b.Supplier)
             .FirstOrDefaultAsync(a => a.Id == request.AuctionId, cancellationToken);
 
         if (auction == null)
@@ -49,6 +56,11 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
         }
 
         var lastBid = auction.Bids.OrderByDescending(b => b.PlacedAtUtc).FirstOrDefault();
+        var lastSequencedBid = auction.Bids
+            .OrderByDescending(b => b.SequenceNumber)
+            .ThenByDescending(b => b.PlacedAtUtc)
+            .FirstOrDefault();
+
         if (lastBid != null && lastBid.SupplierId == request.SupplierId)
         {
             throw new InvalidOperationException("Debe esperar a que otro proveedor oferte antes de hacer un nuevo lance.");
@@ -68,19 +80,27 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
         }
 
         var timeRemaining = auction.EndsAtUtc - now;
-        if (timeRemaining.TotalMinutes < 3.0)
+        if (auction.AutoExtensionMinutes > 0 && timeRemaining.TotalMinutes < auction.AutoExtensionMinutes)
         {
-            auction.EndsAtUtc = now.AddMinutes(3);
+            auction.EndsAtUtc = now.AddMinutes(auction.AutoExtensionMinutes);
         }
 
+        var sequenceNumber = (lastSequencedBid?.SequenceNumber ?? 0) + 1;
+        var previousHash = lastSequencedBid?.Hash ?? string.Empty;
+        var bidId = Guid.NewGuid();
+        var isPab = auction.PabThreshold > 0 && request.Amount < auction.PabThreshold;
         var bid = new Bid
         {
-            Id = Guid.NewGuid(),
+            Id = bidId,
             AuctionId = auction.Id,
             SupplierId = request.SupplierId,
             Amount = request.Amount,
-            PlacedAtUtc = now
+            PlacedAtUtc = now,
+            IsPab = isPab,
+            SequenceNumber = sequenceNumber,
+            PreviousHash = previousHash
         };
+        bid.Hash = ComputeBidHash(bid);
 
         _context.Bids.Add(bid);
         await _context.SaveChangesAsync(cancellationToken);
@@ -95,7 +115,26 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
             SupplierId = bid.SupplierId,
             SupplierName = supplier.BusinessName,
             Amount = bid.Amount,
-            PlacedAtUtc = bid.PlacedAtUtc
+            PlacedAtUtc = bid.PlacedAtUtc,
+            IsPab = bid.IsPab,
+            SequenceNumber = bid.SequenceNumber,
+            PreviousHash = bid.PreviousHash,
+            Hash = bid.Hash
         };
+    }
+
+    private static string ComputeBidHash(Bid bid)
+    {
+        var material = string.Join("|",
+            bid.AuctionId,
+            bid.Id,
+            bid.SupplierId,
+            bid.Amount.ToString("0.00", CultureInfo.InvariantCulture),
+            bid.PlacedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+            bid.SequenceNumber,
+            bid.PreviousHash);
+
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(material));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

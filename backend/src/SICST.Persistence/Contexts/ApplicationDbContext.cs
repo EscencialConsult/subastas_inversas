@@ -188,6 +188,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.HasIndex(e => new { e.Province, e.Locality });
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.ArcaVerified).IsRequired();
+            entity.Property(e => e.ArcaVerificationStatus).IsRequired();
+            entity.Property(e => e.ArcaVerificationNotes).HasMaxLength(1000);
             entity.Property(e => e.CreatedAtUtc).IsRequired();
 
             entity.HasOne(e => e.User)
@@ -423,6 +425,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.StartsAtUtc).IsRequired();
             entity.Property(e => e.EndsAtUtc).IsRequired();
+            entity.Property(e => e.AutoExtensionMinutes).IsRequired().HasDefaultValue(3);
+            entity.Property(e => e.PabThreshold).HasPrecision(18, 2);
 
             entity.HasOne(e => e.PurchaseProcess)
                 .WithMany()
@@ -457,8 +461,13 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.AuctionId, e.PlacedAtUtc });
+            entity.HasIndex(e => new { e.AuctionId, e.SequenceNumber }).IsUnique();
             entity.Property(e => e.Amount).HasPrecision(18, 2);
             entity.Property(e => e.PlacedAtUtc).IsRequired();
+            entity.Property(e => e.IsPab).IsRequired().HasDefaultValue(false);
+            entity.Property(e => e.SequenceNumber).IsRequired();
+            entity.Property(e => e.PreviousHash).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.Hash).IsRequired().HasMaxLength(64);
 
             entity.HasOne(e => e.Auction)
                 .WithMany(e => e.Bids)

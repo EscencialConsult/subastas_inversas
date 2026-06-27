@@ -16,7 +16,11 @@ public static class AuctionMapping
                 SupplierId = b.SupplierId,
                 SupplierName = b.Supplier.BusinessName,
                 Amount = b.Amount,
-                PlacedAtUtc = b.PlacedAtUtc
+                PlacedAtUtc = b.PlacedAtUtc,
+                IsPab = b.IsPab,
+                SequenceNumber = b.SequenceNumber,
+                PreviousHash = b.PreviousHash,
+                Hash = b.Hash
             })
             .ToList();
 
@@ -32,6 +36,8 @@ public static class AuctionMapping
             StartsAtUtc = auction.StartsAtUtc,
             EndsAtUtc = auction.EndsAtUtc,
             ClosedAtUtc = auction.ClosedAtUtc,
+            AutoExtensionMinutes = auction.AutoExtensionMinutes,
+            PabThreshold = auction.PabThreshold,
             ParticipantSupplierIds = auction.Participants.Select(p => p.SupplierId).ToList(),
             Bids = bids
         };
