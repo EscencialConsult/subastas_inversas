@@ -101,7 +101,7 @@ Content-Type: application/json
 
 {
   "businessName": "Insumos del Norte SRL",
-  "cuit": "30-12345678-9",
+  "cuit": "30-12345678-1",
   "email": "ventas@insumosnorte.com",
   "password": "Proveedor123!",
   "province": "Tucuman",

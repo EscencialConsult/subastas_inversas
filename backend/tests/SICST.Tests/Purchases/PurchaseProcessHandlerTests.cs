@@ -121,6 +121,68 @@ public class PurchaseProcessHandlerTests
     }
 
     [Fact]
+    public async Task PublishPurchaseProcess_ShouldCalculateSpecificationsHashAndLogAudit()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        
+        // 1. Create a process with items
+        var created = await new CreatePurchaseProcessCommandHandler(context)
+            .Handle(new CreatePurchaseProcessCommand
+            {
+                CompanyId = companyId,
+                BuyerId = buyerId,
+                Title = "Compra de servidores",
+                Description = "Servidores rack 2U",
+                EstimatedBudget = 5000000,
+                Items =
+                [
+                    new PurchaseItemInputDto
+                    {
+                        Description = "Notebook Developer Pro",
+                        Quantity = 10,
+                        Unit = "Unidades",
+                        EstimatedUnitPrice = 500000
+                    }
+                ]
+            }, CancellationToken.None);
+
+        // 2. Publish the process
+        var published = await new PublishPurchaseProcessCommandHandler(context)
+            .Handle(new PublishPurchaseProcessCommand(companyId, created!.Id), CancellationToken.None);
+
+        // Assert hash is calculated and mapped to DTO
+        Assert.NotNull(published);
+        Assert.NotNull(published.SpecificationsHash);
+        Assert.Equal(64, published.SpecificationsHash.Length);
+
+        // Calculate expected hash to compare
+        var specLines = new List<string>
+        {
+            "Compra de servidores",
+            "Servidores rack 2U",
+            (5000000m).ToString("G", System.Globalization.CultureInfo.InvariantCulture)
+        };
+        specLines.Add("Notebook Developer Pro");
+        specLines.Add((10m).ToString("G", System.Globalization.CultureInfo.InvariantCulture));
+        specLines.Add("Unidades");
+        specLines.Add((500000m).ToString("G", System.Globalization.CultureInfo.InvariantCulture));
+
+        var material = string.Join("|", specLines);
+        var expectedBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(material));
+        var expectedHash = Convert.ToHexString(expectedBytes).ToLowerInvariant();
+
+        Assert.Equal(expectedHash, published.SpecificationsHash);
+
+        // 3. Verify audit event is recorded in the DbContext
+        var auditEvent = await context.AuditEvents
+            .FirstOrDefaultAsync(e => e.EntityName == "PurchaseProcess" && e.EntityId == created.Id.ToString() && e.Action == AuditEventAction.Updated);
+        
+        Assert.NotNull(auditEvent);
+        Assert.Contains(published.SpecificationsHash, auditEvent.Payload);
+    }
+
+    [Fact]
     public async Task ApprovalWorkflow_ShouldRouteApprovalsByOrderedLevelsAndRole()
     {
         using var context = CreateDbContext();
@@ -704,6 +766,156 @@ public class PurchaseProcessHandlerTests
         Assert.Equal(PurchaseProcessStatus.Adjudicated, result.Status);
         Assert.Equal(2, result.Awards.Count);
         Assert.All(result.Awards, award => Assert.Single(award.Items));
+    }
+
+    [Fact]
+    public async Task DiagnoseDatabasePermissions()
+    {
+        var connectionString = "Host=ep-patient-resonance-ac52dman.sa-east-1.aws.neon.tech;Port=5432;Database=neondb;Username=neondb_owner;Password=npg_MoSTAghQlJ48;SSL Mode=Require;Trust Server Certificate=true;Timeout=60;Command Timeout=60;Keepalive=30";
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(connectionString)
+            .Options;
+
+        using var context = new ApplicationDbContext(options, null);
+        var compradorPermissions = await context.RolePermissions
+            .Where(rp => rp.Role == UserRole.Comprador)
+            .Select(rp => rp.Permission.Code)
+            .ToListAsync();
+
+        var allPermissions = await context.Permissions
+            .Select(p => p.Code)
+            .ToListAsync();
+
+        var rolePermissionsCount = await context.RolePermissions.CountAsync();
+
+        throw new Exception($"Comprador permissions: {string.Join(", ", compradorPermissions)}. All permissions in DB: {string.Join(", ", allPermissions)}. Total role permissions count: {rolePermissionsCount}");
+    }
+
+    [Fact]
+    public async Task RespondToInvitation_ShouldSucceed_WhenAccepting()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        var supplierId = await SeedSupplier(context);
+        await SeedCompanySupplier(context, companyId, supplierId);
+
+        var process = await new CreatePurchaseProcessCommandHandler(context)
+            .Handle(new CreatePurchaseProcessCommand
+            {
+                CompanyId = companyId,
+                BuyerId = buyerId,
+                Title = "Compra de insumos",
+                EstimatedBudget = 50000
+            }, CancellationToken.None);
+
+        var invitation = await new InviteSupplierCommandHandler(context)
+            .Handle(new InviteSupplierCommand
+            {
+                CompanyId = companyId,
+                PurchaseProcessId = process.Id,
+                SupplierId = supplierId
+            }, CancellationToken.None);
+
+        var handler = new RespondToInvitationCommandHandler(context);
+        var command = new RespondToInvitationCommand
+        {
+            InvitationId = invitation.Id,
+            SupplierId = supplierId,
+            NewStatus = InvitationStatus.Accepted
+        };
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.Equal(InvitationStatus.Accepted, result.Status);
+        Assert.Null(result.RejectionReason);
+
+        var invitationDb = await context.Invitations.FindAsync(invitation.Id);
+        Assert.NotNull(invitationDb);
+        Assert.Equal(InvitationStatus.Accepted, invitationDb.Status);
+        Assert.Null(invitationDb.RejectionReason);
+    }
+
+    [Fact]
+    public async Task RespondToInvitation_ShouldFail_WhenRejectingWithoutReason()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        var supplierId = await SeedSupplier(context);
+        await SeedCompanySupplier(context, companyId, supplierId);
+
+        var process = await new CreatePurchaseProcessCommandHandler(context)
+            .Handle(new CreatePurchaseProcessCommand
+            {
+                CompanyId = companyId,
+                BuyerId = buyerId,
+                Title = "Compra de insumos",
+                EstimatedBudget = 50000
+            }, CancellationToken.None);
+
+        var invitation = await new InviteSupplierCommandHandler(context)
+            .Handle(new InviteSupplierCommand
+            {
+                CompanyId = companyId,
+                PurchaseProcessId = process.Id,
+                SupplierId = supplierId
+            }, CancellationToken.None);
+
+        var handler = new RespondToInvitationCommandHandler(context);
+        var command = new RespondToInvitationCommand
+        {
+            InvitationId = invitation.Id,
+            SupplierId = supplierId,
+            NewStatus = InvitationStatus.Rejected,
+            RejectionReason = null
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => handler.Handle(command, CancellationToken.None));
+        Assert.Equal("Debe especificar un motivo para rechazar la invitación.", exception.Message);
+    }
+
+    [Fact]
+    public async Task RespondToInvitation_ShouldSucceed_WhenRejectingWithReason()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        var supplierId = await SeedSupplier(context);
+        await SeedCompanySupplier(context, companyId, supplierId);
+
+        var process = await new CreatePurchaseProcessCommandHandler(context)
+            .Handle(new CreatePurchaseProcessCommand
+            {
+                CompanyId = companyId,
+                BuyerId = buyerId,
+                Title = "Compra de insumos",
+                EstimatedBudget = 50000
+            }, CancellationToken.None);
+
+        var invitation = await new InviteSupplierCommandHandler(context)
+            .Handle(new InviteSupplierCommand
+            {
+                CompanyId = companyId,
+                PurchaseProcessId = process.Id,
+                SupplierId = supplierId
+            }, CancellationToken.None);
+
+        var handler = new RespondToInvitationCommandHandler(context);
+        var command = new RespondToInvitationCommand
+        {
+            InvitationId = invitation.Id,
+            SupplierId = supplierId,
+            NewStatus = InvitationStatus.Rejected,
+            RejectionReason = "No tengo stock disponible en este momento."
+        };
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.Equal(InvitationStatus.Rejected, result.Status);
+        Assert.Equal("No tengo stock disponible en este momento.", result.RejectionReason);
+
+        var invitationDb = await context.Invitations.FindAsync(invitation.Id);
+        Assert.NotNull(invitationDb);
+        Assert.Equal(InvitationStatus.Rejected, invitationDb.Status);
+        Assert.Equal("No tengo stock disponible en este momento.", invitationDb.RejectionReason);
     }
 
     private class MockAuctionStateCache : IAuctionStateCache

@@ -1,10 +1,6 @@
-// Guard de rutas: exige sesión y, opcionalmente, un permiso.
-//
-// Si no hay sesión -> manda al login.
-// Si hay sesión pero no tiene permiso -> muestra "sin acceso".
-
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { esProveedor, puedeEvaluar } from './permisos.js'
 
 export function RutaProtegida({ children, permiso }) {
   const { estaAutenticado, rol } = useAuth()
@@ -14,15 +10,15 @@ export function RutaProtegida({ children, permiso }) {
     return <Navigate to="/login" replace state={{ from: ubicacion }} />
   }
 
-  // `permiso` es una función (rol) => boolean. Si no se pasa, sólo exige sesión.
   if (permiso && !permiso(rol)) {
-    return (
-      <div className="estado-vacio">
-        <h2>Sin acceso</h2>
-        <p>Tu rol no tiene permiso para ver esta sección.</p>
-      </div>
-    )
+    return <Navigate to={rutaInicialPorRol(rol)} replace />
   }
 
   return children
+}
+
+function rutaInicialPorRol(rol) {
+  if (esProveedor(rol)) return '/proveedor'
+  if (puedeEvaluar(rol)) return '/evaluacion'
+  return '/'
 }

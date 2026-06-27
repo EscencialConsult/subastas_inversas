@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { listarSubastasRealizadas } from '../../api/subastasApi.js'
+import { listarSubastasRealizadasParaAuditoria } from '../../api/subastasApi.js'
 import { ESTADO_INFO, etiquetaEstado, claseEstado } from '../../domain/compras.js'
 
 export function SubastasRealizadasPage() {
@@ -23,7 +23,7 @@ export function SubastasRealizadasPage() {
     setCargando(true)
     setError('')
     try {
-      const filas = await listarSubastasRealizadas({ tenantId, busqueda, estado })
+      const filas = await listarSubastasRealizadasParaAuditoria({ tenantId, busqueda, estado })
       setSubastas(filas)
     } catch (err) {
       setError(err.message)

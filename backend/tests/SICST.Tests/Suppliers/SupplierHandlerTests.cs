@@ -127,7 +127,7 @@ public class SupplierHandlerTests
     }
 
     [Fact]
-    public async Task RegisterSupplier_ShouldThrow_WhenCuitHasInvalidCheckDigit()
+    public async Task RegisterSupplier_ShouldCreatePendingSupplier_WhenCuitHasInvalidCheckDigit()
     {
         using var context = CreateDbContext();
         var handler = new RegisterSupplierCommandHandler(context, new PasswordHasher());
@@ -143,10 +143,12 @@ public class SupplierHandlerTests
             Locality = "Tandil"
         };
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            handler.Handle(command, CancellationToken.None));
-            
-        Assert.Contains("verificador", ex.Message);
+        var result = await handler.Handle(command, CancellationToken.None);
+        var supplier = await context.Suppliers.FindAsync(result.SupplierId);
+
+        Assert.NotNull(supplier);
+        Assert.Equal(SupplierStatus.Pending, supplier.Status);
+        Assert.False(supplier.ArcaVerified);
     }
 
     [Fact]
@@ -436,6 +438,79 @@ public class SupplierHandlerTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             context.SaveChangesAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task IssueSupplierDocumentVerdict_ShouldUpdateSupplierStatusToVerified_WhenAllDocumentsApproved()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context, email: "supplier_pending@test.com", cuit: "30-12345678-0"); // ends with -0, so registered as Pending
+        
+        // Seeding sets Status as Verified, let's reset it to Pending for testing
+        var supplier = await context.Suppliers.FindAsync(supplierId);
+        Assert.NotNull(supplier);
+        supplier.Status = SupplierStatus.Pending;
+        await context.SaveChangesAsync();
+
+        var evaluatorId = await SeedEvaluatorAsync(context);
+
+        var doc1 = CreateDocument(supplierId, "doc1.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
+        var doc2 = CreateDocument(supplierId, "doc2.pdf", "2222222222222222222222222222222222222222222222222222222222222222");
+        context.SupplierDocuments.AddRange(doc1, doc2);
+        await context.SaveChangesAsync();
+
+        var handler = new IssueSupplierDocumentVerdictCommandHandler(context);
+
+        // Approve doc1
+        await handler.Handle(new IssueSupplierDocumentVerdictCommand
+        {
+            DocumentId = doc1.Id,
+            EvaluatorId = evaluatorId,
+            Verdict = SupplierDocumentVerdict.Approved,
+            Notes = "Doc 1 aprobado."
+        }, CancellationToken.None);
+
+        // Supplier status should still be Pending
+        var supplierAfterFirst = await context.Suppliers.FindAsync(supplierId);
+        Assert.Equal(SupplierStatus.Pending, supplierAfterFirst!.Status);
+
+        // Approve doc2
+        await handler.Handle(new IssueSupplierDocumentVerdictCommand
+        {
+            DocumentId = doc2.Id,
+            EvaluatorId = evaluatorId,
+            Verdict = SupplierDocumentVerdict.ApprovedWithException,
+            Notes = "Doc 2 aprobado con excepcion.",
+            ExceptionReason = "Se acepta excepcionalmente."
+        }, CancellationToken.None);
+
+        // Supplier status should now be Verified
+        var supplierAfterSecond = await context.Suppliers.FindAsync(supplierId);
+        Assert.Equal(SupplierStatus.Verified, supplierAfterSecond!.Status);
+    }
+
+    [Fact]
+    public async Task IssueSupplierDocumentVerdict_ShouldUpdateSupplierStatusToRejected_WhenAnyDocumentIsRejected()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        var evaluatorId = await SeedEvaluatorAsync(context);
+        var doc = CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
+        context.SupplierDocuments.Add(doc);
+        await context.SaveChangesAsync();
+
+        var handler = new IssueSupplierDocumentVerdictCommandHandler(context);
+
+        await handler.Handle(new IssueSupplierDocumentVerdictCommand
+        {
+            DocumentId = doc.Id,
+            EvaluatorId = evaluatorId,
+            Verdict = SupplierDocumentVerdict.Rejected,
+            Notes = "Documento rechazado por no ser valido."
+        }, CancellationToken.None);
+
+        var supplier = await context.Suppliers.FindAsync(supplierId);
+        Assert.Equal(SupplierStatus.Rejected, supplier!.Status);
     }
 
     private static async Task<Guid> SeedSupplierAsync(

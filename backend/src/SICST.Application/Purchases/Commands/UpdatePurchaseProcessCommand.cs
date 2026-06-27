@@ -30,7 +30,6 @@ public class UpdatePurchaseProcessCommandHandler : IRequestHandler<UpdatePurchas
     public async Task<PurchaseProcessDto?> Handle(UpdatePurchaseProcessCommand request, CancellationToken cancellationToken)
     {
         var process = await _context.PurchaseProcesses
-            .Include(p => p.Items)
             .FirstOrDefaultAsync(p => p.Id == request.Id && p.CompanyId == request.CompanyId, cancellationToken);
 
         if (process == null)
@@ -53,8 +52,12 @@ public class UpdatePurchaseProcessCommandHandler : IRequestHandler<UpdatePurchas
         process.Description = request.Description.Trim();
         process.EstimatedBudget = request.EstimatedBudget;
 
-        _context.PurchaseItems.RemoveRange(process.Items);
-        process.Items = request.Items.Select(item => new PurchaseItem
+        var oldItems = await _context.PurchaseItems
+            .Where(i => i.PurchaseProcessId == process.Id)
+            .ToListAsync(cancellationToken);
+        _context.PurchaseItems.RemoveRange(oldItems);
+
+        var newItems = request.Items.Select(item => new PurchaseItem
         {
             Id = Guid.NewGuid(),
             PurchaseProcessId = process.Id,
@@ -63,6 +66,7 @@ public class UpdatePurchaseProcessCommandHandler : IRequestHandler<UpdatePurchas
             Unit = item.Unit.Trim(),
             EstimatedUnitPrice = item.EstimatedUnitPrice
         }).ToList();
+        _context.PurchaseItems.AddRange(newItems);
 
         await _context.SaveChangesAsync(cancellationToken);
         return PurchaseProcessMapping.ToDto(process);

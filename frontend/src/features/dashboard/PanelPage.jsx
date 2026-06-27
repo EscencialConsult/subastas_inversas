@@ -49,23 +49,27 @@ export function PanelPage() {
         </div>
       )}
 
-      {panel.listas?.map((lista) => (
-        <div key={lista.titulo} className="panel-lista">
-          <h2 className="form__titulo">{lista.titulo}</h2>
-          {lista.items.length === 0 ? (
-            <p className="panel-lista__vacio">Sin datos.</p>
-          ) : (
-            <ul className="panel-lista__items">
-              {lista.items.map((it) => (
-                <li key={it.texto}>
-                  <span>{it.texto}</span>
-                  <span className="panel-lista__valor">{it.valor}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+      {panel.listas?.length > 0 && (
+        <div className="panel-listas-grid">
+          {panel.listas.map((lista) => (
+            <div key={lista.titulo} className="panel-lista">
+              <h2 className="form__titulo">{lista.titulo}</h2>
+              {lista.items.length === 0 ? (
+                <p className="panel-lista__vacio">Sin datos.</p>
+              ) : (
+                <ul className="panel-lista__items">
+                  {lista.items.map((it) => (
+                    <li key={it.texto}>
+                      <span>{it.texto}</span>
+                      <span className="panel-lista__valor">{it.valor}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
 
       {panel.acciones?.length > 0 && (
         <div className="panel-acciones">

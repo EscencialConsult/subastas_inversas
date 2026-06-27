@@ -17,6 +17,7 @@ public class PurchaseProcessDto
     public DateTime? PublishedAtUtc { get; set; }
     public DateTime? ClosedAtUtc { get; set; }
     public string? RejectionReason { get; set; }
+    public bool HasAuction { get; set; }
     public EvaluationDto? Evaluation { get; set; }
     public AwardDto? Award { get; set; }
     public List<AwardDto> Awards { get; set; } = [];
@@ -25,4 +26,5 @@ public class PurchaseProcessDto
     public PurchaseOrderDto? PurchaseOrder { get; set; }
     public List<PurchaseOrderDto> PurchaseOrders { get; set; } = [];
     public List<PurchaseItemDto> Items { get; set; } = [];
+    public string? SpecificationsHash { get; set; }
 }

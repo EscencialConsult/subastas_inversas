@@ -36,6 +36,15 @@ const VEREDICTOS_DOCUMENTO = {
   ApprovedWithException: 'aprobado_con_excepcion',
 }
 
+const ESTADOS_INVITACION = {
+  0: 'pendiente',
+  1: 'aceptada',
+  2: 'rechazada',
+  Pending: 'pendiente',
+  Accepted: 'aceptada',
+  Rejected: 'rechazada',
+}
+
 export async function registrarProveedor({ datos }) {
   validar(datos)
 
@@ -79,6 +88,61 @@ export async function listarProveedores({
   cercania = '',
   tenantId = null,
 } = {}) {
+  return listarProveedoresDesdeEndpoint('/api/suppliers', {
+    busqueda,
+    estado,
+    rubro,
+    provincia,
+    localidad,
+    cercania,
+    tenantId,
+  })
+}
+
+export async function listarProveedoresParaEvaluacion({
+  busqueda = '',
+  estado = '',
+  rubro = '',
+  provincia = '',
+  localidad = '',
+  cercania = '',
+  tenantId = null,
+} = {}) {
+  return listarProveedoresDesdeEndpoint('/api/evaluation/suppliers', {
+    busqueda,
+    estado,
+    rubro,
+    provincia,
+    localidad,
+    cercania,
+    tenantId,
+  })
+}
+
+export async function listarProveedoresParaAuditoria({
+  busqueda = '',
+  estado = '',
+  rubro = '',
+  provincia = '',
+  localidad = '',
+  cercania = '',
+  tenantId = null,
+} = {}) {
+  return listarProveedoresDesdeEndpoint('/api/audit/suppliers', {
+    busqueda,
+    estado,
+    rubro,
+    provincia,
+    localidad,
+    cercania,
+    tenantId,
+  })
+}
+
+async function listarProveedoresDesdeEndpoint(
+  endpoint,
+  { busqueda = '', estado = '', rubro = '', provincia = '', localidad = '', cercania = '', tenantId = null } = {},
+) {
   const params = new URLSearchParams()
   if (tenantId) params.set('companyId', tenantId)
   if (busqueda.trim()) params.set('search', busqueda.trim())
@@ -88,23 +152,9 @@ export async function listarProveedores({
   if (cercania) params.set('proximity', cercania)
 
   const query = params.toString() ? `?${params}` : ''
-  const data = await apiFetch(`/api/suppliers${query}`)
+  const data = await apiFetch(`${endpoint}${query}`)
   const items = Array.isArray(data) ? data : (data.items ?? [])
-  let resultado = items.map((proveedor) => ({
-    id: proveedor.id,
-    usuarioId: proveedor.userId,
-    razonSocial: proveedor.businessName,
-    cuit: proveedor.cuit,
-    email: proveedor.email,
-    provincia: proveedor.province,
-    localidad: proveedor.locality,
-    estado: ESTADOS[proveedor.status] ?? 'pendiente',
-    rubro: proveedor.businessCategory ?? '---',
-    arcaVerificado: proveedor.arcaVerified,
-    estadoEmpresa: ESTADOS_EMPRESA_PROVEEDOR[proveedor.companySupplierStatus] ?? 'sin_habilitar',
-    advertenciaEmpresa: proveedor.companySupplierWarning ?? '',
-    politicaEstricta: proveedor.companySupplierStrictPolicy,
-  }))
+  let resultado = items.map(mapProveedor)
 
   if (estado) resultado = resultado.filter((p) => p.estado === estado)
 
@@ -127,7 +177,8 @@ export async function habilitarProveedorEmpresa({ tenantId, proveedorId }) {
 }
 
 export async function listarInvitacionesDeProveedor({ proveedorId }) {
-  return apiFetch(`/api/suppliers/${proveedorId}/invitations`)
+  const data = await apiFetch(`/api/suppliers/${proveedorId}/invitations`)
+  return data.map(mapInvitacionProveedor)
 }
 
 export async function listarDocumentosProveedor({ proveedorId }) {
@@ -161,7 +212,7 @@ export async function subsanarDocumentoProveedor({ documentoId, proveedorId, not
 }
 
 export async function observarDocumentoProveedor({ documentoId, evaluadorId, notas }) {
-  return apiFetch(`/api/suppliers/documents/${documentoId}/observations`, {
+  const data = await apiFetch(`/api/suppliers/documents/${documentoId}/observations`, {
     method: 'POST',
     body: JSON.stringify({
       documentId: documentoId,
@@ -169,6 +220,7 @@ export async function observarDocumentoProveedor({ documentoId, evaluadorId, not
       notes: notas,
     }),
   })
+  return mapRevisionDocumento(data)
 }
 
 export async function dictaminarDocumentoProveedor({
@@ -178,27 +230,30 @@ export async function dictaminarDocumentoProveedor({
   notas,
   excepcion,
 }) {
-  return apiFetch(`/api/suppliers/documents/${documentoId}/verdicts`, {
+  const data = await apiFetch(`/api/suppliers/documents/${documentoId}/verdicts`, {
     method: 'POST',
     body: JSON.stringify({
       documentId: documentoId,
       evaluatorId: evaluadorId,
-      verdict: dictamen,
+      verdict: Number(dictamen),
       notes: notas,
       exceptionReason: excepcion || null,
     }),
   })
+  return mapRevisionDocumento(data)
 }
 
-export async function responderInvitacion({ invitacionId, proveedorId, aceptar }) {
-  return apiFetch(`/api/suppliers/invitations/${invitacionId}/respond`, {
+export async function responderInvitacion({ invitacionId, proveedorId, aceptar, rejectionReason }) {
+  const data = await apiFetch(`/api/suppliers/invitations/${invitacionId}/respond`, {
     method: 'PATCH',
     body: JSON.stringify({
       invitationId: invitacionId,
       supplierId: proveedorId,
       newStatus: aceptar ? 1 : 2,
+      rejectionReason: rejectionReason || null,
     }),
   })
+  return mapInvitacionProveedor(data)
 }
 
 export async function listarSubastasProveedor({ proveedorId }) {
@@ -245,6 +300,24 @@ function mapSubastaProveedor(data) {
   }
 }
 
+function mapProveedor(proveedor) {
+  return {
+    id: proveedor.id,
+    usuarioId: proveedor.userId,
+    razonSocial: proveedor.businessName,
+    cuit: proveedor.cuit,
+    email: proveedor.email,
+    provincia: proveedor.province,
+    localidad: proveedor.locality,
+    estado: ESTADOS[proveedor.status] ?? 'pendiente',
+    rubro: proveedor.businessCategory ?? '---',
+    arcaVerificado: proveedor.arcaVerified,
+    estadoEmpresa: ESTADOS_EMPRESA_PROVEEDOR[proveedor.companySupplierStatus] ?? 'sin_habilitar',
+    advertenciaEmpresa: proveedor.companySupplierWarning ?? '',
+    politicaEstricta: proveedor.companySupplierStrictPolicy,
+  }
+}
+
 function mapDocumentoProveedor(data) {
   return {
     id: data.id,
@@ -261,14 +334,33 @@ function mapDocumentoProveedor(data) {
     alertaRegistradaEl: data.alertSentAtUtc,
     dictamen: VEREDICTOS_DOCUMENTO[data.verdict] ?? null,
     dictaminadoEl: data.verdictIssuedAtUtc,
-    revisiones: (data.reviews ?? []).map((review) => ({
-      id: review.id,
-      accion: review.action,
-      dictamen: VEREDICTOS_DOCUMENTO[review.verdict] ?? null,
-      notas: review.notes,
-      excepcion: review.exceptionReason,
-      fecha: review.createdAtUtc,
-    })),
+    revisiones: (data.reviews ?? []).map(mapRevisionDocumento),
+  }
+}
+
+function mapRevisionDocumento(review) {
+  return {
+    id: review.id,
+    documentoId: review.supplierDocumentId,
+    revisorId: review.reviewerId,
+    accion: review.action,
+    dictamen: VEREDICTOS_DOCUMENTO[review.verdict] ?? null,
+    notas: review.notes,
+    excepcion: review.exceptionReason,
+    fecha: review.createdAtUtc,
+  }
+}
+
+function mapInvitacionProveedor(data) {
+  return {
+    id: data.id,
+    procesoId: data.purchaseProcessId,
+    proveedorId: data.supplierId,
+    estado: ESTADOS_INVITACION[data.status] ?? 'pendiente',
+    invitadoEn: data.invitedAtUtc,
+    tituloProceso: data.processTitle,
+    codigoProceso: data.processCode,
+    rejectionReason: data.rejectionReason ?? null,
   }
 }
 
@@ -286,7 +378,7 @@ function validar(datos) {
   }
   if (!datos.cuit?.trim()) throw new ApiError('El CUIT es obligatorio.', 422)
   if (!/^\d{2}-?\d{8}-?\d$/.test(datos.cuit.trim())) {
-    throw new ApiError('El CUIT no tiene un formato valido (ej: 30-12345678-9).', 422)
+    throw new ApiError('El CUIT no tiene un formato valido (ej: 30-12345678-1).', 422)
   }
   if (!datos.email?.trim()) throw new ApiError('El email es obligatorio.', 422)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.email.trim())) {

@@ -89,7 +89,11 @@ public static class DatabaseInitializer
                 PermissionCodes.PurchasesEvaluate,
                 PermissionCodes.AuditRead
             ],
-            [UserRole.Comprador] = [PermissionCodes.PurchasesManage],
+            [UserRole.Comprador] =
+            [
+                PermissionCodes.PurchasesManage,
+                PermissionCodes.ConfigurationRead
+            ],
             [UserRole.Proveedor] = [],
             [UserRole.Evaluador] = [PermissionCodes.PurchasesEvaluate],
             [UserRole.Auditor] = [PermissionCodes.AuditRead],

@@ -11,6 +11,7 @@ public record RespondToInvitationCommand : IRequest<InvitationDto>
     public Guid InvitationId { get; init; }
     public Guid SupplierId { get; init; }
     public InvitationStatus NewStatus { get; init; }
+    public string? RejectionReason { get; init; }
 }
 
 public class RespondToInvitationCommandHandler : IRequestHandler<RespondToInvitationCommand, InvitationDto>
@@ -49,8 +50,19 @@ public class RespondToInvitationCommandHandler : IRequestHandler<RespondToInvita
             throw new InvalidOperationException("Esta invitacion ya fue respondida.");
         }
 
+        if (request.NewStatus == InvitationStatus.Rejected)
+        {
+            if (string.IsNullOrWhiteSpace(request.RejectionReason))
+            {
+                throw new InvalidOperationException("Debe especificar un motivo para rechazar la invitación.");
+            }
+            invitation.RejectionReason = request.RejectionReason;
+        }
+
         invitation.Status = request.NewStatus;
         await _context.SaveChangesAsync(cancellationToken);
+
+        Console.WriteLine($"[Notificación] El proveedor '{invitation.Supplier.BusinessName}' ha {(request.NewStatus == InvitationStatus.Accepted ? "ACEPTADO" : "RECHAZADO")} la invitación al proceso de compra '{invitation.PurchaseProcess.Code}'.{(request.NewStatus == InvitationStatus.Rejected ? $" Motivo: {request.RejectionReason}" : "")}");
 
         return new InvitationDto
         {
@@ -62,7 +74,8 @@ public class RespondToInvitationCommandHandler : IRequestHandler<RespondToInvita
             SupplierBusinessName = invitation.Supplier.BusinessName,
             SupplierCuit = invitation.Supplier.Cuit,
             ProcessTitle = invitation.PurchaseProcess.Title,
-            ProcessCode = invitation.PurchaseProcess.Code
+            ProcessCode = invitation.PurchaseProcess.Code,
+            RejectionReason = invitation.RejectionReason
         };
     }
 }

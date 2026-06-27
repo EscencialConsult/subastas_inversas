@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { listarBitacoraAccesos } from '../../api/auditoriaApi.js'
-import { listarProcesos } from '../../api/comprasApi.js'
+import { listarProcesosParaAuditoria } from '../../api/comprasApi.js'
 import {
   ESTADO_INFO,
   etiquetaEstado,
@@ -30,7 +30,7 @@ export function AuditoriaListPage() {
     setCargando(true)
     setError('')
     try {
-      const lista = await listarProcesos({ tenantId, busqueda, estado })
+      const lista = await listarProcesosParaAuditoria({ tenantId, busqueda, estado })
       const bitacora = await listarBitacoraAccesos({
         tenantId,
         email: emailAcceso,

@@ -131,12 +131,12 @@ export function ProcesosListPage() {
                       Publicar
                     </button>
                   )}
-                  {p.estado === ESTADO_PROCESO.PUBLICADO && (
+                  {p.estado === ESTADO_PROCESO.PUBLICADO && !p.tieneSubasta && (
                     <button className="btn btn--texto" onClick={() => iniciar(p)}>
                       Iniciar subasta
                     </button>
                   )}
-                  {p.estado === ESTADO_PROCESO.EN_SUBASTA && (
+                  {p.estado === ESTADO_PROCESO.EN_SUBASTA && p.tieneSubasta && (
                     <button
                       className="btn btn--texto"
                       onClick={() => navigate(`/subasta/${p.id}`)}
@@ -144,7 +144,7 @@ export function ProcesosListPage() {
                       Ver subasta
                     </button>
                   )}
-                  {p.estado === ESTADO_PROCESO.CERRADA && (
+                  {p.estado === ESTADO_PROCESO.CERRADA && p.tieneSubasta && (
                     <button
                       className="btn btn--texto"
                       onClick={() => navigate(`/compras/${p.id}/adjudicar`)}

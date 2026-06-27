@@ -28,7 +28,7 @@ export function esProveedor(rol) {
 // Quién tiene panel de inicio (dashboard): todos los roles internos.
 // El proveedor tiene su propia home ("Mi cuenta"), no el panel.
 export function tienePanel(rol) {
-  return rol !== ROLES.PROVEEDOR
+  return rol !== ROLES.PROVEEDOR && rol !== ROLES.EVALUADOR
 }
 
 // Quién gestiona los procesos de compra (crear, publicar, subasta, adjudicar):

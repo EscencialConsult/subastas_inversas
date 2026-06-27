@@ -51,7 +51,9 @@ public class StartAuctionCommandHandler : IRequestHandler<StartAuctionCommand, A
         }
 
         var invitations = await _context.Invitations
-            .Where(i => i.PurchaseProcessId == request.PurchaseProcessId)
+            .Where(i => i.PurchaseProcessId == request.PurchaseProcessId
+                && i.Status == Domain.Entities.InvitationStatus.Accepted
+                && i.QualificationStatus == Domain.Entities.QualificationStatus.Approved)
             .ToListAsync(cancellationToken);
 
         var configuration = await _context.CompanyConfigurations

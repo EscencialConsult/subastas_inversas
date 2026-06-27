@@ -1,6 +1,6 @@
-import { listarProcesos } from './comprasApi.js'
+import { listarProcesos, listarProcesosParaAprobacion, listarProcesosParaAuditoria } from './comprasApi.js'
 import { listarProveedores } from './proveedoresApi.js'
-import { listarSubastasRealizadas } from './subastasApi.js'
+import { listarSubastasRealizadas, listarSubastasRealizadasParaAuditoria } from './subastasApi.js'
 import { listarTenants } from './tenantsApi.js'
 import { listarUsuarios } from './usersApi.js'
 import { ESTADO_PROCESO, etiquetaEstado } from '../domain/compras.js'
@@ -110,7 +110,7 @@ async function panelComprador(tenantId) {
 }
 
 async function panelAutoridad(tenantId) {
-  const procesos = await listarProcesos({ tenantId })
+  const procesos = await listarProcesosParaAprobacion({ tenantId })
   const aprobadas = procesos.filter((p) => p.estado === ESTADO_PROCESO.APROBADA)
   return {
     titulo: 'Panel de la Autoridad',
@@ -134,8 +134,8 @@ async function panelAutoridad(tenantId) {
 
 async function panelAuditor(tenantId) {
   const [procesos, subastas] = await Promise.all([
-    listarProcesos({ tenantId }),
-    listarSubastasRealizadas({ tenantId }),
+    listarProcesosParaAuditoria({ tenantId }),
+    listarSubastasRealizadasParaAuditoria({ tenantId }),
   ])
   return {
     titulo: 'Panel de auditoria',

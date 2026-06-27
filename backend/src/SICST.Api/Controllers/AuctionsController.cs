@@ -59,6 +59,45 @@ public class AuctionsController : ControllerBase
         return Ok(auction);
     }
 
+    [HttpGet("purchase-processes/{purchaseProcessId:guid}/auction/approval")]
+    [Authorize(Policy = PermissionCodes.PurchasesApprove)]
+    public async Task<ActionResult<AuctionDto>> GetByPurchaseProcessForApproval(Guid companyId, Guid purchaseProcessId)
+    {
+        var auction = await _sender.Send(new GetAuctionByPurchaseProcessQuery(companyId, purchaseProcessId));
+        if (auction == null)
+        {
+            return NotFound(new { message = "Esta subasta no existe." });
+        }
+
+        return Ok(auction);
+    }
+
+    [HttpGet("purchase-processes/{purchaseProcessId:guid}/auction/audit")]
+    [Authorize(Policy = PermissionCodes.AuditRead)]
+    public async Task<ActionResult<AuctionDto>> GetByPurchaseProcessForAudit(Guid companyId, Guid purchaseProcessId)
+    {
+        var auction = await _sender.Send(new GetAuctionByPurchaseProcessQuery(companyId, purchaseProcessId));
+        if (auction == null)
+        {
+            return NotFound(new { message = "Esta subasta no existe." });
+        }
+
+        return Ok(auction);
+    }
+
+    [HttpGet("purchase-processes/{purchaseProcessId:guid}/auction/evaluate")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<AuctionDto>> GetByPurchaseProcessForEvaluation(Guid companyId, Guid purchaseProcessId)
+    {
+        var auction = await _sender.Send(new GetAuctionByPurchaseProcessQuery(companyId, purchaseProcessId));
+        if (auction == null)
+        {
+            return NotFound(new { message = "Esta subasta no existe." });
+        }
+
+        return Ok(auction);
+    }
+
     [HttpPost("auctions/{auctionId:guid}/bids")]
     [Authorize]
     public async Task<ActionResult<BidDto>> PlaceBid(Guid auctionId, [FromBody] PlaceBidCommand command)

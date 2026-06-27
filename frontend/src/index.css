@@ -9,6 +9,7 @@
   --color-texto-suave: #64748b;
   --color-primario: #1d4ed8;
   --color-primario-hover: #1e40af;
+  --color-primario-claro: #dbeafe;
   --color-ok-bg: #dcfce7;
   --color-ok-tx: #166534;
   --color-off-bg: #f1f5f9;
@@ -20,15 +21,18 @@
   --color-info-bg: #dbeafe;
   --color-info-tx: #1e40af;
   --radio: 8px;
+  --radio-lg: 12px;
   --sombra: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
   --sombra-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --sombra-lg: 0 10px 25px -5px rgb(0 0 0 / 0.1);
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
 
   font-family: 'Source Sans 3', system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--color-texto);
   background: var(--color-fondo);
 }
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
@@ -39,4 +43,28 @@ body {
 h1 {
   font-size: 24px;
   margin: 0;
+}
+
+/* ---- Focus visible (accesibilidad) ---- */
+:focus-visible {
+  outline: 2px solid var(--color-primario);
+  outline-offset: 2px;
+  border-radius: var(--radio);
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primario);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 9999;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0;
 }

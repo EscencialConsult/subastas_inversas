@@ -7,6 +7,7 @@ import {
   esProveedor,
   puedeGestionarCompras,
   puedeAprobarAdjudicacion,
+  puedeEvaluar,
   puedeSupervisar,
   puedeVerProveedores,
   tienePanel,
@@ -15,7 +16,7 @@ import { etiquetaRol } from '../domain/roles.js'
 import {
   LayoutDashboard, Users, Settings, Building2,
   ShoppingCart, ClipboardCheck, Truck, Award,
-  Hammer, ShieldCheck, UserCircle, LogOut,
+  Hammer, ShieldCheck, UserCircle, LogOut, FileCheck2,
 } from 'lucide-react'
 
 const iconos = {
@@ -26,6 +27,7 @@ const iconos = {
   compras: ShoppingCart,
   'compras-realizadas': ClipboardCheck,
   proveedores: Truck,
+  evaluacion: FileCheck2,
   adjudicaciones: Award,
   subastas: Hammer,
   auditoria: ShieldCheck,
@@ -50,10 +52,14 @@ export function Layout() {
     { to: '/compras', texto: 'Compras', icono: 'compras', visible: puedeGestionarCompras(rol) },
     { to: '/compras-realizadas', texto: 'Compras realizadas', icono: 'compras-realizadas', visible: puedeGestionarCompras(rol) },
     { to: '/proveedores', texto: 'Proveedores', icono: 'proveedores', visible: puedeVerProveedores(rol) },
+    { to: '/calificacion', texto: 'Calificación', icono: 'evaluacion', visible: puedeEvaluar(rol) },
+    { to: '/evaluacion', texto: 'Evaluación de procesos', icono: 'evaluacion', visible: puedeEvaluar(rol) },
+    { to: '/evaluacion-proveedores', texto: 'Evaluación documental', icono: 'evaluacion', visible: puedeEvaluar(rol) },
     { to: '/adjudicaciones', texto: 'Adjudicaciones', icono: 'adjudicaciones', visible: puedeAprobarAdjudicacion(rol) },
     { to: '/subastas', texto: 'Subastas', icono: 'subastas', visible: puedeSupervisar(rol) },
     { to: '/auditoria', texto: 'Auditoría', icono: 'auditoria', visible: puedeSupervisar(rol) },
     { to: '/proveedor', texto: 'Mi cuenta', icono: 'proveedor', visible: esProveedor(rol) },
+    { to: '/proveedor/oportunidades', texto: 'Subastas / Invitaciones', icono: 'subastas', visible: esProveedor(rol) },
   ].filter((i) => i.visible)
 
   return (

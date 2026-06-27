@@ -1,6 +1,3 @@
-// Auto-registro de proveedor. Pantalla publica, sin login.
-// Tras registrarse, lo logueamos automaticamente y lo llevamos a su home.
-
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { registrarProveedor } from '../../api/proveedoresApi.js'
@@ -45,158 +42,136 @@ export function RegistroProveedorPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm shadow-slate-200/40 sm:px-8">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <Link to="/portal" className="flex items-center gap-3 no-underline">
-            <span className="grid h-10 w-10 place-items-center rounded-md bg-sky-900 text-sm font-black tracking-[0.08em] text-white">
-              SC
-            </span>
-            <span className="flex flex-col">
-              <span className="text-lg font-black tracking-[0.08em] text-sky-950">SICST</span>
-              <span className="text-xs font-semibold text-slate-500">Registro proveedor</span>
+    <div className="public-page">
+      <header className="page-header">
+        <div className="contenedor page-header__inner">
+          <Link to="/portal" className="page-header__brand">
+            <span className="page-header__logo">SC</span>
+            <span className="flex flex--col">
+              <span className="page-header__title">SICST</span>
+              <span className="page-header__subtitle">Registro proveedor</span>
             </span>
           </Link>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/portal"
-              className="rounded-md border border-sky-100 px-3 py-2 text-sm font-bold text-sky-800 transition hover:bg-sky-50"
-            >
+          <div className="page-header__nav">
+            <Link to="/portal" className="btn btn--secundario">
               Portal publico
             </Link>
-            <Link
-              to="/login"
-              className="rounded-md bg-sky-700 px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-sky-800"
-            >
+            <Link to="/login" className="btn btn--primario">
               Ingresar
             </Link>
           </div>
         </div>
       </header>
 
-      <section className="mx-auto grid min-h-[calc(100vh-68px)] max-w-xl px-4 py-8 sm:px-8 lg:items-center lg:py-12">
-        <form
-          className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:p-7"
-          onSubmit={manejarSubmit}
-        >
+      <section className="public-form">
+        <form className="public-form__card" onSubmit={manejarSubmit}>
           <div>
-            <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-              Crear cuenta
-            </span>
-            <h2 className="mt-2 text-2xl font-black text-slate-950">Registro de proveedor</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+            <span className="public-form__tag">Crear cuenta</span>
+            <h2 className="public-form__title">Registro de proveedor</h2>
+            <p className="public-form__desc">
               Completa los datos principales de tu empresa para solicitar el alta.
             </p>
           </div>
 
           {error && (
-            <div className="mt-5 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
-              {error}
-            </div>
+            <div className="alerta alerta--error mt-16">{error}</div>
           )}
 
-          <div className="mt-5 grid gap-4">
-            <Campo
-              label="Razon social"
-              value={datos.razonSocial}
-              onChange={(valor) => actualizar('razonSocial', valor)}
-              placeholder="Insumos del Norte SRL"
-            />
-            <Campo
-              label="CUIT"
-              value={datos.cuit}
-              onChange={(valor) => actualizar('cuit', valor)}
-              placeholder="30-12345678-9"
-            />
-            <Campo
-              label="Email"
-              type="email"
-              value={datos.email}
-              onChange={(valor) => actualizar('email', valor)}
-              placeholder="ventas@empresa.com"
-              autoComplete="username"
-            />
-            <Campo
-              label="Rubro"
-              value={datos.rubro}
-              onChange={(valor) => actualizar('rubro', valor)}
-              placeholder="Construccion, limpieza, tecnologia"
-            />
+          <div className="public-form__grid">
+            <label className="campo">
+              <span>Razon social</span>
+              <input
+                value={datos.razonSocial}
+                onChange={(e) => actualizar('razonSocial', e.target.value)}
+                placeholder="Insumos del Norte SRL"
+              />
+            </label>
+            <label className="campo">
+              <span>CUIT</span>
+              <input
+                value={datos.cuit}
+                onChange={(e) => actualizar('cuit', e.target.value)}
+                placeholder="30-12345678-1"
+              />
+            </label>
+            <label className="campo">
+              <span>Email</span>
+              <input
+                type="email"
+                value={datos.email}
+                onChange={(e) => actualizar('email', e.target.value)}
+                placeholder="ventas@empresa.com"
+                autoComplete="username"
+              />
+            </label>
+            <label className="campo">
+              <span>Rubro</span>
+              <input
+                value={datos.rubro}
+                onChange={(e) => actualizar('rubro', e.target.value)}
+                placeholder="Construccion, limpieza, tecnologia"
+              />
+            </label>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Campo
-                label="Provincia"
-                value={datos.provincia}
-                onChange={(valor) => actualizar('provincia', valor)}
-                placeholder="Tucuman"
-              />
-              <Campo
-                label="Localidad"
-                value={datos.localidad}
-                onChange={(valor) => actualizar('localidad', valor)}
-                placeholder="San Miguel"
-              />
+            <div className="grid-2" style={{ gridColumn: '1 / -1' }}>
+              <label className="campo">
+                <span>Provincia</span>
+                <input
+                  value={datos.provincia}
+                  onChange={(e) => actualizar('provincia', e.target.value)}
+                  placeholder="Tucuman"
+                />
+              </label>
+              <label className="campo">
+                <span>Localidad</span>
+                <input
+                  value={datos.localidad}
+                  onChange={(e) => actualizar('localidad', e.target.value)}
+                  placeholder="San Miguel"
+                />
+              </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Campo
-                label="Contrasena"
-                type="password"
-                value={datos.password}
-                onChange={(valor) => actualizar('password', valor)}
-                autoComplete="new-password"
-                placeholder="Minimo 6 caracteres"
-              />
-              <Campo
-                label="Repetir contrasena"
-                type="password"
-                value={datos.repetir}
-                onChange={(valor) => actualizar('repetir', valor)}
-                autoComplete="new-password"
-                placeholder="Repetir contrasena"
-              />
+            <div className="grid-2" style={{ gridColumn: '1 / -1' }}>
+              <label className="campo">
+                <span>Contrasena</span>
+                <input
+                  type="password"
+                  value={datos.password}
+                  onChange={(e) => actualizar('password', e.target.value)}
+                  autoComplete="new-password"
+                  placeholder="Minimo 6 caracteres"
+                />
+              </label>
+              <label className="campo">
+                <span>Repetir contrasena</span>
+                <input
+                  type="password"
+                  value={datos.repetir}
+                  onChange={(e) => actualizar('repetir', e.target.value)}
+                  autoComplete="new-password"
+                  placeholder="Repetir contrasena"
+                />
+              </label>
             </div>
           </div>
 
           <button
-            className="mt-5 w-full rounded-md bg-sky-700 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-sky-800 disabled:cursor-default disabled:opacity-60"
+            className="btn btn--primario btn--full mt-16"
             type="submit"
             disabled={enviando}
           >
             {enviando ? 'Registrando...' : 'Crear cuenta de proveedor'}
           </button>
 
-          <p className="mt-5 text-center text-sm font-semibold text-slate-600">
+          <p className="text-center mt-16 text-sm text-suave">
             Ya tenes cuenta?{' '}
-            <Link className="font-black text-sky-800 hover:underline" to="/login">
+            <Link className="text-ok" style={{ fontWeight: 700, textDecoration: 'underline' }} to="/login">
               Ingresar
             </Link>
           </p>
         </form>
       </section>
-    </main>
-  )
-}
-
-function Campo({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  placeholder = '',
-  autoComplete,
-}) {
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-sm font-bold text-slate-700">{label}</span>
-      <input
-        className="rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-600 focus:ring-2 focus:ring-sky-100"
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-      />
-    </label>
+    </div>
   )
 }

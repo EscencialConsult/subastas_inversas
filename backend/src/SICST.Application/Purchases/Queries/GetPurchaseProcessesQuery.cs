@@ -56,7 +56,17 @@ public class GetPurchaseProcessesQueryHandler : IRequestHandler<GetPurchaseProce
             .Take(request.PageSize)
             .ToListAsync(cancellationToken);
 
+        var processIds = processes.Select(p => p.Id).ToList();
+        var processIdsWithAuction = await _context.Auctions
+            .Where(a => processIds.Contains(a.PurchaseProcessId))
+            .Select(a => a.PurchaseProcessId)
+            .ToHashSetAsync(cancellationToken);
+
         var dtos = processes.Select(PurchaseProcessMapping.ToDto).ToList();
+        foreach (var dto in dtos)
+        {
+            dto.HasAuction = processIdsWithAuction.Contains(dto.Id);
+        }
 
         return new PagedResult<PurchaseProcessDto>(dtos, totalCount, request.PageNumber, request.PageSize);
     }

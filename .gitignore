@@ -20,3 +20,8 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Runtime
+backend/backend.log
+backend/src/SICST.Api/uploads/
+backend/src/SICST.Api/wwwroot/

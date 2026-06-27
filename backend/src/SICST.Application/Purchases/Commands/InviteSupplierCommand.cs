@@ -82,7 +82,8 @@ public class InviteSupplierCommandHandler : IRequestHandler<InviteSupplierComman
             PurchaseProcessId = invitation.PurchaseProcessId,
             SupplierId = invitation.SupplierId,
             Status = invitation.Status,
-            InvitedAtUtc = invitation.InvitedAtUtc
+            InvitedAtUtc = invitation.InvitedAtUtc,
+            RejectionReason = invitation.RejectionReason
         };
     }
 }

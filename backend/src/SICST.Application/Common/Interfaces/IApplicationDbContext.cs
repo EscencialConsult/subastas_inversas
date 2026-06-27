@@ -34,6 +34,9 @@ public interface IApplicationDbContext
     DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems { get; }
     DbSet<AuditEvent> AuditEvents { get; }
     DbSet<AccessLog> AccessLogs { get; }
+    DbSet<EvaluationCriterion> EvaluationCriteria { get; }
+    DbSet<SupplierEvaluation> SupplierEvaluations { get; }
+    DbSet<SupplierCriterionResult> SupplierCriterionResults { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

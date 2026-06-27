@@ -45,7 +45,8 @@ public static class PurchaseProcessMapping
                 Quantity = item.Quantity,
                 Unit = item.Unit,
                 EstimatedUnitPrice = item.EstimatedUnitPrice
-            }).ToList()
+            }).ToList(),
+            SpecificationsHash = process.SpecificationsHash
         };
     }
 

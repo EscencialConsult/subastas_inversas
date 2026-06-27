@@ -66,7 +66,56 @@ public class SuppliersController : ControllerBase
         return Ok(suppliers);
     }
 
-    [Authorize(Policy = PermissionCodes.SuppliersManage)]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    [HttpGet("evaluation")]
+    [HttpGet("/api/evaluation/suppliers")]
+    public async Task<ActionResult<PagedResult<SupplierDto>>> GetForEvaluation(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] Guid? companyId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? rubro = null,
+        [FromQuery] string? province = null,
+        [FromQuery] string? locality = null,
+        [FromQuery] string? proximity = null)
+    {
+        var suppliers = await _sender.Send(new GetSuppliersQuery(
+            pageNumber,
+            pageSize,
+            companyId,
+            search,
+            rubro,
+            province,
+            locality,
+            proximity));
+        return Ok(suppliers);
+    }
+
+    [Authorize(Policy = PermissionCodes.AuditRead)]
+    [HttpGet("/api/audit/suppliers")]
+    public async Task<ActionResult<PagedResult<SupplierDto>>> GetForAudit(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] Guid? companyId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? rubro = null,
+        [FromQuery] string? province = null,
+        [FromQuery] string? locality = null,
+        [FromQuery] string? proximity = null)
+    {
+        var suppliers = await _sender.Send(new GetSuppliersQuery(
+            pageNumber,
+            pageSize,
+            companyId,
+            search,
+            rubro,
+            province,
+            locality,
+            proximity));
+        return Ok(suppliers);
+    }
+
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
     [HttpPost("/api/companies/{companyId:guid}/suppliers/{supplierId:guid}/enable")]
     public async Task<ActionResult<CompanySupplierDto>> EnableForCompany(Guid companyId, Guid supplierId)
     {

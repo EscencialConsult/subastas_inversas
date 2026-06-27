@@ -49,6 +49,8 @@ public class PurchaseProcess
 
     public string? RejectionReason { get; set; }
 
+    public string? SpecificationsHash { get; set; }
+
     // Navigation properties for Sprint 7
     public Evaluation? Evaluation { get; set; }
     public List<Award> Awards { get; set; } = [];
@@ -58,4 +60,8 @@ public class PurchaseProcess
     public List<PurchaseOrder> PurchaseOrders { get; set; } = [];
 
     public List<PurchaseItem> Items { get; set; } = [];
+
+    // Navigation properties for Sprint 9 — Criterios de evaluación
+    public List<EvaluationCriterion> EvaluationCriteria { get; set; } = [];
+    public List<SupplierEvaluation> SupplierEvaluations { get; set; } = [];
 }

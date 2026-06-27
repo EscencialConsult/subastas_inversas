@@ -165,8 +165,11 @@ public class IssueSupplierDocumentVerdictCommandHandler : IRequestHandler<IssueS
 
     public async Task<SupplierDocumentReviewDto> Handle(IssueSupplierDocumentVerdictCommand request, CancellationToken cancellationToken)
     {
-        var documentExists = await _context.SupplierDocuments.AnyAsync(d => d.Id == request.DocumentId, cancellationToken);
-        if (!documentExists)
+        var document = await _context.SupplierDocuments
+            .Include(d => d.Supplier)
+            .FirstOrDefaultAsync(d => d.Id == request.DocumentId, cancellationToken);
+
+        if (document == null)
         {
             throw new InvalidOperationException("Documento no encontrado.");
         }
@@ -205,6 +208,47 @@ public class IssueSupplierDocumentVerdictCommandHandler : IRequestHandler<IssueS
             request.ExceptionReason);
 
         _context.SupplierDocumentReviews.Add(review);
+
+        // Actualizar el estado del proveedor segun los veredictos de todos sus documentos
+        if (request.Verdict == SupplierDocumentVerdict.Approved || request.Verdict == SupplierDocumentVerdict.ApprovedWithException)
+        {
+            var allSupplierDocuments = await _context.SupplierDocuments
+                .Include(d => d.Reviews)
+                .Where(d => d.SupplierId == document.SupplierId)
+                .ToListAsync(cancellationToken);
+
+            bool allOthersApproved = true;
+            foreach (var doc in allSupplierDocuments)
+            {
+                if (doc.Id == request.DocumentId)
+                {
+                    continue;
+                }
+
+                var latestVerdict = doc.Reviews
+                    .Where(r => r.Action == SupplierDocumentReviewAction.Verdict)
+                    .OrderByDescending(r => r.CreatedAtUtc)
+                    .FirstOrDefault();
+
+                if (latestVerdict == null ||
+                    (latestVerdict.Verdict != SupplierDocumentVerdict.Approved &&
+                     latestVerdict.Verdict != SupplierDocumentVerdict.ApprovedWithException))
+                {
+                    allOthersApproved = false;
+                    break;
+                }
+            }
+
+            if (allOthersApproved)
+            {
+                document.Supplier.Status = SupplierStatus.Verified;
+            }
+        }
+        else if (request.Verdict == SupplierDocumentVerdict.Rejected)
+        {
+            document.Supplier.Status = SupplierStatus.Rejected;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
         return ObserveSupplierDocumentCommandHandler.ToDto(review);
     }

@@ -1,15 +1,16 @@
 import { apiFetch, ApiError } from './client.js'
-import { listarProcesos } from './comprasApi.js'
+import { listarProcesos, listarProcesosParaAuditoria } from './comprasApi.js'
 
 const DURACION_MIN = 10
 
-export async function iniciarSubasta({ tenantId, procesoId }) {
+export async function iniciarSubasta({ tenantId, procesoId, durationMinutes }) {
+  const customDuration = durationMinutes || Number(localStorage.getItem(`auction_duration_${procesoId}`)) || DURACION_MIN
   const auction = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/auction/start`, {
     method: 'POST',
     body: JSON.stringify({
       companyId: tenantId,
       purchaseProcessId: procesoId,
-      durationMinutes: DURACION_MIN,
+      durationMinutes: customDuration,
     }),
   })
 
@@ -26,6 +27,21 @@ export async function cerrarSubasta({ tenantId, procesoId }) {
 
 export async function obtenerSubastaDeProceso({ tenantId, procesoId }) {
   const auction = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/auction`)
+  return mapSubasta(auction)
+}
+
+export async function obtenerSubastaDeProcesoParaAprobacion({ tenantId, procesoId }) {
+  const auction = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/auction/approval`)
+  return mapSubasta(auction)
+}
+
+export async function obtenerSubastaDeProcesoParaAuditoria({ tenantId, procesoId }) {
+  const auction = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/auction/audit`)
+  return mapSubasta(auction)
+}
+
+export async function obtenerSubastaDeProcesoParaEvaluacion({ tenantId, procesoId }) {
+  const auction = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/auction/evaluate`)
   return mapSubasta(auction)
 }
 
@@ -52,11 +68,26 @@ export async function simularLance({ tenantId, procesoId }) {
 
 export async function listarSubastasRealizadas({ tenantId, busqueda = '', estado = '' }) {
   const procesos = await listarProcesos({ tenantId, busqueda, estado })
+  return mapSubastasDeProcesos({ tenantId, procesos, obtenerSubasta: obtenerSubastaDeProceso })
+}
+
+export async function listarSubastasRealizadasParaAuditoria({ tenantId, busqueda = '', estado = '' }) {
+  const procesos = await listarProcesosParaAuditoria({ tenantId, busqueda, estado })
+  return mapSubastasDeProcesos({
+    tenantId,
+    procesos,
+    obtenerSubasta: obtenerSubastaDeProcesoParaAuditoria,
+  })
+}
+
+async function mapSubastasDeProcesos({ tenantId, procesos, obtenerSubasta }) {
   const filas = []
 
   for (const proceso of procesos) {
+    if (!proceso.tieneSubasta) continue
+
     try {
-      const subasta = await obtenerSubastaDeProceso({ tenantId, procesoId: proceso.id })
+      const subasta = await obtenerSubasta({ tenantId, procesoId: proceso.id })
       const a = analisisSubasta(subasta)
       filas.push({
         procesoId: proceso.id,

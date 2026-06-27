@@ -1,5 +1,3 @@
-// Subasta publica anonima: seguimiento ciudadano de precio, tiempo y lances.
-
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { obtenerSubastaPublica } from '../../api/publicoApi.js'
@@ -58,25 +56,24 @@ export function SubastaPublicaPage() {
   }, [subasta])
 
   if (cargando) return <Estado texto="Cargando subasta..." />
-  if (error && !subasta) return <Alerta tipo="error" texto={error} />
+  if (error && !subasta) return <div className="alerta alerta--error">{error}</div>
 
   if (!subasta?.disponible) {
     return (
-      <section className="space-y-6">
+      <section className="flex flex--col gap-24">
         <button
-          className="rounded-md px-3 py-2 text-sm font-bold text-sky-800 transition hover:bg-white"
+          className="btn btn--texto"
+          style={{ alignSelf: 'flex-start' }}
           onClick={() => navigate('/portal')}
         >
           Volver al portal
         </button>
-        <div className="mx-auto max-w-2xl rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-            Subasta no disponible
-          </span>
-          <h1 className="mt-3 text-3xl font-black tracking-normal text-slate-950">
+        <div className="text-center" style={{ maxWidth: 560, margin: '0 auto' }}>
+          <span className="public-form__tag">Subasta no disponible</span>
+          <h1 className="public-form__title mt-8" style={{ fontSize: 30 }}>
             No hay una subasta publica activa para este proceso
           </h1>
-          <p className="mt-3 leading-7 text-slate-600">
+          <p className="public-form__desc mt-12" style={{ maxWidth: 480, margin: '12px auto 0' }}>
             Puede haber finalizado, no haber comenzado todavia o no estar publicada para
             seguimiento ciudadano.
           </p>
@@ -88,43 +85,37 @@ export function SubastaPublicaPage() {
   const cerrada = restante !== null && restante <= 0
 
   return (
-    <section className="space-y-6">
-      <div className="rounded-lg border border-sky-100 bg-sky-50/70 p-6 shadow-sm lg:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+    <section className="flex flex--col gap-24">
+      <div className="hero" style={{ padding: '24px 32px' }}>
+        <div className="flex flex--entre">
           <div>
             <button
-              className="-ml-3 rounded-md px-3 py-2 text-sm font-bold text-sky-800 transition hover:bg-white"
+              className="btn btn--texto"
               onClick={() => navigate('/portal')}
             >
               Volver al portal
             </button>
-            <span className="mt-3 block text-xs font-black uppercase tracking-[0.14em] text-teal-700">
+            <span className="hero__tag" style={{ display: 'block', marginTop: 12 }}>
               Seguimiento publico anonimo
             </span>
-            <h1 className="mt-3 max-w-4xl text-3xl font-black tracking-normal text-slate-950 lg:text-4xl">
-              <code className="rounded bg-slate-100 px-2 py-1 text-2xl text-sky-900">
-                {subasta.codigo}
-              </code>{' '}
+            <h1 className="hero__title" style={{ fontSize: 30 }}>
+              <code className="card__code">{subasta.codigo}</code>{' '}
               {subasta.titulo}
             </h1>
-            <p className="mt-3 text-base font-medium text-slate-600">{subasta.empresa}</p>
+            <p className="hero__desc">{subasta.empresa}</p>
           </div>
-          <span
-            className={`w-fit rounded-full px-3 py-1 text-sm font-black ring-1 ${
-              cerrada
-                ? 'bg-slate-100 text-slate-600 ring-slate-200'
-                : 'bg-emerald-50 text-emerald-800 ring-emerald-200'
-            }`}
-          >
+          <span className={`badge ${cerrada ? 'badge--off' : 'badge--ok'}`}>
             {cerrada ? 'Finalizada' : 'Activa'}
           </span>
         </div>
       </div>
 
-      {error && <Alerta tipo="error" texto={error} />}
-      <Alerta texto="Se muestran precios, tiempos y cantidad de lances. La identidad de los oferentes no se expone en esta etapa." />
+      {error && <div className="alerta alerta--error">{error}</div>}
+      <div className="alerta alerta--info">
+        Se muestran precios, tiempos y cantidad de lances. La identidad de los oferentes no se expone en esta etapa.
+      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="metric-grid">
         <MetricCard etiqueta="Precio actual" valor={formatearPesos(subasta.precioActual)} destacado />
         <MetricCard etiqueta="Presupuesto base" valor={formatearPesos(subasta.precioBase)} />
         <MetricCard etiqueta="Ahorro estimado" valor={formatearPesos(ahorro)} />
@@ -133,34 +124,28 @@ export function SubastaPublicaPage() {
         <MetricCard etiqueta="Actualizacion" valor={actualizando ? 'Actualizando...' : 'Automatica'} />
       </div>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
-        <div className="mb-5">
-          <h2 className="text-xl font-black text-slate-950">Resumen de la subasta</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
+      <div className="form">
+        <div className="panel-header">
+          <h2 className="panel-header__title">Resumen de la subasta</h2>
+          <p className="panel-header__desc">
             Informacion publica de referencia para el seguimiento del proceso.
           </p>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid-3">
           <TimelineItem etiqueta="Inicio" valor={formatearFechaHora(subasta.inicioEn)} />
           <TimelineItem etiqueta="Mejor precio actual" valor={formatearPesos(subasta.precioActual)} />
           <TimelineItem etiqueta="Cierre previsto" valor={formatearFechaHora(subasta.cierreEn)} />
         </div>
-      </section>
+      </div>
     </section>
   )
 }
 
 function MetricCard({ etiqueta, valor, destacado = false }) {
   return (
-    <article
-      className={`rounded-lg border p-5 shadow-sm ${
-        destacado
-          ? 'border-teal-200 bg-teal-50'
-          : 'border-slate-200 bg-white'
-      }`}
-    >
-      <span className="text-sm font-semibold text-slate-500">{etiqueta}</span>
-      <strong className={`mt-2 block text-3xl font-black ${destacado ? 'text-teal-800' : 'text-slate-950'}`}>
+    <article className={`metric-card ${destacado ? 'metric-highlight' : ''}`}>
+      <span className="metric-card__label">{etiqueta}</span>
+      <strong className={`metric-card__value ${destacado ? 'text-ok' : ''}`}>
         {valor}
       </strong>
     </article>
@@ -169,25 +154,16 @@ function MetricCard({ etiqueta, valor, destacado = false }) {
 
 function TimelineItem({ etiqueta, valor }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <span className="text-sm font-semibold text-slate-500">{etiqueta}</span>
-      <strong className="mt-1 block text-base font-black text-slate-950">{valor}</strong>
+    <div className="timeline-item">
+      <span className="timeline-item__label">{etiqueta}</span>
+      <strong className="timeline-item__value">{valor}</strong>
     </div>
   )
 }
 
-function Alerta({ texto, tipo = 'info' }) {
-  const clases =
-    tipo === 'error'
-      ? 'border-rose-200 bg-rose-50 text-rose-700'
-      : 'border-sky-200 bg-sky-50 text-sky-800'
-
-  return <div className={`rounded-md border px-4 py-3 text-sm font-semibold ${clases}`}>{texto}</div>
-}
-
 function Estado({ texto }) {
   return (
-    <p className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-semibold text-slate-500">
+    <p className="empty-state" style={{ padding: 32 }}>
       {texto}
     </p>
   )

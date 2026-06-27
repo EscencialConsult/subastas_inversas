@@ -30,6 +30,15 @@ public class GetPurchaseProcessByIdQueryHandler : IRequestHandler<GetPurchasePro
             .Include(p => p.PurchaseOrders).ThenInclude(o => o.Receptions).ThenInclude(r => r.Items).ThenInclude(i => i.PurchaseItem)
             .FirstOrDefaultAsync(p => p.Id == request.Id && p.CompanyId == request.CompanyId, cancellationToken);
 
-        return process == null ? null : PurchaseProcessMapping.ToDto(process);
+        if (process == null)
+        {
+            return null;
+        }
+
+        var dto = PurchaseProcessMapping.ToDto(process);
+        dto.HasAuction = await _context.Auctions
+            .AnyAsync(a => a.PurchaseProcessId == process.Id, cancellationToken);
+
+        return dto;
     }
 }

@@ -1,11 +1,16 @@
-// Listado para la AUTORIDAD: adjudicaciones propuestas por el comprador,
-// esperando aprobación.
+// Listado para la Autoridad: permite revisar adjudicaciones pendientes y consultar las resueltas.
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { listarProcesos } from '../../api/comprasApi.js'
-import { ESTADO_PROCESO } from '../../domain/compras.js'
+import { listarProcesosParaAprobacion } from '../../api/comprasApi.js'
+import { ESTADO_PROCESO, claseEstado, etiquetaEstado } from '../../domain/compras.js'
+
+const FILTROS = {
+  pendientes: ESTADO_PROCESO.ADJUDICADA,
+  aprobadas: ESTADO_PROCESO.APROBADA,
+  todas: '',
+}
 
 export function AdjudicacionesListPage() {
   const { tenantId } = useAuth()
@@ -14,16 +19,17 @@ export function AdjudicacionesListPage() {
   const [procesos, setProcesos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+  const [filtro, setFiltro] = useState('pendientes')
 
   async function cargar() {
     setCargando(true)
     setError('')
     try {
-      const lista = await listarProcesos({
+      const lista = await listarProcesosParaAprobacion({
         tenantId,
-        estado: ESTADO_PROCESO.ADJUDICADA,
+        estado: FILTROS[filtro],
       })
-      setProcesos(lista)
+      setProcesos(lista.filter((p) => p.estado === ESTADO_PROCESO.ADJUDICADA || p.estado === ESTADO_PROCESO.APROBADA))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -35,29 +41,38 @@ export function AdjudicacionesListPage() {
     const t = setTimeout(cargar, 0)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId])
+  }, [tenantId, filtro])
 
   return (
     <section>
       <div className="encabezado">
-        <h1>Aprobación de adjudicaciones</h1>
+        <h1>Adjudicaciones</h1>
+      </div>
+
+      <div className="filtros">
+        <select value={filtro} onChange={(e) => setFiltro(e.target.value)}>
+          <option value="pendientes">Pendientes</option>
+          <option value="aprobadas">Aprobadas</option>
+          <option value="todas">Todas</option>
+        </select>
       </div>
 
       {error && <div className="alerta alerta--error">{error}</div>}
 
       {cargando ? (
-        <p className="estado-cargando">Cargando…</p>
+        <p className="estado-cargando">Cargando...</p>
       ) : procesos.length === 0 ? (
         <div className="estado-vacio">
-          <p>No hay adjudicaciones pendientes de aprobación.</p>
+          <p>No hay adjudicaciones para el filtro seleccionado.</p>
         </div>
       ) : (
         <table className="tabla">
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Título</th>
+              <th>Codigo</th>
+              <th>Titulo</th>
               <th>Proveedor adjudicado</th>
+              <th>Estado</th>
               <th></th>
             </tr>
           </thead>
@@ -68,13 +83,18 @@ export function AdjudicacionesListPage() {
                   <code>{p.codigo}</code>
                 </td>
                 <td>{p.titulo}</td>
-                <td>{p.adjudicacion?.proveedor ?? '—'}</td>
+                <td>{p.adjudicacion?.proveedor ?? '-'}</td>
+                <td>
+                  <span className={`badge ${claseEstado(p.estado)}`}>
+                    {etiquetaEstado(p.estado)}
+                  </span>
+                </td>
                 <td className="tabla__acciones">
                   <button
                     className="btn btn--texto"
                     onClick={() => navigate(`/adjudicaciones/${p.id}`)}
                   >
-                    Revisar
+                    {p.estado === ESTADO_PROCESO.ADJUDICADA ? 'Revisar' : 'Ver'}
                   </button>
                 </td>
               </tr>

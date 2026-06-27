@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
@@ -33,6 +35,24 @@ public class PublishPurchaseProcessCommandHandler : IRequestHandler<PublishPurch
         {
             throw new InvalidOperationException("Solo se puede publicar un proceso en borrador.");
         }
+
+        // Calcular hash de especificaciones
+        var specLines = new List<string>
+        {
+            process.Title,
+            process.Description,
+            process.EstimatedBudget.ToString("G", System.Globalization.CultureInfo.InvariantCulture)
+        };
+        foreach (var item in process.Items.OrderBy(i => i.Description).ThenBy(i => i.Quantity))
+        {
+            specLines.Add(item.Description);
+            specLines.Add(item.Quantity.ToString("G", System.Globalization.CultureInfo.InvariantCulture));
+            specLines.Add(item.Unit);
+            specLines.Add(item.EstimatedUnitPrice?.ToString("G", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty);
+        }
+        var material = string.Join("|", specLines);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(material));
+        process.SpecificationsHash = Convert.ToHexString(bytes).ToLowerInvariant();
 
         var workflow = await ApprovalWorkflowRules.FindWorkflowForAmount(
             _context,

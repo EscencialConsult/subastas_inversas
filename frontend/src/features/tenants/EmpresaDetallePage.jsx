@@ -7,6 +7,13 @@ import { obtenerDetalleEmpresa } from '../../api/tenantsApi.js'
 import { resetPassword } from '../../api/authApi.js'
 import { etiquetaRol } from '../../domain/roles.js'
 
+function generarPass() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let pass = ''
+  for (let i = 0; i < 12; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length))
+  return pass + 'Aa1!'
+}
+
 export function EmpresaDetallePage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -25,13 +32,6 @@ export function EmpresaDetallePage() {
     }, 0)
     return () => clearTimeout(t)
   }, [id])
-
-  function generarPass() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    let pass = ''
-    for (let i = 0; i < 12; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length))
-    return pass + 'Aa1!'
-  }
 
   async function manejarResetPass(usuario) {
     try {

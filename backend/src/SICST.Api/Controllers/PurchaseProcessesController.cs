@@ -48,6 +48,94 @@ public class PurchaseProcessesController : ControllerBase
         return Ok(process);
     }
 
+    [HttpGet("approvals")]
+    [Authorize(Policy = PermissionCodes.PurchasesApprove)]
+    public async Task<ActionResult<PagedResult<PurchaseProcessDto>>> GetPendingApprovals(
+        Guid companyId,
+        [FromQuery] string? search,
+        [FromQuery] PurchaseProcessStatus? status,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var processes = await _sender.Send(new GetPurchaseProcessesQuery(companyId, search, status, pageNumber, pageSize));
+        return Ok(processes);
+    }
+
+    [HttpGet("{id:guid}/approval")]
+    [Authorize(Policy = PermissionCodes.PurchasesApprove)]
+    public async Task<ActionResult<PurchaseProcessDto>> GetApprovalById(Guid companyId, Guid id)
+    {
+        var process = await _sender.Send(new GetPurchaseProcessByIdQuery(companyId, id));
+        if (process == null)
+        {
+            return NotFound(new { message = "Proceso de compra no encontrado." });
+        }
+
+        return Ok(process);
+    }
+
+    [HttpGet("audit")]
+    [Authorize(Policy = PermissionCodes.AuditRead)]
+    public async Task<ActionResult<PagedResult<PurchaseProcessDto>>> GetForAudit(
+        Guid companyId,
+        [FromQuery] string? search,
+        [FromQuery] PurchaseProcessStatus? status,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var processes = await _sender.Send(new GetPurchaseProcessesQuery(companyId, search, status, pageNumber, pageSize));
+        return Ok(processes);
+    }
+
+    [HttpGet("{id:guid}/audit")]
+    [Authorize(Policy = PermissionCodes.AuditRead)]
+    public async Task<ActionResult<PurchaseProcessDto>> GetAuditById(Guid companyId, Guid id)
+    {
+        var process = await _sender.Send(new GetPurchaseProcessByIdQuery(companyId, id));
+        if (process == null)
+        {
+            return NotFound(new { message = "Proceso de compra no encontrado." });
+        }
+
+        return Ok(process);
+    }
+
+    [HttpGet("qualification")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<List<PurchaseProcessDto>>> GetForQualification(
+        Guid companyId,
+        [FromQuery] string? search)
+    {
+        var processes = await _sender.Send(new GetProcessesForQualificationQuery(companyId, search));
+        return Ok(processes);
+    }
+
+    [HttpGet("evaluate")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<PagedResult<PurchaseProcessDto>>> GetForEvaluation(
+        Guid companyId,
+        [FromQuery] string? search,
+        [FromQuery] PurchaseProcessStatus? status,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50)
+    {
+        var processes = await _sender.Send(new GetPurchaseProcessesQuery(companyId, search, status, pageNumber, pageSize));
+        return Ok(processes);
+    }
+
+    [HttpGet("{id:guid}/evaluate")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<PurchaseProcessDto>> GetEvaluationById(Guid companyId, Guid id)
+    {
+        var process = await _sender.Send(new GetPurchaseProcessByIdQuery(companyId, id));
+        if (process == null)
+        {
+            return NotFound(new { message = "Proceso de compra no encontrado." });
+        }
+
+        return Ok(process);
+    }
+
     [HttpPost]
     [Authorize(Policy = PermissionCodes.PurchasesManage)]
     public async Task<ActionResult<PurchaseProcessDto>> Create(Guid companyId, [FromBody] CreatePurchaseProcessCommand command)
@@ -148,6 +236,21 @@ public class PurchaseProcessesController : ControllerBase
         }
     }
 
+    [HttpGet("{id:guid}/invitations/audit")]
+    [Authorize(Policy = PermissionCodes.AuditRead)]
+    public async Task<ActionResult<List<InvitationDto>>> GetInvitationsAudit(Guid companyId, Guid id)
+    {
+        try
+        {
+            var invitations = await _sender.Send(new GetInvitationsByProcessQuery(companyId, id));
+            return Ok(invitations);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("{id:guid}/invitations")]
     [Authorize(Policy = PermissionCodes.PurchasesManage)]
     public async Task<ActionResult<InvitationDto>> InviteSupplier(Guid companyId, Guid id, [FromBody] InviteSupplierCommand command)
@@ -161,6 +264,52 @@ public class PurchaseProcessesController : ControllerBase
         {
             var invitation = await _sender.Send(command);
             return Ok(invitation);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/suppliers")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<List<QualificationSupplierDto>>> GetSuppliers(Guid companyId, Guid id)
+    {
+        try
+        {
+            var suppliers = await _sender.Send(new GetProcessSuppliersQuery(companyId, id));
+            return Ok(suppliers);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/invitations/{invId:guid}/qualify")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<QualificationSupplierDto>> QualifySupplier(
+        Guid companyId, Guid id, Guid invId,
+        [FromBody] QualifySupplierRequest request)
+    {
+        try
+        {
+            if (!Enum.TryParse<QualificationStatus>(request.QualificationStatus, out var status))
+            {
+                return BadRequest(new { message = "Estado de calificación inválido. Use: Approved, Observed o Rejected." });
+            }
+
+            var result = await _sender.Send(new QualifySupplierCommand
+            {
+                CompanyId = companyId,
+                PurchaseProcessId = id,
+                InvitationId = invId,
+                EvaluatorId = request.EvaluatorId,
+                QualificationStatus = status,
+                Notes = request.Notes
+            });
+
+            return Ok(result);
         }
         catch (InvalidOperationException ex)
         {
@@ -206,6 +355,104 @@ public class PurchaseProcessesController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpGet("{id:guid}/evaluation-criteria")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<List<EvaluationCriterionDto>>> GetEvaluationCriteria(Guid companyId, Guid id)
+    {
+        var criteria = await _sender.Send(new GetEvaluationCriteriaQuery(companyId, id));
+        return Ok(criteria);
+    }
+
+    [HttpGet("{id:guid}/evaluation-criteria/evaluate")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<List<EvaluationCriterionDto>>> GetEvaluationCriteriaForEvaluator(Guid companyId, Guid id)
+    {
+        var criteria = await _sender.Send(new GetEvaluationCriteriaQuery(companyId, id));
+        return Ok(criteria);
+    }
+
+    [HttpPut("{id:guid}/evaluation-criteria")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<List<EvaluationCriterionDto>>> SaveEvaluationCriteria(
+        Guid companyId, Guid id,
+        [FromBody] SaveEvaluationCriteriaRequest request)
+    {
+        try
+        {
+            var criteria = await _sender.Send(new SaveEvaluationCriteriaCommand(companyId, id, request.UserId, request.Criteria));
+            return Ok(criteria);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("{id:guid}/evaluation-criteria/evaluate")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<List<EvaluationCriterionDto>>> SaveEvaluationCriteriaForEvaluator(
+        Guid companyId, Guid id,
+        [FromBody] SaveEvaluationCriteriaRequest request)
+    {
+        try
+        {
+            var criteria = await _sender.Send(new SaveEvaluationCriteriaCommand(companyId, id, request.UserId, request.Criteria));
+            return Ok(criteria);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/evaluate-suppliers")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<EvaluationResultsDto>> EvaluateSuppliers(
+        Guid companyId, Guid id,
+        [FromBody] EvaluateSuppliersRequest request)
+    {
+        try
+        {
+            var results = await _sender.Send(new SaveSupplierEvaluationsCommand(
+                companyId, id, request.EvaluatorId, request.SupplierEvaluations));
+            return Ok(results);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/evaluation-results")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<EvaluationResultsDto>> GetEvaluationResults(Guid companyId, Guid id)
+    {
+        var results = await _sender.Send(new GetEvaluationResultsQuery(companyId, id));
+        if (results == null)
+            return NotFound(new { message = "No se encontraron resultados de evaluación para este proceso." });
+        return Ok(results);
+    }
+
+    [HttpGet("{id:guid}/evaluation-results/evaluate")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<EvaluationResultsDto>> GetEvaluationResultsForEvaluator(Guid companyId, Guid id)
+    {
+        var results = await _sender.Send(new GetEvaluationResultsQuery(companyId, id));
+        if (results == null)
+            return NotFound(new { message = "No se encontraron resultados de evaluación para este proceso." });
+        return Ok(results);
+    }
+
+    [HttpGet("{id:guid}/evaluation-results/audit")]
+    [Authorize(Policy = PermissionCodes.AuditRead)]
+    public async Task<ActionResult<EvaluationResultsDto>> GetEvaluationResultsForAudit(Guid companyId, Guid id)
+    {
+        var results = await _sender.Send(new GetEvaluationResultsQuery(companyId, id));
+        if (results == null)
+            return NotFound(new { message = "No se encontraron resultados de evaluación para este proceso." });
+        return Ok(results);
     }
 
     [HttpPost("{id:guid}/evaluate")]
@@ -443,3 +690,6 @@ public record ApproveRequest(Guid ApproverId);
 public record RejectRequest(Guid ApproverId, string Motivo);
 public record EvaluateRequest(Guid EvaluadorId, string RecomendadoProveedor, string Observaciones);
 public record AdjudicateRequest(Guid AprobadorId, List<AwardSelectionInputDto>? Awards = null);
+public record SaveEvaluationCriteriaRequest(Guid UserId, List<SaveEvaluationCriteriaItemDto> Criteria);
+public record EvaluateSuppliersRequest(Guid EvaluatorId, List<SaveSupplierEvaluationInputDto> SupplierEvaluations);
+public record QualifySupplierRequest(Guid EvaluatorId, string QualificationStatus, string? Notes);

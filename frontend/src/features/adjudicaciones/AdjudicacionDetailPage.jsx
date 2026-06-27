@@ -5,11 +5,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import {
-  obtenerProceso,
+  obtenerProcesoParaAprobacion,
   aprobarAdjudicacion,
   rechazarAdjudicacion,
 } from '../../api/comprasApi.js'
-import { obtenerSubastaDeProceso, analisisSubasta } from '../../api/subastasApi.js'
+import { obtenerSubastaDeProcesoParaAprobacion, analisisSubasta } from '../../api/subastasApi.js'
 import { ESTADO_PROCESO } from '../../domain/compras.js'
 
 export function AdjudicacionDetailPage() {
@@ -29,13 +29,17 @@ export function AdjudicacionDetailPage() {
 
   async function cargar() {
     try {
-      const [p, s] = await Promise.all([
-        obtenerProceso({ tenantId, id }),
-        obtenerSubastaDeProceso({ tenantId, procesoId: id }),
-      ])
+      const p = await obtenerProcesoParaAprobacion({ tenantId, id })
       setProceso(p)
-      setSubasta(s)
-      setOfertas([...s.lances].sort((a, b) => a.monto - b.monto))
+
+      if (p.tieneSubasta) {
+        const s = await obtenerSubastaDeProcesoParaAprobacion({ tenantId, procesoId: id })
+        setSubasta(s)
+        setOfertas([...s.lances].sort((a, b) => a.monto - b.monto))
+      } else {
+        setSubasta(null)
+        setOfertas([])
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -82,8 +86,7 @@ export function AdjudicacionDetailPage() {
 
   const analisis = subasta ? analisisSubasta(subasta) : null
   const masBaja = ofertas[0] ?? null
-  const adjudicaNoEsLaMasBaja =
-    adjudicado && masBaja && adjudicado !== masBaja.proveedor
+  const adjudicaNoEsLaMasBaja = adj && masBaja && !esOfertaAdjudicada(masBaja, adj)
 
   return (
     <section className="form-pagina">
@@ -146,7 +149,7 @@ export function AdjudicacionDetailPage() {
                 <td>{formatearPesos(o.monto)}</td>
                 <td className="tabla__acciones">
                   {i === 0 && <span className="badge badge--off">Más baja</span>}
-                  {o.proveedor === adjudicado && (
+                  {esOfertaAdjudicada(o, adj) && (
                     <span className="badge badge--ok">Adjudicado</span>
                   )}
                 </td>
@@ -208,6 +211,12 @@ export function AdjudicacionDetailPage() {
       </div>
     </section>
   )
+}
+
+function esOfertaAdjudicada(oferta, adjudicacion) {
+  if (!oferta || !adjudicacion) return false
+
+  return oferta.proveedor === adjudicacion.proveedor && Number(oferta.monto) === Number(adjudicacion.monto)
 }
 
 function formatearPesos(monto) {

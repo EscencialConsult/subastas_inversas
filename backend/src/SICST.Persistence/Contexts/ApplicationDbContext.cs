@@ -57,6 +57,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems => Set<ReceptionConfirmationItem>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<AccessLog> AccessLogs => Set<AccessLog>();
+    public DbSet<EvaluationCriterion> EvaluationCriteria => Set<EvaluationCriterion>();
+    public DbSet<SupplierEvaluation> SupplierEvaluations => Set<SupplierEvaluation>();
+    public DbSet<SupplierCriterionResult> SupplierCriterionResults => Set<SupplierCriterionResult>();
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -354,6 +357,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.EstimatedBudget).HasPrecision(18, 2);
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.Property(e => e.SpecificationsHash).HasMaxLength(64);
 
             entity.HasOne(e => e.Company)
                 .WithMany()
@@ -391,6 +395,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.HasIndex(e => new { e.PurchaseProcessId, e.SupplierId }).IsUnique();
             entity.Property(e => e.Status).IsRequired();
             entity.Property(e => e.InvitedAtUtc).IsRequired();
+            entity.Property(e => e.RejectionReason).HasMaxLength(500);
+            entity.Property(e => e.QualificationNotes).HasMaxLength(1000);
 
             entity.HasOne(e => e.PurchaseProcess)
                 .WithMany()
@@ -401,6 +407,11 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .WithMany()
                 .HasForeignKey(e => e.SupplierId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.QualifiedBy)
+                .WithMany()
+                .HasForeignKey(e => e.QualifiedById)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Auction>(entity =>
@@ -696,6 +707,70 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.IpAddress).HasMaxLength(80);
             entity.Property(e => e.UserAgent).HasMaxLength(500);
             entity.Property(e => e.OccurredAtUtc).IsRequired();
+        });
+
+        modelBuilder.Entity<EvaluationCriterion>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.PurchaseProcessId, e.Name }).IsUnique();
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            entity.Property(e => e.Type).IsRequired();
+            entity.Property(e => e.Weight).HasPrecision(5, 2);
+            entity.Property(e => e.SortOrder).IsRequired();
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+
+            entity.HasOne(e => e.PurchaseProcess)
+                .WithMany(p => p.EvaluationCriteria)
+                .HasForeignKey(e => e.PurchaseProcessId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.CreatedBy)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedById)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SupplierEvaluation>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.PurchaseProcessId, e.SupplierId }).IsUnique();
+            entity.Property(e => e.TotalWeightedScore).HasPrecision(5, 2);
+            entity.Property(e => e.ExcludedReason).HasMaxLength(500);
+            entity.Property(e => e.EvaluatedAtUtc).IsRequired();
+
+            entity.HasOne(e => e.PurchaseProcess)
+                .WithMany(p => p.SupplierEvaluations)
+                .HasForeignKey(e => e.PurchaseProcessId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Supplier)
+                .WithMany()
+                .HasForeignKey(e => e.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.EvaluatedBy)
+                .WithMany()
+                .HasForeignKey(e => e.EvaluatedById)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SupplierCriterionResult>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.SupplierEvaluationId, e.EvaluationCriterionId }).IsUnique();
+            entity.Property(e => e.Score).HasPrecision(5, 2);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+
+            entity.HasOne(e => e.SupplierEvaluation)
+                .WithMany(e => e.CriterionResults)
+                .HasForeignKey(e => e.SupplierEvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.EvaluationCriterion)
+                .WithMany()
+                .HasForeignKey(e => e.EvaluationCriterionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Configuración de Filtros Globales Multiempresa

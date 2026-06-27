@@ -110,11 +110,6 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
             throw new InvalidOperationException("El CUIT no tiene un formato valido.");
         }
 
-        if (!IsValidCuit(request.Cuit.Trim()))
-        {
-            throw new InvalidOperationException("El CUIT no es valido (digito verificador incorrecto).");
-        }
-
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
         {
             throw new InvalidOperationException("El email no tiene un formato valido.");
@@ -149,7 +144,7 @@ public class RegisterSupplierCommandHandler : IRequestHandler<RegisterSupplierCo
 
     private static bool MockArcaVerification(string cuit)
     {
-        return !cuit.EndsWith("-0", StringComparison.Ordinal);
+        return IsValidCuit(cuit) && !cuit.EndsWith("-0", StringComparison.Ordinal);
     }
 
     private static bool IsValidCuit(string cuit)

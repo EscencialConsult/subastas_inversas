@@ -39,7 +39,8 @@ public class GetInvitationsBySupplierQueryHandler : IRequestHandler<GetInvitatio
                 SupplierBusinessName = i.Supplier.BusinessName,
                 SupplierCuit = i.Supplier.Cuit,
                 ProcessTitle = i.PurchaseProcess.Title,
-                ProcessCode = i.PurchaseProcess.Code
+                ProcessCode = i.PurchaseProcess.Code,
+                RejectionReason = i.RejectionReason
             })
             .ToListAsync(cancellationToken);
     }

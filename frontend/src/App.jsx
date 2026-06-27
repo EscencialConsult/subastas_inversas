@@ -13,6 +13,7 @@ import {
   puedeSupervisar,
   puedeVerProveedores,
   tienePanel,
+  puedeEvaluar,
 } from './auth/permisos.js'
 import { Layout } from './components/Layout.jsx'
 import { LoginPage } from './features/auth/LoginPage.jsx'
@@ -25,6 +26,7 @@ import { PerfilPage } from './features/perfil/PerfilPage.jsx'
 import { PanelPage } from './features/dashboard/PanelPage.jsx'
 import { RegistroProveedorPage } from './features/proveedor/RegistroProveedorPage.jsx'
 import { ProveedorHomePage } from './features/proveedor/ProveedorHomePage.jsx'
+import { ProveedorOportunidadesPage } from './features/proveedor/ProveedorOportunidadesPage.jsx'
 import { PortalLayout } from './features/publico/PortalLayout.jsx'
 import { PortalPublicoPage } from './features/publico/PortalPublicoPage.jsx'
 import { SubastaPublicaPage } from './features/publico/SubastaPublicaPage.jsx'
@@ -33,6 +35,12 @@ import { ProcesoFormPage } from './features/compras/ProcesoFormPage.jsx'
 import { AdjudicarPage } from './features/compras/AdjudicarPage.jsx'
 import { ComprasRealizadasPage } from './features/compras/ComprasRealizadasPage.jsx'
 import { ProveedoresDirectorioPage } from './features/proveedor/ProveedoresDirectorioPage.jsx'
+import { EvaluacionProveedoresPage } from './features/proveedor/EvaluacionProveedoresPage.jsx'
+import { EvaluacionListPage } from './features/evaluacion/EvaluacionListPage.jsx'
+import { EvaluacionProcesoPage } from './features/evaluacion/EvaluacionProcesoPage.jsx'
+import { CalificacionListPage } from './features/calificacion/CalificacionListPage.jsx'
+import { CalificacionProcesoPage } from './features/calificacion/CalificacionProcesoPage.jsx'
+import { CalificacionProveedorPage } from './features/calificacion/CalificacionProveedorPage.jsx'
 import { SubastaPage } from './features/subasta/SubastaPage.jsx'
 import { SubastasRealizadasPage } from './features/subasta/SubastasRealizadasPage.jsx'
 import { AdjudicacionesListPage } from './features/adjudicaciones/AdjudicacionesListPage.jsx'
@@ -93,6 +101,68 @@ export default function App() {
               element={
                 <RutaProtegida permiso={esProveedor}>
                   <ProveedorHomePage />
+                </RutaProtegida>
+              }
+            />
+            <Route
+              path="proveedor/oportunidades"
+              element={
+                <RutaProtegida permiso={esProveedor}>
+                  <ProveedorOportunidadesPage />
+                </RutaProtegida>
+              }
+            />
+
+            {/* --- Evaluación de proveedores (Evaluador) --- */}
+            <Route
+              path="evaluacion-proveedores"
+              element={
+                <RutaProtegida permiso={puedeEvaluar}>
+                  <EvaluacionProveedoresPage />
+                </RutaProtegida>
+              }
+            />
+
+            {/* --- Evaluación de procesos con criterios (Evaluador) --- */}
+            <Route
+              path="evaluacion"
+              element={
+                <RutaProtegida permiso={puedeEvaluar}>
+                  <EvaluacionListPage />
+                </RutaProtegida>
+              }
+            />
+            <Route
+              path="evaluacion/:id"
+              element={
+                <RutaProtegida permiso={puedeEvaluar}>
+                  <EvaluacionProcesoPage />
+                </RutaProtegida>
+              }
+            />
+
+            {/* --- Calificación de proveedores (Evaluador) --- */}
+            <Route
+              path="calificacion"
+              element={
+                <RutaProtegida permiso={puedeEvaluar}>
+                  <CalificacionListPage />
+                </RutaProtegida>
+              }
+            />
+            <Route
+              path="calificacion/:id"
+              element={
+                <RutaProtegida permiso={puedeEvaluar}>
+                  <CalificacionProcesoPage />
+                </RutaProtegida>
+              }
+            />
+            <Route
+              path="calificacion/:id/:invitationId"
+              element={
+                <RutaProtegida permiso={puedeEvaluar}>
+                  <CalificacionProveedorPage />
                 </RutaProtegida>
               }
             />

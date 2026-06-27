@@ -34,6 +34,8 @@ const DICTAMEN_DOCUMENTO = {
   aprobado_con_excepcion: { texto: 'Aprobado con excepcion', clase: 'badge--warn' },
 }
 
+
+
 export function ProveedorHomePage() {
   const { usuario } = useAuth()
   const [proveedor, setProveedor] = useState(null)
@@ -58,7 +60,9 @@ export function ProveedorHomePage() {
         setCargandoDocumentos(true)
         return listarDocumentosProveedor({ proveedorId: data.id })
       })
-      .then(setDocumentos)
+      .then((documentosProveedor) => {
+        setDocumentos(documentosProveedor)
+      })
       .catch((err) => setError(err.message))
       .finally(() => {
         setCargando(false)
@@ -163,6 +167,8 @@ export function ProveedorHomePage() {
     }
   }
 
+
+
   return (
     <section className="form-pagina proveedor-home">
       <div className="encabezado">
@@ -189,6 +195,8 @@ export function ProveedorHomePage() {
           </p>
         )}
       </div>
+
+
 
       <div className="form">
         <h2 className="form__titulo">Documentacion</h2>
