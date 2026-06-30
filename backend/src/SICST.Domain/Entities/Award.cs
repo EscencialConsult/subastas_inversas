@@ -23,6 +23,10 @@ public class Award
 
     public string DocumentPath { get; set; } = string.Empty;
 
+    public string DocumentHash { get; set; } = string.Empty;
+
+    public string ImmutableHash { get; set; } = string.Empty;
+
     public Guid? DocumentTemplateId { get; set; }
     public DocumentTemplate? DocumentTemplate { get; set; }
 

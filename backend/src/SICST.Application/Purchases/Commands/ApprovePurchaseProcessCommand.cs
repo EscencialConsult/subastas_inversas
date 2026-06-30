@@ -25,6 +25,7 @@ public class ApprovePurchaseProcessCommandHandler : IRequestHandler<ApprovePurch
     {
         var process = await _context.PurchaseProcesses
             .Include(p => p.Items)
+            .Include(p => p.Awards)
             .FirstOrDefaultAsync(p => p.Id == request.Id && p.CompanyId == request.CompanyId, cancellationToken);
 
         if (process == null)
@@ -97,12 +98,25 @@ public class ApprovePurchaseProcessCommandHandler : IRequestHandler<ApprovePurch
         }
         else
         {
-            if (approver.Role != UserRole.Autoridad)
+            var adjudicatedAmount = GetAdjudicatedAmount(process);
+            var route = await ApprovalDecisionRouting.ResolveNextLevel(
+                _context,
+                request.CompanyId,
+                process.Id,
+                adjudicatedAmount,
+                cancellationToken);
+
+            approvedLevel = route.NextLevel;
+            if (route.RequiredLevelCount > 0 && approvedLevel == null)
             {
-                throw new InvalidOperationException("La aprobacion requiere rol Autoridad.");
+                throw new InvalidOperationException("El circuito ya fue aprobado.");
             }
 
-            process.Status = PurchaseProcessStatus.Approved;
+            ApprovalDecisionRouting.EnsureApproverCanAct(approver, approvedLevel);
+            process.Status = route.RequiredLevelCount == 0 ||
+                route.ApprovedLevelCount + 1 >= route.RequiredLevelCount
+                    ? PurchaseProcessStatus.Approved
+                    : PurchaseProcessStatus.Adjudicated;
         }
 
         process.RejectionReason = null;
@@ -124,5 +138,11 @@ public class ApprovePurchaseProcessCommandHandler : IRequestHandler<ApprovePurch
         await _context.SaveChangesAsync(cancellationToken);
 
         return PurchaseProcessMapping.ToDto(process);
+    }
+
+    private static decimal GetAdjudicatedAmount(PurchaseProcess process)
+    {
+        var adjudicatedAmount = process.Awards.Sum(award => award.Amount);
+        return adjudicatedAmount > 0 ? adjudicatedAmount : process.EstimatedBudget;
     }
 }

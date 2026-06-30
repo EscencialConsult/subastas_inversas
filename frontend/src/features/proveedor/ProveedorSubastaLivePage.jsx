@@ -65,10 +65,11 @@ export function ProveedorSubastaLivePage() {
         return {
           ...actual,
           precioActual: Math.min(actual.precioActual, lance.monto),
+          finISO: lance.subastaFinISO ?? actual.finISO,
           lances,
         }
       })
-      setMensaje('Nuevo lance registrado en vivo.')
+      setMensaje(bid.auctionExtended ? 'Nuevo lance registrado. El cierre fue extendido automaticamente.' : 'Nuevo lance registrado en vivo.')
     })
 
     connection.on('AuctionUpdated', (auction) => {
@@ -152,11 +153,12 @@ export function ProveedorSubastaLivePage() {
         return {
           ...actual,
           precioActual: Math.min(actual.precioActual, bid.monto),
+          finISO: bid.subastaFinISO ?? actual.finISO,
           lances,
         }
       })
       setMonto('')
-      setMensaje('Lance registrado con timestamp de servidor.')
+      setMensaje(bid.subastaExtendida ? 'Lance registrado. El cierre fue extendido automaticamente.' : 'Lance registrado con timestamp de servidor.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -281,6 +283,8 @@ function mapLanceRealtime(bid) {
     fechaServidor: bid.placedAtUtc,
     hace: formatearFecha(bid.placedAtUtc),
     isPab: Boolean(bid.isPab),
+    subastaFinISO: bid.auctionEndsAtUtc ?? null,
+    subastaExtendida: Boolean(bid.auctionExtended),
     secuencia: bid.sequenceNumber ?? 0,
     hashPrevio: bid.previousHash ?? '',
     hash: bid.hash ?? '',

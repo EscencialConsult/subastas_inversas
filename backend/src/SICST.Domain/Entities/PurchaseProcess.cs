@@ -12,7 +12,9 @@ public enum PurchaseProcessStatus
     Closed = 7,
     Contracted = 8,
     PurchaseOrderIssued = 9,
-    Received = 10
+    Received = 10,
+    Deserted = 11,
+    SuspendedByChallenge = 12
 }
 
 public class PurchaseProcess

@@ -1,4 +1,4 @@
-import { apiFetch, ApiError } from './client.js'
+import { API_URL, apiFetch, ApiError } from './client.js'
 import { listarProcesos, listarProcesosParaAuditoria } from './comprasApi.js'
 
 const ESTADOS_SUBASTA = {
@@ -166,6 +166,10 @@ function mapSubasta(auction) {
     decrementoMinimo: auction.minimumDecrementPercentage,
     inicioISO: auction.startsAtUtc,
     finISO: auction.endsAtUtc,
+    actaCierreHash: auction.closingActHash ?? null,
+    actaCierreUrl: auction.closingActUrl ? `${API_URL}${auction.closingActUrl}` : null,
+    ahorroMonto: auction.savingsAmount ?? 0,
+    ahorroPorcentaje: auction.savingsPercentage ?? 0,
     duracionMin: Math.max(
       1,
       Math.round((new Date(auction.endsAtUtc).getTime() - new Date(auction.startsAtUtc).getTime()) / 60000),
@@ -174,6 +178,16 @@ function mapSubasta(auction) {
     autoExtensionMinutes: auction.autoExtensionMinutes,
     pabThreshold: auction.pabThreshold,
     participantes: auction.participantSupplierIds ?? [],
+    cuadroComparativo: (auction.comparisonRows ?? []).map((row) => ({
+      posicion: row.position,
+      proveedorId: row.supplierId,
+      proveedor: row.supplierName,
+      mejorMonto: row.bestAmount,
+      cantidadLances: row.bidCount,
+      ultimoLanceEn: row.lastBidAtUtc,
+      ahorroMonto: row.savingsAmount,
+      ahorroPorcentaje: row.savingsPercentage,
+    })),
     lances: (auction.bids ?? []).map((bid) => ({
       id: bid.id,
       proveedorId: bid.supplierId,

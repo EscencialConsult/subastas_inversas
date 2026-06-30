@@ -13,6 +13,8 @@ const ESTADOS_BACK_TO_FRONT = {
   8: ESTADO_PROCESO.APROBADA,
   9: ESTADO_PROCESO.APROBADA,
   10: ESTADO_PROCESO.APROBADA,
+  11: ESTADO_PROCESO.DESIERTA,
+  12: ESTADO_PROCESO.SUSPENDIDA,
 
   Draft: ESTADO_PROCESO.BORRADOR,
   PendingApproval: ESTADO_PROCESO.PUBLICADO,
@@ -25,6 +27,8 @@ const ESTADOS_BACK_TO_FRONT = {
   Contracted: ESTADO_PROCESO.APROBADA,
   PurchaseOrderIssued: ESTADO_PROCESO.APROBADA,
   Received: ESTADO_PROCESO.APROBADA,
+  Deserted: ESTADO_PROCESO.DESIERTA,
+  SuspendedByChallenge: ESTADO_PROCESO.SUSPENDIDA,
 }
 
 const ESTADOS_FRONT_TO_BACK = {
@@ -35,6 +39,8 @@ const ESTADOS_FRONT_TO_BACK = {
   [ESTADO_PROCESO.ADJUDICADA]: 'Adjudicated',
   [ESTADO_PROCESO.APROBADA]: 'Contracted',
   [ESTADO_PROCESO.CANCELADA]: 'Rejected',
+  [ESTADO_PROCESO.DESIERTA]: 'Deserted',
+  [ESTADO_PROCESO.SUSPENDIDA]: 'SuspendedByChallenge',
 }
 
 export async function listarProcesos({ tenantId, busqueda = '', estado = '' }) {
@@ -157,6 +163,30 @@ export async function publicarProceso({ tenantId, id }) {
   return mapProceso(data)
 }
 
+export async function declararProcesoDesierto({ tenantId, id, operadorId, fundamento }) {
+  if (!fundamento?.trim()) {
+    throw new ApiError('Para declarar desierto hay que indicar un fundamento.', 422)
+  }
+
+  const data = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${id}/desert`, {
+    method: 'POST',
+    body: JSON.stringify({ operatorId: operadorId, fundamento }),
+  })
+  return mapProceso(data)
+}
+
+export async function suspenderProcesoPorImpugnacion({ tenantId, id, operadorId, fundamento }) {
+  if (!fundamento?.trim()) {
+    throw new ApiError('Para suspender por impugnacion hay que indicar un fundamento.', 422)
+  }
+
+  const data = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${id}/challenge/suspend`, {
+    method: 'POST',
+    body: JSON.stringify({ operatorId: operadorId, fundamento }),
+  })
+  return mapProceso(data)
+}
+
 export async function listarInvitacionesProceso({ tenantId, procesoId }) {
   const data = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/invitations`)
   return data.map(mapInvitacion)
@@ -266,6 +296,11 @@ export async function obtenerResultadosEvaluacion({ tenantId, procesoId }) {
   return mapEvaluationResults(data)
 }
 
+export async function obtenerDictamenAsistido({ tenantId, procesoId }) {
+  const data = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/award-recommendation`)
+  return mapDictamenAsistido(data)
+}
+
 export async function obtenerResultadosEvaluacionParaEvaluador({ tenantId, procesoId }) {
   const data = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${procesoId}/evaluation-results/evaluate`)
   return mapEvaluationResults(data)
@@ -320,6 +355,38 @@ function mapEvaluationResults(data) {
   }
 }
 
+function mapDictamenAsistido(data) {
+  return {
+    procesoId: data.purchaseProcessId,
+    proveedorId: data.recommendedSupplierId,
+    proveedor: data.recommendedSupplierName,
+    monto: data.recommendedAmount,
+    ahorroMonto: data.savingsAmount,
+    ahorroPorcentaje: data.savingsPercentage,
+    puntajeTecnico: data.technicalScore,
+    tieneRecomendacion: Boolean(data.hasRecommendation),
+    resumen: data.summary,
+    riesgos: (data.risks ?? []).map((risk) => ({
+      codigo: risk.code,
+      severidad: risk.severity,
+      mensaje: risk.message,
+    })),
+    candidatos: (data.candidates ?? []).map((candidate) => ({
+      posicion: candidate.position,
+      proveedorId: candidate.supplierId,
+      proveedor: candidate.supplierName,
+      monto: candidate.amount,
+      ahorroMonto: candidate.savingsAmount,
+      ahorroPorcentaje: candidate.savingsPercentage,
+      puntajeTecnico: candidate.technicalScore,
+      excluido: Boolean(candidate.isExcluded),
+      motivoExclusion: candidate.excludedReason,
+      esPab: Boolean(candidate.isPab),
+      cantidadLances: candidate.bidCount,
+    })),
+  }
+}
+
 export async function aprobarAdjudicacion({ tenantId, id, autoridadId }) {
   const data = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${id}/approve`, {
     method: 'POST',
@@ -340,9 +407,50 @@ export async function rechazarAdjudicacion({ tenantId, id, autoridadId, motivo }
   return mapProceso(data)
 }
 
+export async function devolverAdjudicacion({ tenantId, id, autoridadId, motivo }) {
+  if (!motivo?.trim()) {
+    throw new ApiError('Para devolver hay que indicar un motivo.', 422)
+  }
+
+  const data = await apiFetch(`/api/companies/${tenantId}/purchase-processes/${id}/return`, {
+    method: 'POST',
+    body: JSON.stringify({ approverId: autoridadId, motivo }),
+  })
+  return mapProceso(data)
+}
+
+export async function confirmarRecepcion({ tenantId, ordenCompraId, receptorId, estado, observaciones, items }) {
+  const itemsValidos = (items ?? [])
+    .map((item) => ({
+      purchaseItemId: item.purchaseItemId,
+      quantityReceived: Number(item.quantityReceived),
+    }))
+    .filter((item) => item.purchaseItemId && Number.isFinite(item.quantityReceived) && item.quantityReceived > 0)
+
+  if (itemsValidos.length === 0) {
+    throw new ApiError('La recepcion debe incluir al menos un item con cantidad mayor a cero.', 422)
+  }
+
+  const data = await apiFetch(`/api/companies/${tenantId}/purchase-orders/${ordenCompraId}/receptions`, {
+    method: 'POST',
+    body: JSON.stringify({
+      companyId: tenantId,
+      purchaseOrderId: ordenCompraId,
+      receivedById: receptorId,
+      status: estado,
+      observations: observaciones ?? '',
+      items: itemsValidos,
+    }),
+  })
+
+  return mapReception(data)
+}
+
 function mapProceso(p) {
   const adjudicaciones = (p.awards ?? []).map(mapAward)
   const adjudicacion = p.award ? mapAward(p.award) : (adjudicaciones[0] ?? null)
+  const ordenesCompra = (p.purchaseOrders ?? []).map(mapPurchaseOrder)
+  const ordenCompra = p.purchaseOrder ? mapPurchaseOrder(p.purchaseOrder) : (ordenesCompra[0] ?? null)
   const estado = mapEstadoProceso(p.status, adjudicaciones)
 
   return {
@@ -375,6 +483,10 @@ function mapProceso(p) {
     } : null,
     adjudicaciones,
     adjudicacion,
+    contratos: (p.contracts ?? []).map(mapContract),
+    contrato: p.contract ? mapContract(p.contract) : null,
+    ordenesCompra,
+    ordenCompra,
     aprobacion: null,
     items: p.items ?? [],
   }
@@ -391,14 +503,96 @@ function mapEstadoProceso(status, adjudicaciones = []) {
 function mapAward(award) {
   return {
     id: award.id,
+    proveedorId: award.supplierId,
     proveedor: award.proveedor,
     fecha: award.fecha,
     monto: award.monto,
     aprobadorId: award.aprobadorId,
     observaciones: award.observaciones,
     actaUrl: award.actaUrl ?? null,
+    documentHash: award.documentHash ?? '',
+    immutableHash: award.immutableHash ?? '',
     items: award.items ?? [],
   }
+}
+
+function mapContract(contract) {
+  return {
+    id: contract.id,
+    awardId: contract.awardId,
+    numero: contract.number,
+    proveedorId: contract.supplierId,
+    proveedor: contract.supplierName,
+    monto: contract.amount,
+    estado: contract.status,
+    creadoEn: contract.createdAtUtc,
+    firmadoEn: contract.signedAtUtc,
+    documentoUrl: contract.documentUrl ?? null,
+  }
+}
+
+function mapPurchaseOrder(order) {
+  return {
+    id: order.id,
+    tenantId: order.companyId,
+    procesoId: order.purchaseProcessId,
+    contratoId: order.contractId,
+    proveedorId: order.supplierId,
+    proveedor: order.supplierName,
+    numero: order.number,
+    monto: order.amount,
+    estado: mapEstadoOrdenCompra(order.status),
+    emitidaEn: order.issuedAtUtc,
+    fechaEntregaEsperada: order.expectedDeliveryDateUtc,
+    observaciones: order.observations ?? '',
+    documentoUrl: order.documentUrl ?? null,
+    recepciones: (order.receptions ?? []).map(mapReception),
+  }
+}
+
+function mapReception(reception) {
+  return {
+    id: reception.id,
+    ordenCompraId: reception.purchaseOrderId,
+    receptorId: reception.receivedById,
+    receptor: reception.receivedByName,
+    estado: mapEstadoRecepcion(reception.status),
+    recibidaEn: reception.receivedAtUtc,
+    observaciones: reception.observations ?? '',
+    documentoUrl: reception.documentUrl ?? null,
+    items: (reception.items ?? []).map((item) => ({
+      id: item.id,
+      purchaseItemId: item.purchaseItemId,
+      descripcion: item.description,
+      cantidadOrdenada: item.orderedQuantity,
+      cantidadRecibida: item.quantityReceived,
+      unidad: item.unit,
+    })),
+  }
+}
+
+function mapEstadoOrdenCompra(status) {
+  return {
+    0: 'emitida',
+    1: 'parcial',
+    2: 'recibida',
+    3: 'cancelada',
+    Issued: 'emitida',
+    PartiallyReceived: 'parcial',
+    Received: 'recibida',
+    Cancelled: 'cancelada',
+  }[status] ?? 'emitida'
+}
+
+function mapEstadoRecepcion(status) {
+  return {
+    0: 'aceptada',
+    1: 'aceptada_observaciones',
+    2: 'rechazada',
+    Accepted: 'aceptada',
+    AcceptedWithObservations: 'aceptada_observaciones',
+    Rejected: 'rechazada',
+  }[status] ?? 'aceptada'
 }
 
 function mapInvitacion(invitation) {

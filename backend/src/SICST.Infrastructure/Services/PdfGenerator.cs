@@ -5,6 +5,7 @@ using System.Linq;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using SICST.Application.Auctions;
 using SICST.Application.Common.Interfaces;
 using SICST.Domain.Entities;
 
@@ -301,6 +302,117 @@ public class PdfGenerator : IPdfGenerator
                         col.Item().Text("Observaciones").Bold();
                         col.Item().Text(reception.Observations);
                     }
+                });
+            });
+        }).GeneratePdf(fullPath);
+
+        return fullPath;
+    }
+
+    public string GenerateAuctionClosingAct(Auction auction, string hash, List<AuctionComparisonRow> comparisonRows)
+    {
+        var fullPath = CreateDocumentPath("auction-closing-acts", auction.Id);
+        var process = auction.PurchaseProcess;
+
+        Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Grey.Darken3));
+                page.Header()
+                    .Column(column =>
+                    {
+                        column.Item().Text("SISTEMA DE COMPRAS PUBLICAS Y SUBASTAS (SICST)").FontSize(10).SemiBold().FontColor(Colors.Blue.Medium);
+                        column.Item().Text("ACTA DE CIERRE DE SUBASTA").FontSize(20).Bold().FontColor(Colors.Blue.Darken2);
+                        column.Item().LineHorizontal(1).LineColor(Colors.Blue.Darken2);
+                    });
+
+                page.Content().PaddingVertical(1, Unit.Centimetre).Column(col =>
+                {
+                    col.Spacing(12);
+                    col.Item().Text("Se deja constancia del cierre de la subasta inversa y del cuadro comparativo de ofertas recibido para el proceso indicado.").Italic();
+
+                    col.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.ConstantColumn(150);
+                            columns.RelativeColumn();
+                        });
+
+                        table.Cell().PaddingBottom(4).Text("Codigo de proceso:").Bold();
+                        table.Cell().PaddingBottom(4).Text(process.Code);
+                        table.Cell().PaddingBottom(4).Text("Titulo:").Bold();
+                        table.Cell().PaddingBottom(4).Text(process.Title);
+                        table.Cell().PaddingBottom(4).Text("Presupuesto base:").Bold();
+                        table.Cell().PaddingBottom(4).Text($"{auction.BasePrice:C}");
+                        table.Cell().PaddingBottom(4).Text("Inicio de subasta:").Bold();
+                        table.Cell().PaddingBottom(4).Text($"{auction.StartsAtUtc.ToLocalTime():dd/MM/yyyy HH:mm:ss}");
+                        table.Cell().PaddingBottom(4).Text("Cierre de subasta:").Bold();
+                        table.Cell().PaddingBottom(4).Text($"{auction.ClosedAtUtc?.ToLocalTime():dd/MM/yyyy HH:mm:ss}");
+                        table.Cell().PaddingBottom(4).Text("Ahorro obtenido:").Bold();
+                        table.Cell().PaddingBottom(4).Text($"{auction.SavingsAmount:C} ({auction.SavingsPercentage:0.##}%)");
+                    });
+
+                    col.Item().Text("Cuadro comparativo").Bold().FontSize(14).FontColor(Colors.Blue.Darken1);
+                    col.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.ConstantColumn(35);
+                            columns.RelativeColumn();
+                            columns.ConstantColumn(95);
+                            columns.ConstantColumn(60);
+                            columns.ConstantColumn(95);
+                            columns.ConstantColumn(55);
+                        });
+
+                        table.Header(header =>
+                        {
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("#").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("Proveedor").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("Mejor oferta").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("Lances").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("Ahorro").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(4).Text("%").Bold();
+                        });
+
+                        foreach (var row in comparisonRows)
+                        {
+                            table.Cell().Padding(4).Text(row.Position.ToString());
+                            table.Cell().Padding(4).Text(row.SupplierName);
+                            table.Cell().Padding(4).Text($"{row.BestAmount:C}");
+                            table.Cell().Padding(4).Text(row.BidCount.ToString());
+                            table.Cell().Padding(4).Text($"{row.SavingsAmount:C}");
+                            table.Cell().Padding(4).Text($"{row.SavingsPercentage:0.##}%");
+                        }
+
+                        if (comparisonRows.Count == 0)
+                        {
+                            table.Cell().ColumnSpan(6).Padding(4).Text("No se registraron lances durante la subasta.");
+                        }
+                    });
+
+                    col.Item().PaddingTop(10).Column(auditCol =>
+                    {
+                        auditCol.Spacing(5);
+                        auditCol.Item().Text("Integridad del acta").Bold().FontSize(12);
+                        auditCol.Item().Text(t =>
+                        {
+                            t.Span("Hash SHA-256: ").Bold();
+                            t.Span(hash).FontFamily("Courier New").FontSize(9);
+                        });
+                    });
+                });
+
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    x.Span("Pagina ");
+                    x.CurrentPageNumber();
+                    x.Span(" de ");
+                    x.TotalPages();
                 });
             });
         }).GeneratePdf(fullPath);

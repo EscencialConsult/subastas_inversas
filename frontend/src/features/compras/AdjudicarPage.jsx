@@ -7,7 +7,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerProceso, adjudicarProceso, obtenerResultadosEvaluacion } from '../../api/comprasApi.js'
+import {
+  adjudicarProceso,
+  declararProcesoDesierto,
+  obtenerDictamenAsistido,
+  obtenerProceso,
+  obtenerResultadosEvaluacion,
+  suspenderProcesoPorImpugnacion,
+} from '../../api/comprasApi.js'
 import { obtenerSubastaDeProceso } from '../../api/subastasApi.js'
 
 export function AdjudicarPage() {
@@ -18,21 +25,29 @@ export function AdjudicarPage() {
   const [proceso, setProceso] = useState(null)
   const [ofertas, setOfertas] = useState([])
   const [evalResults, setEvalResults] = useState(null)
+  const [dictamen, setDictamen] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
   const [elegido, setElegido] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [accionExcepcion, setAccionExcepcion] = useState(null)
+  const [fundamento, setFundamento] = useState('')
 
   async function cargar() {
     try {
-      const [p, s] = await Promise.all([
+      const [p, s, d] = await Promise.all([
         obtenerProceso({ tenantId, id }),
         obtenerSubastaDeProceso({ tenantId, procesoId: id }),
+        obtenerDictamenAsistido({ tenantId, procesoId: id }).catch(() => null),
       ])
       setProceso(p)
+      setDictamen(d)
       const ordenadas = [...s.lances].sort((a, b) => a.monto - b.monto)
       setOfertas(ordenadas)
+      if (d?.tieneRecomendacion) {
+        setElegido(d.proveedor)
+      }
 
       try {
         const results = await obtenerResultadosEvaluacion({ tenantId, procesoId: id })
@@ -41,16 +56,16 @@ export function AdjudicarPage() {
           const recommended = results.supplierEvaluations
             .filter(e => !e.isExcluded)
             .sort((a, b) => (b.totalWeightedScore ?? 0) - (a.totalWeightedScore ?? 0))[0]
-          if (recommended) {
+          if (!d?.tieneRecomendacion && recommended) {
             setElegido(recommended.supplierName)
-          } else {
+          } else if (!d?.tieneRecomendacion) {
             setElegido(ordenadas[0]?.proveedor ?? '')
           }
         } else {
-          setElegido(ordenadas[0]?.proveedor ?? '')
+          if (!d?.tieneRecomendacion) setElegido(ordenadas[0]?.proveedor ?? '')
         }
       } catch {
-        setElegido(ordenadas[0]?.proveedor ?? '')
+        if (!d?.tieneRecomendacion) setElegido(ordenadas[0]?.proveedor ?? '')
       }
     } catch (err) {
       setError(err.message)
@@ -85,6 +100,22 @@ export function AdjudicarPage() {
     }
   }
 
+  async function confirmarExcepcion() {
+    setError('')
+    setGuardando(true)
+    try {
+      if (accionExcepcion === 'desierto') {
+        await declararProcesoDesierto({ tenantId, id, operadorId: usuario.id, fundamento })
+      } else {
+        await suspenderProcesoPorImpugnacion({ tenantId, id, operadorId: usuario.id, fundamento })
+      }
+      navigate('/compras')
+    } catch (err) {
+      setError(err.message)
+      setGuardando(false)
+    }
+  }
+
   if (cargando) return <p className="estado-cargando">Cargando…</p>
   if (!proceso) return <div className="alerta alerta--error">{error}</div>
 
@@ -102,6 +133,35 @@ export function AdjudicarPage() {
       {error && <div className="alerta alerta--error">{error}</div>}
 
       <p className="proceso__descripcion">{proceso.titulo}</p>
+
+      {dictamen && (
+        <div className="form" style={{ marginBottom: 20 }}>
+          <h2 className="form__titulo">Dictamen asistido</h2>
+          <div className="alerta alerta--info">
+            {dictamen.resumen}
+          </div>
+          {dictamen.tieneRecomendacion && (
+            <div className="subasta__panel" style={{ marginBottom: 16 }}>
+              <MetricCard etiqueta="Ganador sugerido" valor={dictamen.proveedor} />
+              <MetricCard etiqueta="Oferta sugerida" valor={formatearPesos(dictamen.monto)} destacado />
+              <MetricCard etiqueta="Ahorro" valor={`${formatearPesos(dictamen.ahorroMonto)} (${Number(dictamen.ahorroPorcentaje ?? 0).toFixed(2)}%)`} />
+              <MetricCard etiqueta="Puntaje tecnico" valor={dictamen.puntajeTecnico == null ? 'Sin puntaje' : `${dictamen.puntajeTecnico}%`} />
+            </div>
+          )}
+          <h3 className="form__subtitulo">Riesgos detectados</h3>
+          {dictamen.riesgos.length > 0 ? (
+            <div className="flex flex--col gap-8">
+              {dictamen.riesgos.map((riesgo) => (
+                <div className={`alerta ${riesgo.severidad === 'high' ? 'alerta--error' : 'alerta--info'}`} key={riesgo.codigo}>
+                  {riesgo.mensaje}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="alerta alerta--info">No se detectaron riesgos relevantes para la recomendacion.</div>
+          )}
+        </div>
+      )}
 
       {/* Panel de resultados de evaluación */}
       {evalResults && (
@@ -178,11 +238,67 @@ export function AdjudicarPage() {
         </div>
 
         <div className="form__acciones">
+          <button
+            type="button"
+            className="btn btn--texto"
+            disabled={guardando}
+            onClick={() => setAccionExcepcion('impugnacion')}
+          >
+            Suspender por impugnacion
+          </button>
+          <button
+            type="button"
+            className="btn btn--peligro"
+            disabled={guardando}
+            onClick={() => setAccionExcepcion('desierto')}
+          >
+            Declarar desierto
+          </button>
           <button type="submit" className="btn btn--primario" disabled={guardando}>
             {guardando ? 'Adjudicando…' : 'Adjudicar'}
           </button>
         </div>
       </form>
+
+      {accionExcepcion && (
+        <div className="form" style={{ marginTop: 20 }}>
+          <h2 className="form__titulo">
+            {accionExcepcion === 'desierto' ? 'Declarar desierto' : 'Suspender por impugnacion'}
+          </h2>
+          <label className="campo">
+            <span>Fundamento</span>
+            <textarea
+              rows={4}
+              value={fundamento}
+              onChange={(e) => setFundamento(e.target.value)}
+              placeholder={accionExcepcion === 'desierto'
+                ? 'Detalla por que corresponde declarar desierto el proceso...'
+                : 'Detalla la impugnacion y el motivo de suspension...'}
+            />
+          </label>
+          <div className="form__acciones">
+            <button
+              type="button"
+              className="btn btn--texto"
+              disabled={guardando}
+              onClick={() => {
+                setAccionExcepcion(null)
+                setFundamento('')
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn--peligro"
+              disabled={guardando}
+              onClick={confirmarExcepcion}
+            >
+              {guardando ? 'Procesando...' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
@@ -193,4 +309,13 @@ function formatearPesos(monto) {
     currency: 'ARS',
     maximumFractionDigits: 0,
   }).format(monto)
+}
+
+function MetricCard({ etiqueta, valor, destacado = false }) {
+  return (
+    <article className="subasta__card">
+      <span className="subasta__label">{etiqueta}</span>
+      <span className={`subasta__valor ${destacado ? 'subasta__valor--destacado' : ''}`}>{valor}</span>
+    </article>
+  )
 }

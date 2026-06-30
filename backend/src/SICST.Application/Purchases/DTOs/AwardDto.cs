@@ -14,6 +14,8 @@ public class AwardDto
     public string Observaciones { get; set; } = string.Empty;
     public string Fecha { get; set; } = string.Empty;
     public string ActaUrl { get; set; } = string.Empty;
+    public string DocumentHash { get; set; } = string.Empty;
+    public string ImmutableHash { get; set; } = string.Empty;
     public Guid? DocumentTemplateId { get; set; }
     public List<AwardItemDto> Items { get; set; } = [];
 }

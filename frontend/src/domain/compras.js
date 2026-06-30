@@ -17,6 +17,7 @@ export const ESTADO_PROCESO = {
   ADJUDICADA: 'adjudicada',
   APROBADA: 'aprobada',
   DESIERTA: 'desierta',
+  SUSPENDIDA: 'suspendida',
   CANCELADA: 'cancelada',
 }
 
@@ -32,6 +33,7 @@ export const ESTADO_INFO = {
   },
   [ESTADO_PROCESO.APROBADA]: { label: 'Aprobada', clase: 'badge--ok' },
   [ESTADO_PROCESO.DESIERTA]: { label: 'Desierta', clase: 'badge--off' },
+  [ESTADO_PROCESO.SUSPENDIDA]: { label: 'Suspendida por impugnacion', clase: 'badge--warn' },
   [ESTADO_PROCESO.CANCELADA]: { label: 'Cancelada', clase: 'badge--off' },
 }
 

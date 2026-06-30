@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SICST.Application.Auctions;
 using SICST.Domain.Entities;
 
 namespace SICST.Application.Common.Interfaces;
@@ -10,4 +11,5 @@ public interface IPdfGenerator
     string GeneratePurchaseOrder(PurchaseProcess process, PurchaseOrder order, Supplier supplier, DocumentTemplate? template = null);
     string GenerateReceptionConfirmation(PurchaseOrder order, ReceptionConfirmation reception);
     string GenerateEvaluationAct(PurchaseProcess process, List<Invitation> invitations, User evaluator, string hash, string signature, byte[]? signatureImageBytes);
+    string GenerateAuctionClosingAct(Auction auction, string hash, List<AuctionComparisonRow> comparisonRows);
 }

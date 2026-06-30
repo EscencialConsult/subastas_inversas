@@ -159,7 +159,61 @@ export function SubastaPage() {
           <span className="texto-muted" style={{ fontWeight: '600' }}>Inicio: </span>
           <strong>{new Date(subasta.inicioISO).toLocaleString()}</strong>
         </div>
+        {subasta.actaCierreHash && (
+          <>
+            <div style={{ height: '16px', borderLeft: '1px solid #cbd5e1' }} />
+            <div>
+              <span className="texto-muted" style={{ fontWeight: '600' }}>Hash acta cierre: </span>
+              <code title={subasta.actaCierreHash}>{subasta.actaCierreHash.slice(0, 12)}...</code>
+            </div>
+          </>
+        )}
       </div>
+
+      {cerrada && (
+        <div className="form">
+          <div className="encabezado">
+            <div>
+              <h2 className="form__titulo">Acta de cierre y cuadro comparativo</h2>
+              <p className="form__seccion-ayuda">
+                Ahorro obtenido: {formatearPesos(subasta.ahorroMonto)} ({Number(subasta.ahorroPorcentaje ?? 0).toFixed(2)}%)
+              </p>
+            </div>
+            {subasta.actaCierreUrl && (
+              <a className="btn btn--primario" href={subasta.actaCierreUrl} target="_blank" rel="noreferrer">
+                Descargar acta
+              </a>
+            )}
+          </div>
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Proveedor</th>
+                <th>Mejor oferta</th>
+                <th>Lances</th>
+                <th>Ahorro</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(subasta.cuadroComparativo ?? []).map((fila) => (
+                <tr key={fila.proveedorId}>
+                  <td>{fila.posicion}</td>
+                  <td>{fila.proveedor}</td>
+                  <td>{formatearPesos(fila.mejorMonto)}</td>
+                  <td>{fila.cantidadLances}</td>
+                  <td>{formatearPesos(fila.ahorroMonto)} ({Number(fila.ahorroPorcentaje ?? 0).toFixed(2)}%)</td>
+                </tr>
+              ))}
+              {(subasta.cuadroComparativo ?? []).length === 0 && (
+                <tr>
+                  <td colSpan="5">No se registraron lances para comparar.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="encabezado">
         <h2 className="form__titulo">Lances ({subasta.lances.length})</h2>

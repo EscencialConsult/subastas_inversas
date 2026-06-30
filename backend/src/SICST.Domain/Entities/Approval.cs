@@ -5,7 +5,8 @@ namespace SICST.Domain.Entities;
 public enum ApprovalStatus
 {
     Approved,
-    Rejected
+    Rejected,
+    Returned
 }
 
 public class Approval

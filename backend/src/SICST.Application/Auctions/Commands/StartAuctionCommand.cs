@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Auctions.DTOs;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Public;
 using SICST.Domain.Entities;
 
 namespace SICST.Application.Auctions.Commands;
@@ -22,11 +23,16 @@ public class StartAuctionCommandHandler : IRequestHandler<StartAuctionCommand, A
 {
     private readonly IApplicationDbContext _context;
     private readonly IAuctionStateCache _cache;
+    private readonly IPublicAuctionSnapshotCache? _publicSnapshotCache;
 
-    public StartAuctionCommandHandler(IApplicationDbContext context, IAuctionStateCache cache)
+    public StartAuctionCommandHandler(
+        IApplicationDbContext context,
+        IAuctionStateCache cache,
+        IPublicAuctionSnapshotCache? publicSnapshotCache = null)
     {
         _context = context;
         _cache = cache;
+        _publicSnapshotCache = publicSnapshotCache;
     }
 
     public async Task<AuctionDto> Handle(StartAuctionCommand request, CancellationToken cancellationToken)
@@ -37,6 +43,7 @@ public class StartAuctionCommandHandler : IRequestHandler<StartAuctionCommand, A
         }
 
         var process = await _context.PurchaseProcesses
+            .Include(p => p.Company)
             .FirstOrDefaultAsync(p => p.Id == request.PurchaseProcessId && p.CompanyId == request.CompanyId, cancellationToken);
 
         if (process == null)
@@ -61,6 +68,7 @@ public class StartAuctionCommandHandler : IRequestHandler<StartAuctionCommand, A
         }
 
         var invitations = await _context.Invitations
+            .Include(i => i.Supplier)
             .Where(i => i.PurchaseProcessId == request.PurchaseProcessId
                 && i.Status == Domain.Entities.InvitationStatus.Accepted
                 && i.QualificationStatus == Domain.Entities.QualificationStatus.Approved)
@@ -115,19 +123,29 @@ public class StartAuctionCommandHandler : IRequestHandler<StartAuctionCommand, A
             EndsAtUtc = endsAt,
             AutoExtensionMinutes = autoExtension,
             PabThreshold = request.PabThreshold,
+            PurchaseProcess = process,
             Participants = invitations.Select(i => new AuctionParticipant
             {
                 Id = Guid.NewGuid(),
                 SupplierId = i.SupplierId,
+                Supplier = i.Supplier,
                 Active = true,
                 JoinedAtUtc = startsAt
             }).ToList()
         };
 
-        process.Status = PurchaseProcessStatus.InAuction;
+        if (status == AuctionStatus.Open)
+        {
+            process.Status = PurchaseProcessStatus.InAuction;
+        }
+
         _context.Auctions.Add(auction);
         await _context.SaveChangesAsync(cancellationToken);
         await _cache.SetAsync(new AuctionState(auction.Id, auction.BasePrice, auction.EndsAtUtc, status == AuctionStatus.Open), cancellationToken);
+        if (_publicSnapshotCache != null)
+        {
+            await _publicSnapshotCache.SetAsync(PublicAuctionSnapshotMapping.ToSnapshot(auction), cancellationToken);
+        }
 
         return AuctionMapping.ToDto(auction);
     }

@@ -14,8 +14,13 @@ public class AuctionDto
     public DateTime StartsAtUtc { get; set; }
     public DateTime EndsAtUtc { get; set; }
     public DateTime? ClosedAtUtc { get; set; }
+    public string? ClosingActHash { get; set; }
+    public string? ClosingActUrl { get; set; }
+    public decimal SavingsAmount { get; set; }
+    public decimal SavingsPercentage { get; set; }
     public int AutoExtensionMinutes { get; set; }
     public decimal PabThreshold { get; set; }
     public List<Guid> ParticipantSupplierIds { get; set; } = [];
     public List<BidDto> Bids { get; set; } = [];
+    public List<AuctionComparisonRowDto> ComparisonRows { get; set; } = [];
 }

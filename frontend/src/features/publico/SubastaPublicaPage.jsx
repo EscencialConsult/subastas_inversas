@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { obtenerSubastaPublica } from '../../api/publicoApi.js'
+import { obtenerSubastaPublica, suscribirSubastaPublica } from '../../api/publicoApi.js'
 
 const REFRESCO_MS = 12000
 
@@ -41,6 +41,25 @@ export function SubastaPublicaPage() {
       clearInterval(intervalo)
     }
   }, [cargar])
+
+  useEffect(() => {
+    if (!subasta?.eventsUrl) return undefined
+
+    return suscribirSubastaPublica({
+      eventsUrl: subasta.eventsUrl,
+      onSnapshot: (snapshot) => {
+        setSubasta((actual) => ({
+          ...actual,
+          ...snapshot,
+          disponible: true,
+        }))
+        setError('')
+      },
+      onError: () => {
+        setError('No se pudo mantener la conexion en vivo. Seguimos actualizando la vista periodicamente.')
+      },
+    })
+  }, [subasta?.eventsUrl])
 
   useEffect(() => {
     if (!subasta?.cierreEn) return
@@ -152,6 +171,38 @@ export function SubastaPublicaPage() {
           <TimelineItem etiqueta="Mejor precio actual" valor={formatearPesos(subasta.precioActual)} />
           <TimelineItem etiqueta="Cierre previsto" valor={formatearFechaHora(subasta.cierreEn)} />
         </div>
+      </div>
+
+      <div className="form">
+        <div className="panel-header">
+          <h2 className="panel-header__title">Ranking de lances</h2>
+          <p className="panel-header__desc">
+            {subasta.identidadesReveladas
+              ? 'La subasta finalizo y las identidades ya estan publicadas.'
+              : 'Durante la subasta, los oferentes se muestran con alias anonimos.'}
+          </p>
+        </div>
+        {subasta.ranking?.length > 0 ? (
+          <div className="flex flex--col gap-12">
+            {subasta.ranking.map((item) => (
+              <article className="row-item" key={`${item.posicion}-${item.nombre}`}>
+                <div>
+                  <code className="row-item__code">#{item.posicion}</code>
+                  <h3 className="row-item__title">{item.nombre}</h3>
+                  <p className="row-item__desc">
+                    {item.cantidadLances} lances - ultimo {formatearFechaHora(item.ultimoLanceEn)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="row-item__value">{formatearPesos(item.monto)}</span>
+                  <small className="row-item__detail">Mejor oferta</small>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <Estado texto="Todavia no hay lances registrados." />
+        )}
       </div>
     </section>
   )

@@ -35,6 +35,14 @@ public class Auction
 
     public DateTime? ClosedAtUtc { get; set; }
 
+    public string? ClosingActHash { get; set; }
+
+    public string? ClosingActPath { get; set; }
+
+    public decimal SavingsAmount { get; set; }
+
+    public decimal SavingsPercentage { get; set; }
+
     public List<AuctionParticipant> Participants { get; set; } = [];
 
     public List<Bid> Bids { get; set; } = [];

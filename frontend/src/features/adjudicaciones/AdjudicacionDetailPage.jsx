@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import {
   obtenerProcesoParaAprobacion,
   aprobarAdjudicacion,
+  devolverAdjudicacion,
   rechazarAdjudicacion,
 } from '../../api/comprasApi.js'
 import { obtenerSubastaDeProcesoParaAprobacion, analisisSubasta } from '../../api/subastasApi.js'
@@ -23,7 +24,7 @@ export function AdjudicacionDetailPage() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
-  const [rechazando, setRechazando] = useState(false)
+  const [accionMotivo, setAccionMotivo] = useState(null)
   const [motivo, setMotivo] = useState('')
   const [procesando, setProcesando] = useState(false)
 
@@ -69,7 +70,11 @@ export function AdjudicacionDetailPage() {
     setError('')
     setProcesando(true)
     try {
-      await rechazarAdjudicacion({ tenantId, id, autoridadId: usuario.id, motivo })
+      if (accionMotivo === 'devolver') {
+        await devolverAdjudicacion({ tenantId, id, autoridadId: usuario.id, motivo })
+      } else {
+        await rechazarAdjudicacion({ tenantId, id, autoridadId: usuario.id, motivo })
+      }
       navigate('/adjudicaciones')
     } catch (err) {
       setError(err.message)
@@ -81,6 +86,7 @@ export function AdjudicacionDetailPage() {
   if (!proceso) return <div className="alerta alerta--error">{error}</div>
 
   const pendiente = proceso.estado === ESTADO_PROCESO.ADJUDICADA
+  const estaDevolviendo = accionMotivo === 'devolver'
   const adj = proceso.adjudicacion
   const adjudicado = adj?.proveedor
 
@@ -109,6 +115,8 @@ export function AdjudicacionDetailPage() {
           <span>Proveedor: {adjudicado ?? '—'}</span>
           {adj && <span>Monto: {formatearPesos(adj.monto)}</span>}
           {adj && <span>Propuesta el: {adj.fecha}</span>}
+          {adj?.documentHash && <span>Hash acta: <code>{adj.documentHash.slice(0, 16)}</code></span>}
+          {adj?.immutableHash && <span>Hash registro: <code>{adj.immutableHash.slice(0, 16)}</code></span>}
         </div>
 
         {/* Contexto de la subasta para que la Autoridad decida con información. */}
@@ -158,14 +166,21 @@ export function AdjudicacionDetailPage() {
           </tbody>
         </table>
 
-        {pendiente && !rechazando && (
+        {pendiente && !accionMotivo && (
           <div className="form__acciones">
             <button
               className="btn btn--peligro"
-              onClick={() => setRechazando(true)}
+              onClick={() => setAccionMotivo('rechazar')}
               disabled={procesando}
             >
               Rechazar
+            </button>
+            <button
+              className="btn btn--secundario"
+              onClick={() => setAccionMotivo('devolver')}
+              disabled={procesando}
+            >
+              Devolver
             </button>
             <button className="btn btn--primario" onClick={aprobar} disabled={procesando}>
               {procesando ? 'Procesando…' : 'Aprobar adjudicación'}
@@ -173,21 +188,26 @@ export function AdjudicacionDetailPage() {
           </div>
         )}
 
-        {pendiente && rechazando && (
+        {pendiente && accionMotivo && (
           <div className="rechazo">
             <label className="campo">
-              <span>Motivo del rechazo</span>
+              <span>{estaDevolviendo ? 'Motivo de la devolucion' : 'Motivo del rechazo'}</span>
               <textarea
                 rows={3}
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Explicá por qué se rechaza la adjudicación…"
+                placeholder={estaDevolviendo
+                  ? 'Indicá qué debe corregir el equipo evaluador…'
+                  : 'Explicá por qué se rechaza la adjudicación…'}
               />
             </label>
             <div className="form__acciones">
               <button
                 className="btn btn--texto"
-                onClick={() => setRechazando(false)}
+                onClick={() => {
+                  setAccionMotivo(null)
+                  setMotivo('')
+                }}
                 disabled={procesando}
               >
                 Cancelar
@@ -197,7 +217,11 @@ export function AdjudicacionDetailPage() {
                 onClick={confirmarRechazo}
                 disabled={procesando}
               >
-                {procesando ? 'Procesando…' : 'Confirmar rechazo'}
+                {procesando
+                  ? 'Procesando…'
+                  : estaDevolviendo
+                    ? 'Confirmar devolución'
+                    : 'Confirmar rechazo'}
               </button>
             </div>
           </div>

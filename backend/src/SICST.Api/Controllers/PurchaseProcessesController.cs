@@ -221,6 +221,46 @@ public class PurchaseProcessesController : ControllerBase
         }
     }
 
+    [HttpPost("{id:guid}/desert")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<PurchaseProcessDto>> DeclareDeserted(Guid companyId, Guid id, [FromBody] ExceptionDecisionRequest request)
+    {
+        try
+        {
+            var process = await _sender.Send(new DeclarePurchaseProcessDesertedCommand(companyId, id, request.OperatorId, request.Fundamento));
+            if (process == null)
+            {
+                return NotFound(new { message = "Proceso de compra no encontrado." });
+            }
+
+            return Ok(process);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/challenge/suspend")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<PurchaseProcessDto>> SuspendByChallenge(Guid companyId, Guid id, [FromBody] ExceptionDecisionRequest request)
+    {
+        try
+        {
+            var process = await _sender.Send(new SuspendPurchaseProcessByChallengeCommand(companyId, id, request.OperatorId, request.Fundamento));
+            if (process == null)
+            {
+                return NotFound(new { message = "Proceso de compra no encontrado." });
+            }
+
+            return Ok(process);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("{id:guid}/invitations")]
     [Authorize(Policy = PermissionCodes.PurchasesManage)]
     public async Task<ActionResult<List<InvitationDto>>> GetInvitations(Guid companyId, Guid id)
@@ -357,6 +397,26 @@ public class PurchaseProcessesController : ControllerBase
         }
     }
 
+    [HttpPost("{id:guid}/return")]
+    [Authorize(Policy = PermissionCodes.PurchasesApprove)]
+    public async Task<ActionResult<PurchaseProcessDto>> Return(Guid companyId, Guid id, [FromBody] ReturnRequest request)
+    {
+        try
+        {
+            var process = await _sender.Send(new ReturnPurchaseProcessCommand(companyId, id, request.ApproverId, request.Motivo));
+            if (process == null)
+            {
+                return NotFound(new { message = "Proceso de compra no encontrado." });
+            }
+
+            return Ok(process);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("{id:guid}/evaluation-criteria")]
     [Authorize(Policy = PermissionCodes.PurchasesManage)]
     public async Task<ActionResult<List<EvaluationCriterionDto>>> GetEvaluationCriteria(Guid companyId, Guid id)
@@ -435,6 +495,19 @@ public class PurchaseProcessesController : ControllerBase
         return Ok(results);
     }
 
+    [HttpGet("{id:guid}/award-recommendation")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<AssistedAwardRecommendationDto>> GetAwardRecommendation(Guid companyId, Guid id)
+    {
+        var recommendation = await _sender.Send(new GetAssistedAwardRecommendationQuery(companyId, id));
+        if (recommendation == null)
+        {
+            return NotFound(new { message = "Proceso de compra no encontrado." });
+        }
+
+        return Ok(recommendation);
+    }
+
     [HttpGet("{id:guid}/evaluation-results/evaluate")]
     [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
     public async Task<ActionResult<EvaluationResultsDto>> GetEvaluationResultsForEvaluator(Guid companyId, Guid id)
@@ -445,6 +518,19 @@ public class PurchaseProcessesController : ControllerBase
         return Ok(results);
     }
 
+    [HttpGet("{id:guid}/award-recommendation/evaluate")]
+    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    public async Task<ActionResult<AssistedAwardRecommendationDto>> GetAwardRecommendationForEvaluator(Guid companyId, Guid id)
+    {
+        var recommendation = await _sender.Send(new GetAssistedAwardRecommendationQuery(companyId, id));
+        if (recommendation == null)
+        {
+            return NotFound(new { message = "Proceso de compra no encontrado." });
+        }
+
+        return Ok(recommendation);
+    }
+
     [HttpGet("{id:guid}/evaluation-results/audit")]
     [Authorize(Policy = PermissionCodes.AuditRead)]
     public async Task<ActionResult<EvaluationResultsDto>> GetEvaluationResultsForAudit(Guid companyId, Guid id)
@@ -453,6 +539,19 @@ public class PurchaseProcessesController : ControllerBase
         if (results == null)
             return NotFound(new { message = "No se encontraron resultados de evaluación para este proceso." });
         return Ok(results);
+    }
+
+    [HttpGet("{id:guid}/award-recommendation/audit")]
+    [Authorize(Policy = PermissionCodes.AuditRead)]
+    public async Task<ActionResult<AssistedAwardRecommendationDto>> GetAwardRecommendationForAudit(Guid companyId, Guid id)
+    {
+        var recommendation = await _sender.Send(new GetAssistedAwardRecommendationQuery(companyId, id));
+        if (recommendation == null)
+        {
+            return NotFound(new { message = "Proceso de compra no encontrado." });
+        }
+
+        return Ok(recommendation);
     }
 
     [HttpPost("{id:guid}/evaluate")]
@@ -558,6 +657,75 @@ public class PurchaseProcessesController : ControllerBase
             if (contract == null)
             {
                 return NotFound(new { message = "Proceso de compra no encontrado." });
+            }
+
+            return Ok(contract);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/contracts/{contractId:guid}")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<ContractDto>> GetContract(Guid companyId, Guid id, Guid contractId)
+    {
+        var contract = await _sender.Send(new GetContractQuery
+        {
+            CompanyId = companyId,
+            ContractId = contractId
+        });
+
+        if (contract == null || contract.PurchaseProcessId != id)
+        {
+            return NotFound(new { message = "Contrato no encontrado en este proceso." });
+        }
+
+        return Ok(contract);
+    }
+
+    [HttpPut("{id:guid}/contracts/{contractId:guid}/terms")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<ContractDto>> UpdateContractTerms(Guid companyId, Guid id, Guid contractId, [FromBody] UpdateContractTermsCommand command)
+    {
+        if (companyId != command.CompanyId || id != command.PurchaseProcessId || contractId != command.ContractId)
+        {
+            return BadRequest(new { message = "Los IDs de la URL no coinciden con el cuerpo." });
+        }
+
+        try
+        {
+            var contract = await _sender.Send(command);
+            if (contract == null)
+            {
+                return NotFound(new { message = "Contrato no encontrado." });
+            }
+
+            return Ok(contract);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/contracts/{contractId:guid}/sign")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<ContractDto>> SignContract(Guid companyId, Guid id, Guid contractId, [FromBody] SignContractCommand command)
+    {
+        if (companyId != command.CompanyId || id != command.PurchaseProcessId || contractId != command.ContractId)
+        {
+            return BadRequest(new { message = "Los IDs de la URL no coinciden con el cuerpo." });
+        }
+
+        try
+        {
+            var contract = await _sender.Send(command);
+
+            if (contract == null)
+            {
+                return NotFound(new { message = "Contrato no encontrado." });
             }
 
             return Ok(contract);
@@ -727,6 +895,8 @@ public class PurchaseProcessesController : ControllerBase
 
 public record ApproveRequest(Guid ApproverId);
 public record RejectRequest(Guid ApproverId, string Motivo);
+public record ReturnRequest(Guid ApproverId, string Motivo);
+public record ExceptionDecisionRequest(Guid OperatorId, string Fundamento);
 public record EvaluateRequest(Guid EvaluadorId, string RecomendadoProveedor, string Observaciones);
 public record AdjudicateRequest(Guid AprobadorId, List<AwardSelectionInputDto>? Awards = null);
 public record SaveEvaluationCriteriaRequest(Guid UserId, List<SaveEvaluationCriteriaItemDto> Criteria);

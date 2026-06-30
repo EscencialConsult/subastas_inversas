@@ -45,5 +45,10 @@ public class Contract
 
     public DateTime? SignedAtUtc { get; set; }
 
+    public Guid? SignedByOperatorId { get; set; }
+    public User? SignedByOperator { get; set; }
+
+    public string? SignatureHash { get; set; }
+
     public PurchaseOrder? PurchaseOrder { get; set; }
 }

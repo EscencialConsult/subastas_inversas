@@ -36,10 +36,29 @@ public static class AuctionMapping
             StartsAtUtc = auction.StartsAtUtc,
             EndsAtUtc = auction.EndsAtUtc,
             ClosedAtUtc = auction.ClosedAtUtc,
+            ClosingActHash = auction.ClosingActHash,
+            ClosingActUrl = string.IsNullOrWhiteSpace(auction.ClosingActPath)
+                ? null
+                : $"/api/companies/{auction.CompanyId}/auctions/{auction.Id}/closing-act/pdf",
+            SavingsAmount = auction.SavingsAmount,
+            SavingsPercentage = auction.SavingsPercentage,
             AutoExtensionMinutes = auction.AutoExtensionMinutes,
             PabThreshold = auction.PabThreshold,
             ParticipantSupplierIds = auction.Participants.Select(p => p.SupplierId).ToList(),
-            Bids = bids
+            Bids = bids,
+            ComparisonRows = auction.Status == AuctionStatus.Closed
+                ? AuctionClosingAct.BuildComparisonRows(auction).Select(row => new AuctionComparisonRowDto
+                {
+                    Position = row.Position,
+                    SupplierId = row.SupplierId,
+                    SupplierName = row.SupplierName,
+                    BestAmount = row.BestAmount,
+                    BidCount = row.BidCount,
+                    LastBidAtUtc = row.LastBidAtUtc,
+                    SavingsAmount = row.SavingsAmount,
+                    SavingsPercentage = row.SavingsPercentage
+                }).ToList()
+                : []
         };
     }
 }

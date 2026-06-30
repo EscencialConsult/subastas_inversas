@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using SICST.Application.Auctions;
 using SICST.Application.Auctions.Commands;
 using SICST.Application.Auctions.DTOs;
+using SICST.Application.Common.Interfaces;
 using SICST.Application.Common.Interfaces;
 using SICST.Application.Purchases.Commands;
 using SICST.Application.Purchases.DTOs;
@@ -257,6 +259,239 @@ public class PurchaseProcessHandlerTests
     }
 
     [Fact]
+    public async Task AdjudicationApproval_ShouldActivateLevelsByAwardAmount()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        var adminId = await SeedUser(context, companyId, UserRole.Admin, "admin-adj");
+        var authorityId = await SeedUser(context, companyId, UserRole.Autoridad, "autoridad-adj");
+        var supplierId = await SeedSupplier(context);
+
+        context.ApprovalWorkflows.Add(new ApprovalWorkflow
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Name = "Circuito adjudicacion alto monto",
+            MinAmount = 0,
+            MaxAmount = null,
+            RequiredRole = UserRole.Admin,
+            RequiredApprovals = 2,
+            Active = true,
+            CreatedAtUtc = DateTime.UtcNow,
+            Levels =
+            [
+                new ApprovalWorkflowLevel
+                {
+                    Id = Guid.NewGuid(),
+                    LevelOrder = 1,
+                    RequiredRole = UserRole.Admin,
+                    AmountThreshold = 0,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                new ApprovalWorkflowLevel
+                {
+                    Id = Guid.NewGuid(),
+                    LevelOrder = 2,
+                    RequiredRole = UserRole.Autoridad,
+                    AmountThreshold = 100_000,
+                    CreatedAtUtc = DateTime.UtcNow
+                }
+            ]
+        });
+
+        var process = new PurchaseProcess
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            BuyerId = buyerId,
+            Code = "PC-ADJ-LEVELS",
+            Title = "Adjudicacion con niveles",
+            EstimatedBudget = 300_000,
+            Status = PurchaseProcessStatus.Adjudicated,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        context.PurchaseProcesses.Add(process);
+        context.Awards.Add(new Award
+        {
+            Id = Guid.NewGuid(),
+            PurchaseProcessId = process.Id,
+            SupplierId = supplierId,
+            Amount = 150_000,
+            AdjudicatedById = buyerId,
+            AdjudicatedAtUtc = DateTime.UtcNow,
+            Observations = "Adjudicado",
+            DocumentPath = "/dummy/path/acta.pdf"
+        });
+        await context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ApprovePurchaseProcessCommandHandler(context)
+                .Handle(new ApprovePurchaseProcessCommand(companyId, process.Id, authorityId), CancellationToken.None));
+
+        var firstApproval = await new ApprovePurchaseProcessCommandHandler(context)
+            .Handle(new ApprovePurchaseProcessCommand(companyId, process.Id, adminId), CancellationToken.None);
+
+        Assert.NotNull(firstApproval);
+        Assert.Equal(PurchaseProcessStatus.Adjudicated, firstApproval.Status);
+
+        var finalApproval = await new ApprovePurchaseProcessCommandHandler(context)
+            .Handle(new ApprovePurchaseProcessCommand(companyId, process.Id, authorityId), CancellationToken.None);
+
+        Assert.NotNull(finalApproval);
+        Assert.Equal(PurchaseProcessStatus.Approved, finalApproval.Status);
+        Assert.Equal(2, await context.Approvals.CountAsync(a => a.PurchaseProcessId == process.Id &&
+            a.Status == ApprovalStatus.Approved &&
+            a.ApprovalWorkflowLevelId.HasValue));
+    }
+
+    [Fact]
+    public async Task ReturnPurchaseProcess_ShouldMoveAdjudicationBackToEvaluationAndAuditDecision()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        var authorityId = await SeedUser(context, companyId, UserRole.Autoridad, "autoridad-return");
+        var supplierId = await SeedSupplier(context);
+
+        context.ApprovalWorkflows.Add(new ApprovalWorkflow
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Name = "Circuito adjudicacion",
+            MinAmount = 0,
+            MaxAmount = null,
+            RequiredRole = UserRole.Autoridad,
+            RequiredApprovals = 1,
+            Active = true,
+            CreatedAtUtc = DateTime.UtcNow,
+            Levels =
+            [
+                new ApprovalWorkflowLevel
+                {
+                    Id = Guid.NewGuid(),
+                    LevelOrder = 1,
+                    RequiredRole = UserRole.Autoridad,
+                    AmountThreshold = 0,
+                    CreatedAtUtc = DateTime.UtcNow
+                }
+            ]
+        });
+
+        var process = new PurchaseProcess
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            BuyerId = buyerId,
+            Code = "PC-ADJ-RETURN",
+            Title = "Adjudicacion devuelta",
+            EstimatedBudget = 100_000,
+            Status = PurchaseProcessStatus.Adjudicated,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        context.PurchaseProcesses.Add(process);
+        context.Awards.Add(new Award
+        {
+            Id = Guid.NewGuid(),
+            PurchaseProcessId = process.Id,
+            SupplierId = supplierId,
+            Amount = 90_000,
+            AdjudicatedById = buyerId,
+            AdjudicatedAtUtc = DateTime.UtcNow,
+            Observations = "Adjudicado",
+            DocumentPath = "/dummy/path/acta.pdf"
+        });
+        await context.SaveChangesAsync();
+
+        var returned = await new ReturnPurchaseProcessCommandHandler(context)
+            .Handle(new ReturnPurchaseProcessCommand(companyId, process.Id, authorityId, "Revisar cuadro comparativo"), CancellationToken.None);
+
+        Assert.NotNull(returned);
+        Assert.Equal(PurchaseProcessStatus.Evaluation, returned.Status);
+        Assert.Equal("Revisar cuadro comparativo", returned.RejectionReason);
+
+        var decision = await context.Approvals.SingleAsync(a => a.PurchaseProcessId == process.Id);
+        Assert.Equal(ApprovalStatus.Returned, decision.Status);
+        Assert.NotNull(decision.ApprovalWorkflowLevelId);
+    }
+
+    [Fact]
+    public async Task DeclareDeserted_ShouldRequireGroundsAndCloseProcess()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+
+        var process = new PurchaseProcess
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            BuyerId = buyerId,
+            Code = "PC-DESERT",
+            Title = "Proceso sin ofertas aptas",
+            EstimatedBudget = 100_000,
+            Status = PurchaseProcessStatus.Evaluation,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        context.PurchaseProcesses.Add(process);
+        await context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new DeclarePurchaseProcessDesertedCommandHandler(context)
+                .Handle(new DeclarePurchaseProcessDesertedCommand(companyId, process.Id, buyerId, ""), CancellationToken.None));
+
+        var result = await new DeclarePurchaseProcessDesertedCommandHandler(context)
+            .Handle(new DeclarePurchaseProcessDesertedCommand(companyId, process.Id, buyerId, "No se recibieron ofertas admisibles"), CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(PurchaseProcessStatus.Deserted, result.Status);
+        Assert.Equal("No se recibieron ofertas admisibles", result.RejectionReason);
+        Assert.NotNull(result.ClosedAtUtc);
+    }
+
+    [Fact]
+    public async Task SuspendByChallenge_ShouldStoreGroundsAndCloseOpenAuction()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+
+        var process = new PurchaseProcess
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            BuyerId = buyerId,
+            Code = "PC-IMPUG",
+            Title = "Proceso impugnado",
+            EstimatedBudget = 150_000,
+            Status = PurchaseProcessStatus.InAuction,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        var auction = new Auction
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            PurchaseProcessId = process.Id,
+            BasePrice = 150_000,
+            MinimumDecrementPercentage = 1,
+            Status = AuctionStatus.Open,
+            StartsAtUtc = DateTime.UtcNow.AddMinutes(-10),
+            EndsAtUtc = DateTime.UtcNow.AddMinutes(20)
+        };
+        context.PurchaseProcesses.Add(process);
+        context.Auctions.Add(auction);
+        await context.SaveChangesAsync();
+
+        var result = await new SuspendPurchaseProcessByChallengeCommandHandler(context)
+            .Handle(new SuspendPurchaseProcessByChallengeCommand(companyId, process.Id, buyerId, "Impugnacion recibida contra el pliego"), CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(PurchaseProcessStatus.SuspendedByChallenge, result.Status);
+        Assert.Equal("Impugnacion recibida contra el pliego", result.RejectionReason);
+
+        var dbAuction = await context.Auctions.FindAsync(auction.Id);
+        Assert.NotNull(dbAuction);
+        Assert.Equal(AuctionStatus.Closed, dbAuction.Status);
+        Assert.NotNull(dbAuction.ClosedAtUtc);
+    }
+
+    [Fact]
     public async Task InviteSupplier_ShouldPreventDuplicateInvitation()
     {
         using var context = CreateDbContext();
@@ -381,6 +616,40 @@ public class PurchaseProcessHandlerTests
             UserId = user.Id,
             Cuit = $"30-{Random.Shared.Next(10000000, 99999999)}-1",
             BusinessName = "Proveedor Test",
+            Email = user.Email,
+            BusinessCategory = "Servicios",
+            Province = "Tucuman",
+            Locality = "San Miguel",
+            Status = SupplierStatus.Verified,
+            ArcaVerified = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        context.Users.Add(user);
+        context.Suppliers.Add(supplier);
+        await context.SaveChangesAsync();
+        return supplier.Id;
+    }
+
+    private static async Task<Guid> SeedSupplierWithName(ApplicationDbContext context, string businessName)
+    {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = $"proveedor-{Guid.NewGuid():N}@test.com",
+            PasswordHash = "hash",
+            FirstName = businessName,
+            LastName = "",
+            Role = UserRole.Proveedor,
+            Active = true
+        };
+
+        var supplier = new Supplier
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Cuit = $"30-{Random.Shared.Next(10000000, 99999999)}-1",
+            BusinessName = businessName,
             Email = user.Email,
             BusinessCategory = "Servicios",
             Province = "Tucuman",
@@ -525,8 +794,116 @@ public class PurchaseProcessHandlerTests
         Assert.Contains($"/purchase-processes/{process.Id}/awards/", adjudicatedResult.Award.ActaUrl);
 
         var dbAward = await context.Awards.FirstAsync(a => a.PurchaseProcessId == process.Id);
-        Assert.Equal("/dummy/path/acta.pdf", dbAward.DocumentPath);
+        Assert.True(File.Exists(dbAward.DocumentPath));
         Assert.NotNull(dbAward.DocumentTemplateId);
+        Assert.Equal(64, dbAward.DocumentHash.Length);
+        Assert.Equal(64, dbAward.ImmutableHash.Length);
+        Assert.Equal(dbAward.DocumentHash, adjudicatedResult.Award.DocumentHash);
+        Assert.Equal(dbAward.ImmutableHash, adjudicatedResult.Award.ImmutableHash);
+
+        dbAward.Amount += 1;
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => context.SaveChangesAsync());
+        Assert.Equal("Las adjudicaciones registradas son inmutables.", exception.Message);
+    }
+
+    [Fact]
+    public async Task AssistedAwardRecommendation_ShouldReturnWinnerSavingsAndDetectedRisks()
+    {
+        using var context = CreateDbContext();
+        var (companyId, buyerId) = await SeedCompanyAndBuyer(context);
+        var evaluatorId = await SeedUser(context, companyId, UserRole.Evaluador, "evaluador");
+        var supplierOneId = await SeedSupplierWithName(context, "Proveedor Riesgo");
+        var supplierTwoId = await SeedSupplierWithName(context, "Proveedor Apto");
+
+        var process = new PurchaseProcess
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            BuyerId = buyerId,
+            Code = "PC-DICTAMEN",
+            Title = "Compra con dictamen",
+            EstimatedBudget = 100000m,
+            Status = PurchaseProcessStatus.Evaluation,
+            CreatedAtUtc = DateTime.UtcNow,
+            IsEvaluationActSigned = true
+        };
+
+        var auction = new Auction
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            PurchaseProcessId = process.Id,
+            BasePrice = 100000m,
+            MinimumDecrementPercentage = 1,
+            Status = AuctionStatus.Closed,
+            StartsAtUtc = DateTime.UtcNow.AddMinutes(-20),
+            EndsAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            ClosedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            PabThreshold = 90000m,
+            Bids =
+            [
+                new Bid
+                {
+                    Id = Guid.NewGuid(),
+                    SupplierId = supplierOneId,
+                    Amount = 85000m,
+                    PlacedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+                    IsPab = true,
+                    SequenceNumber = 1,
+                    PreviousHash = string.Empty,
+                    Hash = "hash-1"
+                },
+                new Bid
+                {
+                    Id = Guid.NewGuid(),
+                    SupplierId = supplierTwoId,
+                    Amount = 92000m,
+                    PlacedAtUtc = DateTime.UtcNow.AddMinutes(-9),
+                    IsPab = false,
+                    SequenceNumber = 2,
+                    PreviousHash = "hash-1",
+                    Hash = "hash-2"
+                }
+            ]
+        };
+
+        context.PurchaseProcesses.Add(process);
+        context.Auctions.Add(auction);
+        context.SupplierEvaluations.AddRange(
+            new SupplierEvaluation
+            {
+                Id = Guid.NewGuid(),
+                PurchaseProcessId = process.Id,
+                SupplierId = supplierOneId,
+                IsExcluded = true,
+                ExcludedReason = "No cumple requisito excluyente",
+                EvaluatedById = evaluatorId,
+                EvaluatedAtUtc = DateTime.UtcNow
+            },
+            new SupplierEvaluation
+            {
+                Id = Guid.NewGuid(),
+                PurchaseProcessId = process.Id,
+                SupplierId = supplierTwoId,
+                TotalWeightedScore = 72m,
+                IsExcluded = false,
+                EvaluatedById = evaluatorId,
+                EvaluatedAtUtc = DateTime.UtcNow
+            });
+        await context.SaveChangesAsync();
+
+        var recommendation = await new GetAssistedAwardRecommendationQueryHandler(context)
+            .Handle(new GetAssistedAwardRecommendationQuery(companyId, process.Id), CancellationToken.None);
+
+        Assert.NotNull(recommendation);
+        Assert.True(recommendation.HasRecommendation);
+        Assert.Equal(supplierTwoId, recommendation.RecommendedSupplierId);
+        Assert.Equal("Proveedor Apto", recommendation.RecommendedSupplierName);
+        Assert.Equal(92000m, recommendation.RecommendedAmount);
+        Assert.Equal(8000m, recommendation.SavingsAmount);
+        Assert.Equal(8m, recommendation.SavingsPercentage);
+        Assert.Contains(recommendation.Risks, r => r.Code == "lower_excluded_offer");
+        Assert.Equal(2, recommendation.Candidates.Count);
     }
 
     [Fact]
@@ -605,9 +982,31 @@ public class PurchaseProcessHandlerTests
             }, CancellationToken.None);
 
         Assert.NotNull(contract);
+        Assert.Equal(ContractStatus.Draft, contract.Status);
+
+        var buyer = await context.Users.FindAsync(buyerId);
+        Assert.NotNull(buyer);
+        buyer.MfaEnabled = true;
+        buyer.MfaSecret = "TEST";
+        await context.SaveChangesAsync();
+
+        var mfa = new MockMfaProvider();
+        var signed = await new SignContractCommandHandler(context, pdf, mfa)
+            .Handle(new SignContractCommand
+            {
+                CompanyId = companyId,
+                PurchaseProcessId = process.Id,
+                ContractId = contract.Id,
+                SignedByOperatorId = buyerId,
+                OtpCode = "000000"
+            }, CancellationToken.None);
+
+        Assert.NotNull(signed);
+        Assert.Equal(ContractStatus.Active, signed.Status);
         Assert.Equal(PurchaseProcessStatus.Contracted, (await context.PurchaseProcesses.FindAsync(process.Id))!.Status);
 
-        var order = await new IssuePurchaseOrderCommandHandler(context, pdf)
+        var emailMock = new MockEmailSender();
+        var order = await new IssuePurchaseOrderCommandHandler(context, pdf, emailMock)
             .Handle(new IssuePurchaseOrderCommand
             {
                 CompanyId = companyId,
@@ -934,7 +1333,10 @@ public class PurchaseProcessHandlerTests
     {
         public string GenerateAwardAct(PurchaseProcess process, Award award, Supplier supplier, User approver, List<Bid> bids, DocumentTemplate? template = null)
         {
-            return "/dummy/path/acta.pdf";
+            var path = Path.Combine(Path.GetTempPath(), "sicst-tests", "awards", $"{award.Id}.pdf");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, $"award-act|{process.Id}|{award.Id}|{supplier.Id}|{template?.Version}");
+            return path;
         }
 
         public string GenerateContract(PurchaseProcess process, Contract contract, Supplier supplier, DocumentTemplate? template = null)
@@ -955,6 +1357,26 @@ public class PurchaseProcessHandlerTests
         public string GenerateEvaluationAct(PurchaseProcess process, List<Invitation> invitations, User evaluator, string hash, string signature, byte[]? signatureImageBytes)
         {
             return "/dummy/path/evalact.pdf";
+        }
+
+        public string GenerateAuctionClosingAct(Auction auction, string hash, List<AuctionComparisonRow> comparisonRows)
+        {
+            return "/dummy/path/auction-closing.pdf";
+        }
+    }
+
+    private class MockMfaProvider : IMfaProvider
+    {
+        public string GenerateSecret() => "TESTSECRET";
+        public string GetTotpUri(string issuer, string accountName, string secret) => "otpauth://totp/test";
+        public bool VerifyCode(string secret, string code) => true;
+    }
+
+    private class MockEmailSender : IEmailSender
+    {
+        public Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 }

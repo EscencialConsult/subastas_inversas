@@ -5,6 +5,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Auctions.DTOs;
 using SICST.Application.Common.Interfaces;
+using SICST.Application.Public;
 using SICST.Domain.Entities;
 
 namespace SICST.Application.Auctions.Commands;
@@ -21,12 +22,18 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
     private readonly IApplicationDbContext _context;
     private readonly IAuctionStateCache _cache;
     private readonly IAuctionBidLock _bidLock;
+    private readonly IPublicAuctionSnapshotCache? _publicSnapshotCache;
 
-    public PlaceBidCommandHandler(IApplicationDbContext context, IAuctionStateCache cache, IAuctionBidLock bidLock)
+    public PlaceBidCommandHandler(
+        IApplicationDbContext context,
+        IAuctionStateCache cache,
+        IAuctionBidLock bidLock,
+        IPublicAuctionSnapshotCache? publicSnapshotCache = null)
     {
         _context = context;
         _cache = cache;
         _bidLock = bidLock;
+        _publicSnapshotCache = publicSnapshotCache;
     }
 
     public async Task<BidDto> Handle(PlaceBidCommand request, CancellationToken cancellationToken)
@@ -34,6 +41,7 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
         using var bidLock = await _bidLock.AcquireAsync(request.AuctionId, cancellationToken);
 
         var auction = await _context.Auctions
+            .Include(a => a.PurchaseProcess).ThenInclude(p => p.Company)
             .Include(a => a.Participants)
             .Include(a => a.Bids).ThenInclude(b => b.Supplier)
             .FirstOrDefaultAsync(a => a.Id == request.AuctionId, cancellationToken);
@@ -79,11 +87,13 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
             throw new InvalidOperationException("La oferta no respeta el decremento minimo requerido.");
         }
 
-        var timeRemaining = auction.EndsAtUtc - now;
-        if (auction.AutoExtensionMinutes > 0 && timeRemaining.TotalMinutes < auction.AutoExtensionMinutes)
+        var originalEndsAt = auction.EndsAtUtc;
+        var timeRemaining = originalEndsAt - now;
+        if (auction.AutoExtensionMinutes > 0 && timeRemaining.TotalMinutes <= auction.AutoExtensionMinutes)
         {
             auction.EndsAtUtc = now.AddMinutes(auction.AutoExtensionMinutes);
         }
+        var auctionExtended = auction.EndsAtUtc > originalEndsAt;
 
         var sequenceNumber = (lastSequencedBid?.SequenceNumber ?? 0) + 1;
         var previousHash = lastSequencedBid?.Hash ?? string.Empty;
@@ -105,6 +115,10 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
         _context.Bids.Add(bid);
         await _context.SaveChangesAsync(cancellationToken);
         await _cache.SetAsync(new AuctionState(auction.Id, request.Amount, auction.EndsAtUtc, true), cancellationToken);
+        if (_publicSnapshotCache != null)
+        {
+            await _publicSnapshotCache.SetAsync(PublicAuctionSnapshotMapping.ToSnapshot(auction), cancellationToken);
+        }
 
         var supplier = await _context.Suppliers.FirstAsync(s => s.Id == request.SupplierId, cancellationToken);
 
@@ -117,6 +131,8 @@ public class PlaceBidCommandHandler : IRequestHandler<PlaceBidCommand, BidDto>
             Amount = bid.Amount,
             PlacedAtUtc = bid.PlacedAtUtc,
             IsPab = bid.IsPab,
+            AuctionEndsAtUtc = auction.EndsAtUtc,
+            AuctionExtended = auctionExtended,
             SequenceNumber = bid.SequenceNumber,
             PreviousHash = bid.PreviousHash,
             Hash = bid.Hash

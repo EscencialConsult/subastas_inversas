@@ -204,6 +204,14 @@ namespace SICST.Persistence.Migrations
                     b.Property<DateTime?>("ClosedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ClosingActHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ClosingActPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uuid");
 
@@ -220,6 +228,14 @@ namespace SICST.Persistence.Migrations
 
                     b.Property<Guid>("PurchaseProcessId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("SavingsAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("SavingsPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
 
                     b.Property<DateTime>("StartsAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -338,6 +354,11 @@ namespace SICST.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("DocumentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("DocumentPath")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -345,6 +366,11 @@ namespace SICST.Persistence.Migrations
 
                     b.Property<Guid?>("DocumentTemplateId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ImmutableHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Observations")
                         .IsRequired()
@@ -603,8 +629,15 @@ namespace SICST.Persistence.Migrations
                     b.Property<Guid>("PurchaseProcessId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("SignatureHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTime?>("SignedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SignedByOperatorId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("StartDateUtc")
                         .HasColumnType("timestamp with time zone");
@@ -629,6 +662,8 @@ namespace SICST.Persistence.Migrations
                     b.HasIndex("DocumentTemplateId");
 
                     b.HasIndex("PurchaseProcessId");
+
+                    b.HasIndex("SignedByOperatorId");
 
                     b.HasIndex("SupplierId");
 
@@ -1158,18 +1193,18 @@ namespace SICST.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("ArcaVerified")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("ArcaVerifiedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("ArcaVerificationNotes")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
                     b.Property<int>("ArcaVerificationStatus")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("ArcaVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ArcaVerifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("BusinessCategory")
                         .IsRequired()
@@ -1675,6 +1710,11 @@ namespace SICST.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SICST.Domain.Entities.User", "SignedByOperator")
+                        .WithMany()
+                        .HasForeignKey("SignedByOperatorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SICST.Domain.Entities.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId")
@@ -1688,6 +1728,8 @@ namespace SICST.Persistence.Migrations
                     b.Navigation("DocumentTemplate");
 
                     b.Navigation("PurchaseProcess");
+
+                    b.Navigation("SignedByOperator");
 
                     b.Navigation("Supplier");
                 });
@@ -1762,13 +1804,12 @@ namespace SICST.Persistence.Migrations
 
                     b.HasOne("SICST.Domain.Entities.User", "QualifiedBy")
                         .WithMany()
-                        .HasForeignKey("QualifiedById")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("QualifiedById");
 
                     b.HasOne("SICST.Domain.Entities.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("PurchaseProcess");

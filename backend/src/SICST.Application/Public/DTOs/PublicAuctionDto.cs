@@ -17,4 +17,6 @@ public class PublicAuctionDto
     public DateTime EndsAtUtc { get; set; }
     public int BidCount { get; set; }
     public string EventsUrl { get; set; } = string.Empty;
+    public bool IdentitiesRevealed { get; set; }
+    public List<PublicAuctionRankingItemDto> Ranking { get; set; } = [];
 }

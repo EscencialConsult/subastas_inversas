@@ -63,6 +63,19 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (ChangeTracker.Entries<Award>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted &&
+                !string.IsNullOrWhiteSpace(entry.Entity.ImmutableHash)))
+        {
+            throw new InvalidOperationException("Las adjudicaciones registradas son inmutables.");
+        }
+
+        if (ChangeTracker.Entries<AwardItem>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException("Los items de adjudicacion registrados son inmutables.");
+        }
+
         if (ChangeTracker.Entries<SupplierDocumentReview>()
             .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
         {
@@ -408,12 +421,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.HasOne(e => e.Supplier)
                 .WithMany()
                 .HasForeignKey(e => e.SupplierId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(e => e.QualifiedBy)
-                .WithMany()
-                .HasForeignKey(e => e.QualifiedById)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Auction>(entity =>
@@ -427,6 +435,10 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.EndsAtUtc).IsRequired();
             entity.Property(e => e.AutoExtensionMinutes).IsRequired().HasDefaultValue(3);
             entity.Property(e => e.PabThreshold).HasPrecision(18, 2);
+            entity.Property(e => e.ClosingActHash).HasMaxLength(64);
+            entity.Property(e => e.ClosingActPath).HasMaxLength(500);
+            entity.Property(e => e.SavingsAmount).HasPrecision(18, 2);
+            entity.Property(e => e.SavingsPercentage).HasPrecision(5, 2);
 
             entity.HasOne(e => e.PurchaseProcess)
                 .WithMany()
@@ -506,6 +518,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.Amount).HasPrecision(18, 2);
             entity.Property(e => e.Observations).HasMaxLength(2000);
             entity.Property(e => e.DocumentPath).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.DocumentHash).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.ImmutableHash).IsRequired().HasMaxLength(64);
             entity.Property(e => e.AdjudicatedAtUtc).IsRequired();
 
             entity.HasOne(e => e.PurchaseProcess)
@@ -609,6 +623,13 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                 .WithMany()
                 .HasForeignKey(e => e.DocumentTemplateId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.SignedByOperator)
+                .WithMany()
+                .HasForeignKey(e => e.SignedByOperatorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.Property(e => e.SignatureHash).HasMaxLength(64);
         });
 
         modelBuilder.Entity<PurchaseOrder>(entity =>

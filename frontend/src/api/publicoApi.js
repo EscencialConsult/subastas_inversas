@@ -1,4 +1,4 @@
-import { apiFetch } from './client.js'
+import { API_URL, apiFetch } from './client.js'
 import { ESTADO_PROCESO } from '../domain/compras.js'
 
 const ESTADOS_BACK_TO_FRONT = {
@@ -13,6 +13,8 @@ const ESTADOS_BACK_TO_FRONT = {
   8: ESTADO_PROCESO.APROBADA,
   9: ESTADO_PROCESO.APROBADA,
   10: ESTADO_PROCESO.APROBADA,
+  11: ESTADO_PROCESO.DESIERTA,
+  12: ESTADO_PROCESO.SUSPENDIDA,
   Draft: ESTADO_PROCESO.BORRADOR,
   PendingApproval: ESTADO_PROCESO.PUBLICADO,
   Approved: ESTADO_PROCESO.PUBLICADO,
@@ -24,6 +26,8 @@ const ESTADOS_BACK_TO_FRONT = {
   Contracted: ESTADO_PROCESO.APROBADA,
   PurchaseOrderIssued: ESTADO_PROCESO.APROBADA,
   Received: ESTADO_PROCESO.APROBADA,
+  Deserted: ESTADO_PROCESO.DESIERTA,
+  SuspendedByChallenge: ESTADO_PROCESO.SUSPENDIDA,
 }
 
 const ESTADOS_SUBASTA = {
@@ -110,6 +114,31 @@ export async function obtenerSubastaPublica({ procesoId }) {
   }
 }
 
+export function suscribirSubastaPublica({ eventsUrl, onSnapshot, onError }) {
+  if (!eventsUrl) return () => {}
+
+  const url = `${API_URL}${eventsUrl.startsWith('/') ? eventsUrl : `/${eventsUrl}`}`
+  const source = new EventSource(url)
+
+  source.addEventListener('auction', (event) => {
+    try {
+      const snapshot = mapearSubastaPublica(JSON.parse(event.data))
+      onSnapshot?.(snapshot)
+      if (snapshot.finalizada) {
+        source.close()
+      }
+    } catch (err) {
+      onError?.(err)
+    }
+  })
+
+  source.onerror = (event) => {
+    onError?.(event)
+  }
+
+  return () => source.close()
+}
+
 function mapearSubastaPublica(subasta) {
   const inicio = new Date(subasta.startsAtUtc)
   const cierre = new Date(subasta.endsAtUtc)
@@ -131,6 +160,16 @@ function mapearSubastaPublica(subasta) {
     precioBase: subasta.basePrice,
     precioActual: subasta.currentPrice,
     cantidadLances: subasta.bidCount,
+    identidadesReveladas: Boolean(subasta.identitiesRevealed),
+    ranking: (subasta.ranking ?? []).map((item) => ({
+      posicion: item.position,
+      proveedorId: item.supplierId,
+      nombre: item.displayName,
+      monto: item.amount,
+      cantidadLances: item.bidCount,
+      ultimoLanceEn: item.lastBidAtUtc,
+    })),
+    eventsUrl: subasta.eventsUrl ?? `/api/public/auctions/${subasta.id}/events`,
     inicioISO: subasta.startsAtUtc,
     inicioEn: subasta.startsAtUtc,
     cierreEn: subasta.endsAtUtc,

@@ -70,6 +70,8 @@ public static class PurchaseProcessMapping
             Observaciones = award.Observations,
             Fecha = award.AdjudicatedAtUtc.ToString("yyyy-MM-dd"),
             ActaUrl = $"/api/companies/{process.CompanyId}/purchase-processes/{process.Id}/awards/{award.Id}/pdf",
+            DocumentHash = award.DocumentHash,
+            ImmutableHash = award.ImmutableHash,
             DocumentTemplateId = award.DocumentTemplateId,
             Items = award.Items.Select(item => new AwardItemDto
             {
@@ -101,6 +103,9 @@ public static class PurchaseProcessMapping
             Terms = contract.Terms,
             CreatedAtUtc = contract.CreatedAtUtc,
             SignedAtUtc = contract.SignedAtUtc,
+            SignedByOperatorId = contract.SignedByOperatorId,
+            SignedByOperatorName = contract.SignedByOperator != null ? $"{contract.SignedByOperator.FirstName} {contract.SignedByOperator.LastName}" : null,
+            SignatureHash = contract.SignatureHash,
             DocumentUrl = $"/api/companies/{contract.CompanyId}/contracts/{contract.Id}/pdf",
             DocumentTemplateId = contract.DocumentTemplateId
         };

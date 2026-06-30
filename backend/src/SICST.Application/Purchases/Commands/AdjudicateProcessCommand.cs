@@ -169,6 +169,8 @@ public class AdjudicateProcessCommandHandler : IRequestHandler<AdjudicateProcess
             };
 
             award.DocumentPath = _pdfGenerator.GenerateAwardAct(process, award, supplier, approver, bids, template);
+            award.DocumentHash = AwardIntegrity.CalculateDocumentHash(award.DocumentPath);
+            award.ImmutableHash = AwardIntegrity.CalculateImmutableHash(process, award, supplier, template);
             _context.Awards.Add(award);
             createdAwards.Add(award);
         }

@@ -8,6 +8,7 @@ using SICST.Application.Auctions.Commands;
 using SICST.Application.Auctions.DTOs;
 using SICST.Application.Auctions.Queries;
 using SICST.Application.Common.Security;
+using SICST.Application.Public.Queries;
 using SICST.Domain.Entities;
 
 namespace SICST.Api.Controllers;
@@ -148,12 +149,33 @@ public class AuctionsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [HttpGet("auctions/{auctionId:guid}/closing-act/pdf")]
+    [Authorize]
+    public async Task<IActionResult> GetClosingActPdf(Guid companyId, Guid auctionId)
+    {
+        var auction = await _sender.Send(new GetAuctionByIdQuery(auctionId));
+        if (auction == null || auction.CompanyId != companyId || string.IsNullOrWhiteSpace(auction.ClosingActUrl))
+        {
+            return NotFound(new { message = "El acta de cierre no esta disponible para esta subasta." });
+        }
+
+        var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "documents", "auction-closing-acts", $"{auctionId}.pdf");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NotFound(new { message = "El archivo fisico del acta no fue encontrado en el servidor." });
+        }
+
+        var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+        return File(fileBytes, "application/pdf", $"Acta-Cierre-Subasta-{auctionId}.pdf");
+    }
 }
 
 [ApiController]
 [Route("api/public/auctions")]
 public class PublicAuctionsController : ControllerBase
 {
+    private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ISender _sender;
 
     public PublicAuctionsController(ISender sender)
@@ -170,19 +192,19 @@ public class PublicAuctionsController : ControllerBase
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var auction = await _sender.Send(new GetAuctionByIdQuery(auctionId), cancellationToken);
-            if (auction == null)
+            var snapshot = await _sender.Send(new GetPublicAuctionSnapshotQuery(auctionId), cancellationToken);
+            if (snapshot == null)
             {
                 Response.StatusCode = StatusCodes.Status404NotFound;
                 return;
             }
 
-            var payload = JsonSerializer.Serialize(auction);
+            var payload = JsonSerializer.Serialize(snapshot, EventJsonOptions);
             await Response.WriteAsync($"event: auction\n", cancellationToken);
             await Response.WriteAsync($"data: {payload}\n\n", cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
 
-            if (auction.Status == Domain.Entities.AuctionStatus.Closed)
+            if (snapshot.Status == Domain.Entities.AuctionStatus.Closed)
             {
                 return;
             }

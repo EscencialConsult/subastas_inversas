@@ -18,6 +18,9 @@ public class ContractDto
     public string Terms { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? SignedAtUtc { get; set; }
+    public Guid? SignedByOperatorId { get; set; }
+    public string? SignedByOperatorName { get; set; }
+    public string? SignatureHash { get; set; }
     public string DocumentUrl { get; set; } = string.Empty;
     public Guid? DocumentTemplateId { get; set; }
 }

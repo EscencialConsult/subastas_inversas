@@ -29,7 +29,9 @@ public class GetPublicPurchaseProcessesQueryHandler : IRequestHandler<GetPublicP
             PurchaseProcessStatus.Contracted,
             PurchaseProcessStatus.PurchaseOrderIssued,
             PurchaseProcessStatus.Received,
-            PurchaseProcessStatus.Closed
+            PurchaseProcessStatus.Closed,
+            PurchaseProcessStatus.Deserted,
+            PurchaseProcessStatus.SuspendedByChallenge
         };
 
         var query = _context.PurchaseProcesses

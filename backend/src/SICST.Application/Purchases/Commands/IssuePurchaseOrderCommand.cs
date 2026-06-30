@@ -19,11 +19,13 @@ public class IssuePurchaseOrderCommandHandler : IRequestHandler<IssuePurchaseOrd
 {
     private readonly IApplicationDbContext _context;
     private readonly IPdfGenerator _pdfGenerator;
+    private readonly IEmailSender _emailSender;
 
-    public IssuePurchaseOrderCommandHandler(IApplicationDbContext context, IPdfGenerator pdfGenerator)
+    public IssuePurchaseOrderCommandHandler(IApplicationDbContext context, IPdfGenerator pdfGenerator, IEmailSender emailSender)
     {
         _context = context;
         _pdfGenerator = pdfGenerator;
+        _emailSender = emailSender;
     }
 
     public async Task<PurchaseOrderDto?> Handle(IssuePurchaseOrderCommand request, CancellationToken cancellationToken)
@@ -78,6 +80,34 @@ public class IssuePurchaseOrderCommandHandler : IRequestHandler<IssuePurchaseOrd
         contract.PurchaseProcess.Status = PurchaseProcessStatus.PurchaseOrderIssued;
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        var deliveryDateText = request.ExpectedDeliveryDateUtc.HasValue
+            ? request.ExpectedDeliveryDateUtc.Value.ToLocalTime().ToString("dd/MM/yyyy")
+            : "No especificada";
+
+        var emailBody = $@"
+Estimado/a {contract.Supplier.BusinessName},
+
+Se ha emitido la Orden de Compra N° {order.Number} correspondiente al proceso {contract.PurchaseProcess.Code} - {contract.PurchaseProcess.Title}.
+
+Detalle de la Orden de Compra:
+  - Numero: {order.Number}
+  - Monto: {order.Amount:C}
+  - Fecha de emision: {order.IssuedAtUtc.ToLocalTime():dd/MM/yyyy HH:mm}
+  - Fecha de entrega prevista: {deliveryDateText}
+
+El plazo de entrega comienza a regir a partir de la recepcion de la presente notificacion.
+
+Por favor, coordine la entrega de los bienes/servicios segun lo estipulado en el contrato.
+
+Saludos cordiales,
+Sistema de Compras Publicas y Subastas (SICST)";
+
+        await _emailSender.SendAsync(
+            contract.Supplier.Email,
+            $"Orden de Compra N° {order.Number} - {contract.PurchaseProcess.Code}",
+            emailBody,
+            cancellationToken);
 
         order.Supplier = contract.Supplier;
         order.Receptions = [];

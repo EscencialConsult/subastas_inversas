@@ -23,10 +23,12 @@ public static class DependencyInjection
         {
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
             services.AddSingleton<IAuctionBidLock, RedisAuctionBidLock>();
+            services.AddSingleton<IPublicAuctionSnapshotCache, RedisPublicAuctionSnapshotCache>();
         }
         else
         {
             services.AddSingleton<IAuctionBidLock, InMemoryAuctionBidLock>();
+            services.AddSingleton<IPublicAuctionSnapshotCache, InMemoryPublicAuctionSnapshotCache>();
         }
 
         services.AddScoped<IPdfGenerator, PdfGenerator>();

@@ -9,6 +9,8 @@ public class BidDto
     public decimal Amount { get; set; }
     public DateTime PlacedAtUtc { get; set; }
     public bool IsPab { get; set; }
+    public DateTime AuctionEndsAtUtc { get; set; }
+    public bool AuctionExtended { get; set; }
     public int SequenceNumber { get; set; }
     public string PreviousHash { get; set; } = string.Empty;
     public string Hash { get; set; } = string.Empty;

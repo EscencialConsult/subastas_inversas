@@ -21,26 +21,36 @@ public class GetPublicAuctionByPurchaseProcessQueryHandler
         GetPublicAuctionByPurchaseProcessQuery request,
         CancellationToken cancellationToken)
     {
-        return await _context.Auctions
+        var auction = await _context.Auctions
             .Include(a => a.PurchaseProcess).ThenInclude(p => p.Company)
-            .Include(a => a.Bids)
+            .Include(a => a.Participants).ThenInclude(p => p.Supplier)
+            .Include(a => a.Bids).ThenInclude(b => b.Supplier)
             .Where(a => a.PurchaseProcessId == request.PurchaseProcessId)
-            .Select(a => new PublicAuctionDto
-            {
-                Id = a.Id,
-                PurchaseProcessId = a.PurchaseProcessId,
-                CompanyId = a.CompanyId,
-                CompanyName = a.PurchaseProcess.Company.Name,
-                ProcessCode = a.PurchaseProcess.Code,
-                ProcessTitle = a.PurchaseProcess.Title,
-                BasePrice = a.BasePrice,
-                CurrentPrice = a.Bids.Any() ? a.Bids.Min(b => b.Amount) : a.BasePrice,
-                Status = a.Status,
-                StartsAtUtc = a.StartsAtUtc,
-                EndsAtUtc = a.EndsAtUtc,
-                BidCount = a.Bids.Count,
-                EventsUrl = $"/api/public/auctions/{a.Id}/events"
-            })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (auction == null)
+        {
+            return null;
+        }
+
+        var snapshot = PublicAuctionSnapshotMapping.ToSnapshot(auction);
+        return new PublicAuctionDto
+        {
+            Id = snapshot.Id,
+            PurchaseProcessId = snapshot.PurchaseProcessId,
+            CompanyId = snapshot.CompanyId,
+            CompanyName = snapshot.CompanyName,
+            ProcessCode = snapshot.ProcessCode,
+            ProcessTitle = snapshot.ProcessTitle,
+            BasePrice = snapshot.BasePrice,
+            CurrentPrice = snapshot.CurrentPrice,
+            Status = snapshot.Status,
+            StartsAtUtc = snapshot.StartsAtUtc,
+            EndsAtUtc = snapshot.EndsAtUtc,
+            BidCount = snapshot.BidCount,
+            EventsUrl = $"/api/public/auctions/{snapshot.Id}/events",
+            IdentitiesRevealed = snapshot.IdentitiesRevealed,
+            Ranking = snapshot.Ranking
+        };
     }
 }

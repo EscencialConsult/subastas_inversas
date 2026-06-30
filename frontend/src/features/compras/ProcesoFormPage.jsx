@@ -15,6 +15,7 @@ import {
   sugerirModalidadContratacion,
   listarInvitacionesProceso,
   invitarProveedorAProceso,
+  confirmarRecepcion,
 } from '../../api/comprasApi.js'
 import { obtenerSubastaDeProceso, analisisSubasta } from '../../api/subastasApi.js'
 import { listarProveedores } from '../../api/proveedoresApi.js'
@@ -88,6 +89,10 @@ export function ProcesoFormPage() {
   const [invitadosIds, setInvitadosIds] = useState([])
   const [cargandoProveedores, setCargandoProveedores] = useState(false)
   const [invitaciones, setInvitaciones] = useState([])
+  const [recepcionEstado, setRecepcionEstado] = useState('Accepted')
+  const [recepcionObservaciones, setRecepcionObservaciones] = useState('')
+  const [recepcionCantidades, setRecepcionCantidades] = useState({})
+  const [registrandoRecepcion, setRegistrandoRecepcion] = useState(false)
 
   // Carga de datos iniciales del proceso
   useEffect(() => {
@@ -427,6 +432,63 @@ export function ProcesoFormPage() {
       const items = prev.items.filter((_, idx) => idx !== index)
       return { ...prev, items }
     })
+  }
+
+  async function registrarRecepcion(ordenCompra) {
+    if (!ordenCompra || !usuario?.id) return
+
+    const pendientes = calcularPendientesRecepcion(proceso, ordenCompra)
+    const items = pendientes
+      .map((item) => ({
+        purchaseItemId: item.purchaseItemId,
+        quantityReceived: Number(recepcionCantidades[recepcionCantidadKey(ordenCompra.id, item.purchaseItemId)]) || 0,
+      }))
+      .filter((item) => item.quantityReceived > 0)
+
+    const excedido = items.some((item) => {
+      const pendiente = pendientes.find((p) => p.purchaseItemId === item.purchaseItemId)
+      return pendiente && item.quantityReceived > pendiente.pendiente
+    })
+
+    if (items.length === 0) {
+      setError('Ingresá al menos una cantidad recibida mayor a cero.')
+      return
+    }
+
+    if (excedido) {
+      setError('La cantidad recibida no puede superar el pendiente de la orden.')
+      return
+    }
+
+    setRegistrandoRecepcion(true)
+    setError('')
+    try {
+      await confirmarRecepcion({
+        tenantId,
+        ordenCompraId: ordenCompra.id,
+        receptorId: usuario.id,
+        estado: recepcionEstado,
+        observaciones: recepcionObservaciones,
+        items,
+      })
+      const actualizado = await obtenerProceso({ tenantId, id })
+      setProceso(actualizado)
+      setDatos((prev) => ({
+        ...prev,
+        titulo: actualizado.titulo,
+        descripcion: actualizado.descripcion,
+        presupuestoEstimado: String(actualizado.presupuestoEstimado || ''),
+        modalidadContratacionId: actualizado.modalidadContratacionId || '',
+        items: actualizado.items || [],
+      }))
+      setRecepcionCantidades({})
+      setRecepcionObservaciones('')
+      setRecepcionEstado('Accepted')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setRegistrandoRecepcion(false)
+    }
   }
 
   if (cargando) return <p className="estado-cargando">Cargando…</p>
@@ -1147,6 +1209,22 @@ export function ProcesoFormPage() {
             </div>
           </div>
 
+          {(proceso?.ordenesCompra ?? []).map((orden) => (
+            <OrdenCompraRecepcion
+              key={orden.id}
+              proceso={proceso}
+              ordenCompra={orden}
+              recepcionEstado={recepcionEstado}
+              setRecepcionEstado={setRecepcionEstado}
+              recepcionObservaciones={recepcionObservaciones}
+              setRecepcionObservaciones={setRecepcionObservaciones}
+              recepcionCantidades={recepcionCantidades}
+              setRecepcionCantidades={setRecepcionCantidades}
+              registrandoRecepcion={registrandoRecepcion}
+              registrarRecepcion={registrarRecepcion}
+            />
+          ))}
+
           {proceso?.adjudicacion && (
             <div className="alerta alerta--ok" style={{ marginTop: '24px' }}>
               {proceso.estado === ESTADO_PROCESO.APROBADA
@@ -1176,6 +1254,158 @@ export function ProcesoFormPage() {
       {/* Resumen de la subasta (si el proceso ya pasó por ella o está en curso) */}
       {subasta && <ResumenSubasta subasta={subasta} />}
     </section>
+  )
+}
+
+function OrdenCompraRecepcion({
+  proceso,
+  ordenCompra,
+  recepcionEstado,
+  setRecepcionEstado,
+  recepcionObservaciones,
+  setRecepcionObservaciones,
+  recepcionCantidades,
+  setRecepcionCantidades,
+  registrandoRecepcion,
+  registrarRecepcion,
+}) {
+  const pendientes = calcularPendientesRecepcion(proceso, ordenCompra)
+  const puedeRecibir = ordenCompra.estado !== 'recibida' && ordenCompra.estado !== 'cancelada' &&
+    pendientes.some((item) => item.pendiente > 0)
+
+  return (
+    <div className="wizard-summary-section">
+      <h3 className="wizard-summary-section__title">Recepcion y conformidad</h3>
+      <div className="wizard-summary-section__content">
+        <div className="perfil__solo-lectura" style={{ marginBottom: '16px' }}>
+          <span>Orden: <strong>{ordenCompra.numero}</strong></span>
+          <span>Proveedor: <strong>{ordenCompra.proveedor}</strong></span>
+          <span>Monto: <strong>{formatearPesos(Number(ordenCompra.monto) || 0)}</strong></span>
+          <span>Estado: <strong>{etiquetaEstadoOrdenCompra(ordenCompra.estado)}</strong></span>
+          {ordenCompra.documentoUrl && (
+            <span>
+              <a href={ordenCompra.documentoUrl} target="_blank" rel="noreferrer">Ver orden PDF</a>
+            </span>
+          )}
+        </div>
+
+        <table className="tabla">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Ordenado</th>
+              <th>Recibido</th>
+              <th>Pendiente</th>
+              {puedeRecibir && <th>Recibir ahora</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {pendientes.map((item) => {
+              const inputKey = recepcionCantidadKey(ordenCompra.id, item.purchaseItemId)
+              return (
+                <tr key={item.purchaseItemId}>
+                  <td>{item.descripcion}</td>
+                  <td>{item.ordenado} {item.unidad}</td>
+                  <td>{item.recibido} {item.unidad}</td>
+                  <td>{item.pendiente} {item.unidad}</td>
+                  {puedeRecibir && (
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        max={item.pendiente}
+                        step="0.01"
+                        value={recepcionCantidades[inputKey] ?? ''}
+                        onChange={(e) => setRecepcionCantidades((prev) => ({
+                          ...prev,
+                          [inputKey]: e.target.value,
+                        }))}
+                        placeholder="0"
+                        style={{ maxWidth: '120px' }}
+                        disabled={item.pendiente <= 0 || registrandoRecepcion}
+                      />
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+
+        {puedeRecibir && (
+          <div style={{ marginTop: '16px', display: 'grid', gap: '12px' }}>
+            <label className="campo">
+              <span>Conformidad</span>
+              <select
+                value={recepcionEstado}
+                onChange={(e) => setRecepcionEstado(e.target.value)}
+                disabled={registrandoRecepcion}
+              >
+                <option value="Accepted">Conforme</option>
+                <option value="AcceptedWithObservations">Conforme con observaciones</option>
+                <option value="Rejected">Rechazada</option>
+              </select>
+            </label>
+
+            <label className="campo">
+              <span>Observaciones</span>
+              <textarea
+                rows={3}
+                value={recepcionObservaciones}
+                onChange={(e) => setRecepcionObservaciones(e.target.value)}
+                placeholder="Detalle de entrega, remito, diferencias o comentarios de conformidad."
+                disabled={registrandoRecepcion}
+              />
+            </label>
+
+            <div className="form__acciones">
+              <button
+                type="button"
+                className="btn btn--primario"
+                onClick={() => registrarRecepcion(ordenCompra)}
+                disabled={registrandoRecepcion}
+              >
+                {registrandoRecepcion ? 'Registrando...' : 'Registrar recepcion'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {ordenCompra.recepciones.length > 0 && (
+          <>
+            <h4 className="form__subtitulo" style={{ marginTop: '20px' }}>Recepciones registradas</h4>
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Conformidad</th>
+                  <th>Recibio</th>
+                  <th>Items</th>
+                  <th>Documento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordenCompra.recepciones.map((recepcion) => (
+                  <tr key={recepcion.id}>
+                    <td>{formatearFecha(recepcion.recibidaEn)}</td>
+                    <td>{etiquetaEstadoRecepcion(recepcion.estado)}</td>
+                    <td>{recepcion.receptor || '---'}</td>
+                    <td>
+                      {recepcion.items.map((item) => `${item.descripcion}: ${item.cantidadRecibida} ${item.unidad}`).join(', ')}
+                    </td>
+                    <td>
+                      {recepcion.documentoUrl ? (
+                        <a href={recepcion.documentoUrl} target="_blank" rel="noreferrer">PDF</a>
+                      ) : '---'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -1224,4 +1454,73 @@ function formatearPesos(monto) {
     currency: 'ARS',
     maximumFractionDigits: 0,
   }).format(monto)
+}
+
+function calcularPendientesRecepcion(proceso, ordenCompra) {
+  const itemsOrdenados = obtenerItemsOrdenados(proceso, ordenCompra)
+  return itemsOrdenados.map((item) => {
+    const recibido = (ordenCompra.recepciones ?? [])
+      .filter((recepcion) => recepcion.estado !== 'rechazada')
+      .flatMap((recepcion) => recepcion.items ?? [])
+      .filter((recepcionItem) => recepcionItem.purchaseItemId === item.purchaseItemId)
+      .reduce((total, recepcionItem) => total + Number(recepcionItem.cantidadRecibida || 0), 0)
+    const pendiente = Math.max(0, Number(item.ordenado || 0) - recibido)
+
+    return {
+      ...item,
+      recibido,
+      pendiente,
+    }
+  })
+}
+
+function obtenerItemsOrdenados(proceso, ordenCompra) {
+  const itemsProceso = new Map((proceso.items ?? []).map((item) => [item.id, item]))
+  const adjudicacion = (proceso.adjudicaciones ?? []).find((award) => {
+    const contrato = (proceso.contratos ?? []).find((c) => c.id === ordenCompra.contratoId)
+    return contrato ? award.id === contrato.awardId : award.proveedorId === ordenCompra.proveedorId
+  })
+  const awardItems = adjudicacion?.items ?? proceso.adjudicacion?.items ?? []
+
+  if (awardItems.length > 0) {
+    return awardItems.map((item) => ({
+      purchaseItemId: item.purchaseItemId,
+      descripcion: item.description,
+      ordenado: Number(item.quantity) || 0,
+      unidad: item.unit || itemsProceso.get(item.purchaseItemId)?.unit || '',
+    }))
+  }
+
+  return (proceso.items ?? []).map((item) => ({
+    purchaseItemId: item.id,
+    descripcion: item.description,
+    ordenado: Number(item.quantity) || 0,
+    unidad: item.unit || '',
+  }))
+}
+
+function recepcionCantidadKey(ordenCompraId, purchaseItemId) {
+  return `${ordenCompraId}:${purchaseItemId}`
+}
+
+function etiquetaEstadoOrdenCompra(estado) {
+  return {
+    emitida: 'Emitida',
+    parcial: 'Recepcion parcial',
+    recibida: 'Recibida',
+    cancelada: 'Cancelada',
+  }[estado] ?? estado
+}
+
+function etiquetaEstadoRecepcion(estado) {
+  return {
+    aceptada: 'Conforme',
+    aceptada_observaciones: 'Conforme con observaciones',
+    rechazada: 'Rechazada',
+  }[estado] ?? estado
+}
+
+function formatearFecha(fecha) {
+  if (!fecha) return '---'
+  return new Date(fecha).toLocaleDateString('es-AR')
 }

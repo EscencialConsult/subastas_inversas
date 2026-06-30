@@ -331,6 +331,8 @@ function mapLance(bid) {
     fechaServidor: bid.placedAtUtc,
     hace: formatearHace(bid.placedAtUtc),
     isPab: Boolean(bid.isPab),
+    subastaFinISO: bid.auctionEndsAtUtc ?? null,
+    subastaExtendida: Boolean(bid.auctionExtended),
     secuencia: bid.sequenceNumber ?? 0,
     hashPrevio: bid.previousHash ?? '',
     hash: bid.hash ?? '',

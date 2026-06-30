@@ -79,17 +79,15 @@ public class CreateContractCommandHandler : IRequestHandler<CreateContractComman
             Amount = award.Amount,
             StartDateUtc = request.StartDateUtc ?? DateTime.UtcNow,
             EndDateUtc = request.EndDateUtc,
-            Status = ContractStatus.Active,
+            Status = ContractStatus.Draft,
             Terms = request.Terms.Trim(),
             CreatedAtUtc = DateTime.UtcNow,
-            SignedAtUtc = DateTime.UtcNow,
             DocumentPath = string.Empty,
             DocumentTemplateId = template.Id
         };
 
         contract.DocumentPath = _pdfGenerator.GenerateContract(process, contract, award.Supplier, template);
         _context.Contracts.Add(contract);
-        process.Status = PurchaseProcessStatus.Contracted;
 
         await _context.SaveChangesAsync(cancellationToken);
 
