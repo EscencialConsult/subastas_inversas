@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerProcesoParaEvaluacion, obtenerProveedoresDeProceso, firmarActaEvaluacion, descargarActaEvaluacionUrl } from '../../api/comprasApi.js'
-import { etiquetaEstado } from '../../domain/compras.js'
+import { AlertTriangle, PenLine, SearchX, Shield, Users } from 'lucide-react'
+import { useAuth } from '../../auth/AuthContext'
+import { obtenerProcesoParaEvaluacion, obtenerProveedoresDeProceso, firmarActaEvaluacion, descargarActaEvaluacionUrl } from '../../api/comprasApi'
+import { etiquetaEstado } from '../../domain/compras'
 import { SignaturePad } from '../../components/SignaturePad.jsx'
+import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../components/ui/Badge'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 const CLASE_CALIFICACION = {
-  pendiente: 'badge--info',
-  aprobado: 'badge--ok',
-  observado: 'badge--advertencia',
-  rechazado: 'badge--error',
+  pendiente: 'info',
+  aprobado: 'success',
+  observado: 'warning',
+  rechazado: 'error',
 }
 
 const ETIQUETA_CALIFICACION = {
@@ -73,9 +78,9 @@ export function CalificacionProcesoPage() {
     }
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando...</p>
-  if (error) return <div className="alerta alerta--error">{error}</div>
-  if (!proceso) return <div className="estado-vacio"><p>Proceso no encontrado.</p></div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (error) return <Alert variant="error">{error}</Alert>
+  if (!proceso) return <EmptyState icon={SearchX} title="No encontrado" description="Proceso no encontrado." />
 
   const pendientes = proveedores.filter(s => !s.calificacion || s.calificacion.estado === 'pendiente').length
 
@@ -94,9 +99,7 @@ export function CalificacionProcesoPage() {
       </div>
 
       {proveedores.length === 0 ? (
-        <div className="estado-vacio">
-          <p>No hay proveedores que hayan aceptado la invitación en este proceso.</p>
-        </div>
+        <EmptyState icon={Users} title="Sin proveedores" description="No hay proveedores que hayan aceptado la invitación en este proceso." />
       ) : (
         <>
           <table className="tabla">
@@ -116,11 +119,11 @@ export function CalificacionProcesoPage() {
                   <td><code>{s.cuit}</code></td>
                   <td>
                     {s.calificacion ? (
-                      <span className={`badge ${CLASE_CALIFICACION[s.calificacion.estado] ?? 'badge--info'}`}>
+                      <Badge variant={CLASE_CALIFICACION[s.calificacion.estado] ?? 'info'}>
                         {ETIQUETA_CALIFICACION[s.calificacion.estado] ?? 'Pendiente'}
-                      </span>
+                      </Badge>
                     ) : (
-                      <span className="badge badge--info">Pendiente</span>
+                      <Badge variant="info">Pendiente</Badge>
                     )}
                   </td>
                   <td>{s.calificacion?.evaluador ?? '-'}</td>
@@ -141,13 +144,13 @@ export function CalificacionProcesoPage() {
           <div className="panel-grid" style={{ marginTop: '30px' }}>
             <div className="subasta__card" style={{ padding: '24px', gridColumn: '1 / -1' }}>
               <h2 style={{ fontSize: '18px', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                🛡️ Acta de Evaluación de Proveedores
+                <Shield size={18} /> Acta de Evaluación de Proveedores
               </h2>
               
               {proceso.isEvaluationActSigned ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <span className="badge badge--ok">Firmada e Inmutable</span>
+                    <Badge variant="success">Firmada e Inmutable</Badge>
                     <span className="texto-muted" style={{ fontSize: '13px' }}>
                       Firmado por: <strong>{proceso.evaluationActSignedByName}</strong> el {new Date(proceso.evaluationActSignedAtUtc).toLocaleString()}
                     </span>
@@ -186,9 +189,7 @@ export function CalificacionProcesoPage() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   {pendientes > 0 ? (
-                    <div className="alerta alerta--advertencia" style={{ margin: 0 }}>
-                      ⚠️ Debe calificar a todos los proveedores ({pendientes} pendiente(s)) antes de poder generar y firmar el acta.
-                    </div>
+                    <Alert variant="warning" className="mt-4"><AlertTriangle size={16} className="inline" /> Debe calificar a todos los proveedores ({pendientes} pendiente(s)) antes de poder generar y firmar el acta.</Alert>
                   ) : (
                     <div>
                       <p className="texto-muted" style={{ fontSize: '14px', marginBottom: '15px' }}>
@@ -199,7 +200,7 @@ export function CalificacionProcesoPage() {
                         onClick={() => setMostrarFirmaModal(true)}
                         disabled={firmaCargando}
                       >
-                        🖋️ Firmar y Habilitar Subasta
+                        <PenLine size={16} /> Firmar y Habilitar Subasta
                       </button>
                     </div>
                   )}

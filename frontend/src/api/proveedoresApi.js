@@ -1,4 +1,4 @@
-import { apiFetch, ApiError } from './client.js'
+import { apiFetch, ApiError } from './client'
 
 const ESTADOS = {
   0: 'pendiente',

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/AuthContext'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 import {
   listarInvitacionesDeProveedor,
   listarSubastasProveedor,
   obtenerProveedorDeUsuario,
   responderInvitacion,
-} from '../../api/proveedoresApi.js'
+} from '../../api/proveedoresApi'
 
 const ESTADO_INVITACION = {
   pendiente: { texto: 'Pendiente', clase: 'badge--warn' },
@@ -101,8 +103,8 @@ export function ProveedorOportunidadesPage() {
     setMotivoRechazoText('')
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando...</p>
-  if (error) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (error) return <Alert variant="error">{error}</Alert>
 
   return (
     <section className="form-pagina proveedor-home">
@@ -112,7 +114,7 @@ export function ProveedorOportunidadesPage() {
 
       <div className="form">
         <h2 className="form__titulo">Invitaciones a procesos</h2>
-        {errorComercial && <div className="alerta alerta--error">{errorComercial}</div>}
+        {errorComercial && <Alert variant="error">{errorComercial}</Alert>}
 
         {invitaciones.length === 0 ? (
           <p className="form__seccion-ayuda">Todavia no recibiste invitaciones de compradores.</p>

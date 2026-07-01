@@ -27,6 +27,48 @@ public class PublicPortalController : ControllerBase
         return Ok(processes);
     }
 
+    [HttpGet("open-data/processes.json")]
+    public async Task<ActionResult<List<PublicPurchaseProcessDto>>> GetOpenDataProcessesJson(
+        [FromQuery] Guid? companyId,
+        [FromQuery] string? search)
+    {
+        var processes = await _sender.Send(new GetPublicPurchaseProcessesQuery(companyId, search));
+        return Ok(processes);
+    }
+
+    [HttpGet("open-data/processes.csv")]
+    public async Task<IActionResult> GetOpenDataProcessesCsv(
+        [FromQuery] Guid? companyId,
+        [FromQuery] string? stage)
+    {
+        var export = await _sender.Send(new ExportPublicOpenDataCsvQuery(companyId, stage));
+        return File(
+            System.Text.Encoding.UTF8.GetBytes(export.CsvContent),
+            export.ContentType,
+            export.FileName);
+    }
+
+    [HttpGet("ocds/releases")]
+    public async Task<ActionResult<OcdsReleasePackageDto>> GetOcdsReleases(
+        [FromQuery] Guid? companyId,
+        [FromQuery] string? stage)
+    {
+        var package = await _sender.Send(new GetPublicOcdsReleasesQuery(companyId, stage));
+        return Ok(package);
+    }
+
+    [HttpGet("purchase-processes/{purchaseProcessId:guid}")]
+    public async Task<ActionResult<PublicPurchaseProcessDetailDto>> GetProcessDetail(Guid purchaseProcessId)
+    {
+        var process = await _sender.Send(new GetPublicPurchaseProcessDetailQuery(purchaseProcessId));
+        if (process == null)
+        {
+            return NotFound(new { message = "Proceso publico no encontrado." });
+        }
+
+        return Ok(process);
+    }
+
     [HttpGet("awards")]
     public async Task<ActionResult<List<PublicAwardDto>>> GetAwards(
         [FromQuery] Guid? companyId,

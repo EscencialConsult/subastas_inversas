@@ -2,17 +2,20 @@
 // Es su espacio propio: no ve datos de ningun tenant comprador.
 
 import { useEffect, useState } from 'react'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/AuthContext'
 import {
   listarDocumentosProveedor,
   obtenerProveedorDeUsuario,
   subsanarDocumentoProveedor,
   subirDocumentoProveedor,
-} from '../../api/proveedoresApi.js'
+} from '../../api/proveedoresApi'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 const ESTADO = {
-  pendiente: { texto: 'Pendiente de verificacion', clase: 'badge--off' },
-  verificado: { texto: 'Verificado', clase: 'badge--ok' },
+  pendiente: { texto: 'Pendiente de verificacion', clase: 'neutral' },
+  verificado: { texto: 'Verificado', clase: 'success' },
 }
 
 const TIPOS_DOCUMENTO = [
@@ -23,15 +26,15 @@ const TIPOS_DOCUMENTO = [
 ]
 
 const ESTADO_DOCUMENTO = {
-  valido: { texto: 'Vigente', clase: 'badge--ok' },
-  por_vencer: { texto: 'Por vencer', clase: 'badge--warn' },
-  vencido: { texto: 'Vencido', clase: 'badge--error' },
+  valido: { texto: 'Vigente', clase: 'success' },
+  por_vencer: { texto: 'Por vencer', clase: 'warning' },
+  vencido: { texto: 'Vencido', clase: 'error' },
 }
 
 const DICTAMEN_DOCUMENTO = {
-  aprobado: { texto: 'Aprobado', clase: 'badge--ok' },
-  rechazado: { texto: 'Rechazado', clase: 'badge--error' },
-  aprobado_con_excepcion: { texto: 'Aprobado con excepcion', clase: 'badge--warn' },
+  aprobado: { texto: 'Aprobado', clase: 'success' },
+  rechazado: { texto: 'Rechazado', clase: 'error' },
+  aprobado_con_excepcion: { texto: 'Aprobado con excepcion', clase: 'warning' },
 }
 
 
@@ -70,8 +73,8 @@ export function ProveedorHomePage() {
       })
   }, [usuario.id])
 
-  if (cargando) return <p className="estado-cargando">Cargando...</p>
-  if (error) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (error) return <Alert variant="error">{error}</Alert>
 
   const estado = ESTADO[proveedor.estado] ?? ESTADO.pendiente
   const documentosConAlerta = documentos.filter((documento) =>
@@ -185,7 +188,7 @@ export function ProveedorHomePage() {
 
         <div className="proveedor__estado">
           <span>Estado:</span>
-          <span className={`badge ${estado.clase}`}>{estado.texto}</span>
+          <Badge variant={estado.clase}>{estado.texto}</Badge>
         </div>
 
         {proveedor.estado === 'pendiente' && (
@@ -202,9 +205,7 @@ export function ProveedorHomePage() {
         <h2 className="form__titulo">Documentacion</h2>
 
         {documentosConAlerta.length > 0 && (
-          <div className="alerta alerta--warning">
-            Tenes {documentosConAlerta.length} documento(s) vencidos o por vencer.
-          </div>
+          <Alert variant="warning">Tenes {documentosConAlerta.length} documento(s) vencidos o por vencer.</Alert>
         )}
 
         <form className="documentos__form" onSubmit={manejarSubmitDocumento}>
@@ -239,10 +240,10 @@ export function ProveedorHomePage() {
           </button>
         </form>
 
-        {errorDocumento && <div className="alerta alerta--error">{errorDocumento}</div>}
+        {errorDocumento && <Alert variant="error">{errorDocumento}</Alert>}
 
         {cargandoDocumentos ? (
-          <p className="estado-cargando">Cargando documentacion...</p>
+          <div className="flex justify-center py-12"><Spinner /></div>
         ) : documentos.length === 0 ? (
           <p className="form__seccion-ayuda">Todavia no cargaste documentacion global.</p>
         ) : (
@@ -270,13 +271,13 @@ export function ProveedorHomePage() {
                       <td className="mono">{documento.hashCorto}</td>
                       <td>{formatearFecha(documento.venceEl)}</td>
                       <td>
-                        <span className={`badge ${estadoDocumento.clase}`}>{estadoDocumento.texto}</span>
+                        <Badge variant={estadoDocumento.clase}>{estadoDocumento.texto}</Badge>
                       </td>
                       <td>
                         {dictamen ? (
-                          <span className={`badge ${dictamen.clase}`}>{dictamen.texto}</span>
+                          <Badge variant={dictamen.clase}>{dictamen.texto}</Badge>
                         ) : (
-                          <span className="badge badge--off">Sin dictamen</span>
+                          <Badge variant="neutral">Sin dictamen</Badge>
                         )}
                         {documento.revisiones.length > 0 && (
                           <small className="tabla__nota">

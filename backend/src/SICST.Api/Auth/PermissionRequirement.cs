@@ -21,11 +21,16 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IMemoryCache _cache;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public PermissionAuthorizationHandler(IServiceScopeFactory scopeFactory, IMemoryCache cache)
+    public PermissionAuthorizationHandler(
+        IServiceScopeFactory scopeFactory,
+        IMemoryCache cache,
+        IHttpContextAccessor httpContextAccessor)
     {
         _scopeFactory = scopeFactory;
         _cache = cache;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     protected override async Task HandleRequirementAsync(
@@ -35,6 +40,11 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
         var roleValue = context.User.FindFirstValue(ClaimTypes.Role);
 
         if (!Enum.TryParse<UserRole>(roleValue, out var role))
+        {
+            return;
+        }
+
+        if (!IsAuthorizedForRouteCompany(context.User, role))
         {
             return;
         }
@@ -58,5 +68,25 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
         {
             context.Succeed(requirement);
         }
+    }
+
+    private bool IsAuthorizedForRouteCompany(ClaimsPrincipal user, UserRole role)
+    {
+        if (role == UserRole.SuperAdmin)
+        {
+            return true;
+        }
+
+        var httpContext = _httpContextAccessor.HttpContext;
+        var routeCompanyValue = httpContext?.Request.RouteValues["companyId"]?.ToString();
+        if (string.IsNullOrWhiteSpace(routeCompanyValue))
+        {
+            return true;
+        }
+
+        var claimCompanyValue = user.FindFirstValue("companyId");
+        return Guid.TryParse(routeCompanyValue, out var routeCompanyId) &&
+            Guid.TryParse(claimCompanyValue, out var claimCompanyId) &&
+            routeCompanyId == claimCompanyId;
     }
 }

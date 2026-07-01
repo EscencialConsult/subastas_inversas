@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { obtenerTenant, crearTenant, actualizarTenant } from '../../api/tenantsApi.js'
-import { Building2, Globe, Image, Palette, ShieldCheck, CheckCircle } from 'lucide-react'
+import { obtenerTenant, crearTenant, actualizarTenant } from '../../api/tenantsApi'
+import { Building2, Globe, Image, Palette, ShieldCheck, CheckCircle, Clipboard } from 'lucide-react'
+import { Spinner } from '../../components/ui/Spinner.jsx'
+import { Alert } from '../../components/ui/Alert'
 
 const COLOR_PRIMARIO_DEFAULT = '#1d4ed8'
 const VACIO = {
@@ -122,7 +124,7 @@ export function TenantFormPage() {
     navigate('/tenants')
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando…</p>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
 
   return (
     <>
@@ -131,7 +133,7 @@ export function TenantFormPage() {
           <h1>{esEdicion ? 'Editar empresa' : 'Nueva empresa'}</h1>
         </div>
 
-        {error && <div className="alerta alerta--error">{error}</div>}
+        {error && <Alert variant="error">{error}</Alert>}
 
         <form className="form" onSubmit={manejarSubmit} noValidate>
           <div className="form__seccion" style={{ border: 'none', padding: 0, background: 'none' }}>
@@ -295,9 +297,7 @@ export function TenantFormPage() {
                 Se creó la organización <strong>{creacionExitosa.tenant.nombre}</strong> con
                 administrador <strong>{creacionExitosa.admin.nombre} {creacionExitosa.admin.apellido}</strong>.
               </p>
-              <div className="alerta alerta--info" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <strong>Contraseña temporal del administrador:</strong>
-              </div>
+              <Alert variant="info"><strong>Contraseña temporal del administrador:</strong></Alert>
               <div className="contrasenia-temporal">
                 <code>{creacionExitosa.passwordTemporal}</code>
                 <button
@@ -306,7 +306,7 @@ export function TenantFormPage() {
                   title="Copiar contraseña"
                   onClick={() => navigator.clipboard.writeText(creacionExitosa.passwordTemporal)}
                 >
-                  📋
+                  <Clipboard size={16} />
                 </button>
               </div>
               <p className="campo__ayuda" style={{ fontSize: 13 }}>

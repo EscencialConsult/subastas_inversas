@@ -1,4 +1,4 @@
-import { apiFetch, ApiError } from './client.js'
+import { apiFetch, ApiError } from './client'
 
 export async function listarModalidadesContratacion({ tenantId }) {
   return apiFetch(`/api/companies/${tenantId}/configuration/contracting-modes`)

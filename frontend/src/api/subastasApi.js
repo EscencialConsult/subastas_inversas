@@ -1,4 +1,4 @@
-import { API_URL, apiFetch, ApiError } from './client.js'
+import { API_URL, apiFetch, ApiError } from './client'
 import { listarProcesos, listarProcesosParaAuditoria } from './comprasApi.js'
 
 const ESTADOS_SUBASTA = {

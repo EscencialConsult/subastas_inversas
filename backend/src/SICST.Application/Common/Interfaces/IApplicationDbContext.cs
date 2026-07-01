@@ -29,6 +29,7 @@ public interface IApplicationDbContext
     DbSet<AwardItem> AwardItems { get; }
     DbSet<Approval> Approvals { get; }
     DbSet<Contract> Contracts { get; }
+    DbSet<ContractPayment> ContractPayments { get; }
     DbSet<PurchaseOrder> PurchaseOrders { get; }
     DbSet<ReceptionConfirmation> ReceptionConfirmations { get; }
     DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems { get; }

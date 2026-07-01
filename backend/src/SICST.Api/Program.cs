@@ -27,6 +27,7 @@ builder.Logging.AddDebug();
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddSignalR();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentTenant, CurrentTenant>();
 builder.Services.AddHostedService<AuctionSchedulerService>();
 builder.Services.AddHostedService<SupplierArcaVerificationService>();
@@ -38,14 +39,45 @@ if (builder.Environment.IsDevelopment())
         .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
 }
 
+var jwtIssuer = GetRequiredConfigurationValue(builder.Configuration, "Jwt:Issuer");
+var jwtAudience = GetRequiredConfigurationValue(builder.Configuration, "Jwt:Audience");
+var jwtSecret = GetRequiredConfigurationValue(builder.Configuration, "Jwt:Secret");
+if (jwtSecret.Length < 32)
+{
+    throw new InvalidOperationException("Jwt:Secret must be at least 32 characters long.");
+}
+
 // Configure CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("ConfiguredCors", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        var allowedOrigins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>()?
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .ToArray() ?? [];
+
+        if (allowedOrigins.Length == 0 && builder.Environment.IsDevelopment())
+        {
+            allowedOrigins =
+            [
+                "http://localhost:5173",
+                "https://localhost:5173",
+                "http://127.0.0.1:5173",
+                "https://127.0.0.1:5173"
+            ];
+        }
+
+        if (allowedOrigins.Length == 0)
+        {
+            throw new InvalidOperationException("Cors:AllowedOrigins must be configured outside Development.");
+        }
+
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
@@ -82,10 +114,9 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            builder.Configuration["Jwt:Secret"] ?? "super_secret_key_that_is_at_least_32_characters_long!"))
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
     };
 });
 
@@ -141,7 +172,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAll"); // Must be called before UseRouting/UseEndpoints/UseAuthentication/UseAuthorization
+app.UseCors("ConfiguredCors"); // Must be called before UseRouting/UseEndpoints/UseAuthentication/UseAuthorization
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
@@ -168,6 +199,16 @@ using (var scope = app.Services.CreateScope())
 
 app.Run();
 
+static string GetRequiredConfigurationValue(IConfiguration configuration, string key)
+{
+    var value = configuration[key];
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        throw new InvalidOperationException($"{key} must be configured through environment variables, user secrets, or a secret manager.");
+    }
+
+    return value;
+}
 
 
 

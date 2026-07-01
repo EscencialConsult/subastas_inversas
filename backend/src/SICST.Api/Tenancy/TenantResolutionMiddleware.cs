@@ -14,10 +14,11 @@ public class TenantResolutionMiddleware
 
     public async Task InvokeAsync(
         HttpContext httpContext,
+        IWebHostEnvironment environment,
         IApplicationDbContext dbContext,
         ICurrentTenant currentTenant)
     {
-        var domain = ResolveTenantDomain(httpContext);
+        var domain = ResolveTenantDomain(httpContext, environment);
 
         if (!string.IsNullOrWhiteSpace(domain))
         {
@@ -35,9 +36,10 @@ public class TenantResolutionMiddleware
         await _next(httpContext);
     }
 
-    private static string? ResolveTenantDomain(HttpContext httpContext)
+    private static string? ResolveTenantDomain(HttpContext httpContext, IWebHostEnvironment environment)
     {
-        if (httpContext.Request.Headers.TryGetValue("X-Tenant-Domain", out var tenantHeader))
+        if (environment.IsDevelopment() &&
+            httpContext.Request.Headers.TryGetValue("X-Tenant-Domain", out var tenantHeader))
         {
             return tenantHeader.ToString();
         }

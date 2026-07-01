@@ -32,6 +32,7 @@ public class GetPurchaseProcessesQueryHandler : IRequestHandler<GetPurchaseProce
             .Include(p => p.Awards).ThenInclude(a => a.AdjudicatedBy)
             .Include(p => p.Awards).ThenInclude(a => a.Items).ThenInclude(i => i.PurchaseItem)
             .Include(p => p.Contracts).ThenInclude(c => c.Supplier)
+            .Include(p => p.Contracts).ThenInclude(c => c.Payments).ThenInclude(pay => pay.RegisteredBy)
             .Include(p => p.PurchaseOrders).ThenInclude(o => o.Supplier)
             .Include(p => p.PurchaseOrders).ThenInclude(o => o.Receptions).ThenInclude(r => r.ReceivedBy)
             .Include(p => p.PurchaseOrders).ThenInclude(o => o.Receptions).ThenInclude(r => r.Items).ThenInclude(i => i.PurchaseItem)

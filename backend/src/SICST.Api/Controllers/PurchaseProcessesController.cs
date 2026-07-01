@@ -761,6 +761,31 @@ public class PurchaseProcessesController : ControllerBase
         }
     }
 
+    [HttpPost("~/api/companies/{companyId:guid}/contracts/{contractId:guid}/payments")]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
+    public async Task<ActionResult<ContractPaymentDto>> RegisterContractPayment(Guid companyId, Guid contractId, [FromBody] RegisterContractPaymentCommand command)
+    {
+        if (companyId != command.CompanyId || contractId != command.ContractId)
+        {
+            return BadRequest(new { message = "Los IDs de la URL no coinciden con el cuerpo." });
+        }
+
+        try
+        {
+            var payment = await _sender.Send(command);
+            if (payment == null)
+            {
+                return NotFound(new { message = "Contrato no encontrado." });
+            }
+
+            return Ok(payment);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("~/api/companies/{companyId:guid}/purchase-orders/{purchaseOrderId:guid}/receptions")]
     [Authorize(Policy = PermissionCodes.PurchasesManage)]
     public async Task<ActionResult<ReceptionConfirmationDto>> ConfirmReception(Guid companyId, Guid purchaseOrderId, [FromBody] ConfirmReceptionCommand command)

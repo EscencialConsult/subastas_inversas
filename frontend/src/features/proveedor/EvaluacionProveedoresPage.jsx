@@ -1,28 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/AuthContext'
 import {
   dictaminarDocumentoProveedor,
   listarDocumentosProveedor,
   listarProveedoresParaEvaluacion,
   observarDocumentoProveedor,
-} from '../../api/proveedoresApi.js'
+} from '../../api/proveedoresApi'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 const ESTADO = {
-  verificado: { texto: 'Verificado', clase: 'badge--ok' },
-  pendiente: { texto: 'Pendiente', clase: 'badge--warn' },
-  rechazado: { texto: 'Rechazado', clase: 'badge--error' },
+  verificado: { texto: 'Verificado', clase: 'success' },
+  pendiente: { texto: 'Pendiente', clase: 'warning' },
+  rechazado: { texto: 'Rechazado', clase: 'error' },
 }
 
 const ESTADO_DOCUMENTO = {
-  valido: { texto: 'Vigente', clase: 'badge--ok' },
-  por_vencer: { texto: 'Por vencer', clase: 'badge--warn' },
-  vencido: { texto: 'Vencido', clase: 'badge--error' },
+  valido: { texto: 'Vigente', clase: 'success' },
+  por_vencer: { texto: 'Por vencer', clase: 'warning' },
+  vencido: { texto: 'Vencido', clase: 'error' },
 }
 
 const DICTAMEN = {
-  aprobado: { texto: 'Aprobado', clase: 'badge--ok' },
-  rechazado: { texto: 'Rechazado', clase: 'badge--error' },
-  aprobado_con_excepcion: { texto: 'Aprobado con excepcion', clase: 'badge--warn' },
+  aprobado: { texto: 'Aprobado', clase: 'success' },
+  rechazado: { texto: 'Rechazado', clase: 'error' },
+  aprobado_con_excepcion: { texto: 'Aprobado con excepcion', clase: 'warning' },
 }
 
 const ACCION_REVISION = {
@@ -196,13 +199,13 @@ export function EvaluacionProveedoresPage() {
         </select>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
-      {mensaje && <div className="alerta alerta--ok">{mensaje}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
+      {mensaje && <Alert variant="success">{mensaje}</Alert>}
 
       <div className="form" style={{ marginBottom: 16 }}>
         <h2 className="form__titulo">Proveedor</h2>
         {cargandoProveedores ? (
-          <p className="estado-cargando">Cargando proveedores...</p>
+          <div className="flex justify-center py-12"><Spinner /></div>
         ) : proveedores.length === 0 ? (
           <p className="form__seccion-ayuda">No hay proveedores para evaluar.</p>
         ) : (
@@ -225,9 +228,9 @@ export function EvaluacionProveedoresPage() {
             <span>Email: {proveedorSeleccionado.email}</span>
             <span>
               Estado:{' '}
-              <span className={`badge ${(ESTADO[proveedorSeleccionado.estado] ?? ESTADO.pendiente).clase}`}>
+              <Badge variant={(ESTADO[proveedorSeleccionado.estado] ?? ESTADO.pendiente).clase}>
                 {(ESTADO[proveedorSeleccionado.estado] ?? ESTADO.pendiente).texto}
-              </span>
+              </Badge>
             </span>
           </div>
         )}
@@ -247,7 +250,7 @@ export function EvaluacionProveedoresPage() {
         </div>
 
         {cargandoDocumentos ? (
-          <p className="estado-cargando">Cargando documentacion...</p>
+          <div className="flex justify-center py-12"><Spinner /></div>
         ) : documentos.length === 0 ? (
           <p className="form__seccion-ayuda">Este proveedor todavia no cargo documentacion.</p>
         ) : (
@@ -283,15 +286,15 @@ export function EvaluacionProveedoresPage() {
                       </td>
                       <td>{formatearFecha(documento.venceEl)}</td>
                       <td>
-                        <span className={`badge ${estadoDocumento.clase}`}>
+                        <Badge variant={estadoDocumento.clase}>
                           {estadoDocumento.texto}
-                        </span>
+                        </Badge>
                       </td>
                       <td>
                         {dictamen ? (
-                          <span className={`badge ${dictamen.clase}`}>{dictamen.texto}</span>
+                          <Badge variant={dictamen.clase}>{dictamen.texto}</Badge>
                         ) : (
-                          <span className="badge badge--off">Sin dictamen</span>
+                          <Badge variant="neutral">Sin dictamen</Badge>
                         )}
                         {documento.dictaminadoEl && (
                           <small className="tabla__nota">

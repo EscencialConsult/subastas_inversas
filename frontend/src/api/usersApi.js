@@ -1,4 +1,4 @@
-import { ApiError, apiFetch } from './client.js'
+import { ApiError, apiFetch } from './client'
 
 function validarDatos(datos) {
   if (!datos.nombre?.trim()) throw new ApiError('El nombre es obligatorio.', 422)

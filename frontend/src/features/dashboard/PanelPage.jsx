@@ -4,8 +4,10 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerPanel } from '../../api/dashboardApi.js'
+import { useAuth } from '../../auth/AuthContext'
+import { obtenerPanel } from '../../api/dashboardApi'
+import { Spinner } from '../../components/ui/Spinner.jsx'
+import { Alert } from '../../components/ui/Alert'
 
 export function PanelPage() {
   const { usuario, tenant, rol } = useAuth()
@@ -23,8 +25,8 @@ export function PanelPage() {
     return () => clearTimeout(t)
   }, [rol, usuario.tenantId])
 
-  if (cargando) return <p className="estado-cargando">Cargando panel…</p>
-  if (!panel) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+  if (!panel) return <Alert variant="error">{error}</Alert>
 
   return (
     <section>
@@ -36,7 +38,7 @@ export function PanelPage() {
         </p>
       </div>
 
-      {panel.nota && <div className="alerta alerta--info">{panel.nota}</div>}
+      {panel.nota && <Alert variant="info">{panel.nota}</Alert>}
 
       {panel.cards?.length > 0 && (
         <div className="panel-cards">
@@ -45,6 +47,38 @@ export function PanelPage() {
               <span className="panel-card__valor">{c.valor}</span>
               <span className="panel-card__label">{c.label}</span>
             </div>
+          ))}
+        </div>
+      )}
+
+      {panel.kpis?.length > 0 && (
+        <div className="executive-kpis">
+          {panel.kpis.map((kpi) => (
+            <article className="executive-kpi" key={kpi.label}>
+              <span className="executive-kpi__label">{kpi.label}</span>
+              <strong className="executive-kpi__value">{kpi.valor}</strong>
+              <span className="executive-kpi__help">{kpi.ayuda}</span>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {panel.graficos?.length > 0 && (
+        <div className="executive-grid">
+          {panel.graficos.map((grafico) => (
+            <section className="executive-chart" key={grafico.titulo}>
+              <div className="executive-chart__header">
+                <h2>{grafico.titulo}</h2>
+                {grafico.descripcion && <p>{grafico.descripcion}</p>}
+              </div>
+              {grafico.items.length === 0 ? (
+                <p className="panel-lista__vacio">Sin datos.</p>
+              ) : grafico.tipo === 'ranking' ? (
+                <RankingChart items={grafico.items} />
+              ) : (
+                <BarChart items={grafico.items} />
+              )}
+            </section>
           ))}
         </div>
       )}
@@ -71,6 +105,27 @@ export function PanelPage() {
         </div>
       )}
 
+      {panel.feed?.length > 0 && (
+        <section className="activity-feed">
+          <div className="executive-chart__header">
+            <h2>Actividad reciente</h2>
+            <p>Ultimos movimientos relevantes de compras y subastas.</p>
+          </div>
+          <div className="activity-feed__items">
+            {panel.feed.map((item) => (
+              <Link className="activity-feed__item" key={item.id} to={item.to}>
+                <span className="activity-feed__type">{item.tipo}</span>
+                <span className="activity-feed__body">
+                  <strong>{item.titulo}</strong>
+                  <small>{item.detalle}</small>
+                </span>
+                <span className="activity-feed__date">{formatearFecha(item.fecha)}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {panel.acciones?.length > 0 && (
         <div className="panel-acciones">
           {panel.acciones.map((a) => (
@@ -82,4 +137,62 @@ export function PanelPage() {
       )}
     </section>
   )
+}
+
+function BarChart({ items }) {
+  const max = Math.max(...items.map((item) => Number(item.valor) || 0), 1)
+
+  return (
+    <div className="bar-chart">
+      {items.map((item) => {
+        const valor = Number(item.valor) || 0
+        const width = `${Math.max(4, (valor / max) * 100)}%`
+        return (
+          <div className="bar-chart__row" key={item.label}>
+            <div className="bar-chart__meta">
+              <span>{item.label}</span>
+              <strong>{item.display ?? valor}</strong>
+            </div>
+            <div className="bar-chart__track" aria-hidden="true">
+              <span className="bar-chart__bar" style={{ width }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function RankingChart({ items }) {
+  const max = Math.max(...items.map((item) => Number(item.valor) || 0), 1)
+
+  return (
+    <div className="ranking-chart">
+      {items.map((item, index) => {
+        const valor = Number(item.valor) || 0
+        const width = `${Math.max(5, (valor / max) * 100)}%`
+        return (
+          <article className="ranking-chart__item" key={`${item.label}-${index}`}>
+            <div>
+              <span className="ranking-chart__position">#{index + 1}</span>
+              <strong>{item.label}</strong>
+              {item.detalle && <small>{item.detalle}</small>}
+            </div>
+            <span className="ranking-chart__value">{item.display ?? valor}</span>
+            <div className="bar-chart__track ranking-chart__track" aria-hidden="true">
+              <span className="bar-chart__bar" style={{ width }} />
+            </div>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatearFecha(fecha) {
+  if (!fecha) return 'Sin fecha'
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+  }).format(new Date(fecha))
 }

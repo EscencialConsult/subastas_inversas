@@ -4,9 +4,18 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { listarSubastasRealizadasParaAuditoria } from '../../api/subastasApi.js'
-import { ESTADO_INFO, etiquetaEstado, claseEstado } from '../../domain/compras.js'
+import { Gavel } from 'lucide-react'
+import { useAuth } from '../../auth/AuthContext'
+import { listarSubastasRealizadasParaAuditoria } from '../../api/subastasApi'
+import { ESTADO_INFO, etiquetaEstado, claseEstado } from '../../domain/compras'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Input } from '../../components/ui/Input.jsx'
+import { Pagination, usePagination } from '../../components/ui/Pagination.jsx'
+import { Select } from '../../components/ui/Select.jsx'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 export function SubastasRealizadasPage() {
   const { tenantId } = useAuth()
@@ -18,6 +27,7 @@ export function SubastasRealizadasPage() {
 
   const [busqueda, setBusqueda] = useState('')
   const [estado, setEstado] = useState('')
+  const subastasPagination = usePagination(subastas, { initialPageSize: 10 })
 
   async function cargar() {
     setCargando(true)
@@ -46,41 +56,36 @@ export function SubastasRealizadasPage() {
     <section>
       <div className="encabezado">
         <h1>Subastas realizadas</h1>
-        <button
-          className="btn btn--primario"
-          onClick={exportar}
-          disabled={subastas.length === 0}
-        >
+        <Button onClick={exportar} disabled={subastas.length === 0}>
           Exportar CSV
-        </button>
+        </Button>
       </div>
 
       <div className="filtros">
-        <input
+        <Input
           className="filtros__busqueda"
           placeholder="Buscar por código, título o proveedor…"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
-        <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+        <Select value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Todos los estados</option>
           {Object.entries(ESTADO_INFO).map(([clave, info]) => (
             <option key={clave} value={clave}>
               {info.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       {cargando ? (
-        <p className="estado-cargando">Cargando…</p>
+        <div className="flex justify-center py-12"><Spinner /></div>
       ) : subastas.length === 0 ? (
-        <div className="estado-vacio">
-          <p>No hay subastas que coincidan con el filtro.</p>
-        </div>
+        <EmptyState icon={Gavel} title="Sin subastas" description="No hay subastas que coincidan con el filtro." />
       ) : (
+        <>
         <table className="tabla">
           <thead>
             <tr>
@@ -95,7 +100,7 @@ export function SubastasRealizadasPage() {
             </tr>
           </thead>
           <tbody>
-            {subastas.map((s) => (
+            {subastasPagination.paginatedItems.map((s) => (
               <tr key={s.procesoId}>
                 <td>
                   <code>{s.codigo}</code>
@@ -104,30 +109,34 @@ export function SubastasRealizadasPage() {
                 <td>{s.oferentes}</td>
                 <td>{formatearPesos(s.mejor)}</td>
                 <td>
-                  <span className={`badge ${claseBaja(s.nivelBaja)}`}>
+                  <Badge variant={claseBaja(s.nivelBaja)}>
                     {s.bajaPorcentaje.toFixed(1)}%
-                  </span>
+                  </Badge>
                 </td>
                 <td>{s.proveedorAdjudicado ?? '—'}</td>
                 <td>
                   {s.estadoProceso && (
-                    <span className={`badge ${claseEstado(s.estadoProceso)}`}>
-                      {etiquetaEstado(s.estadoProceso)}
-                    </span>
+                    <Badge variant={claseEstado(s.estadoProceso)}>{etiquetaEstado(s.estadoProceso)}</Badge>
                   )}
                 </td>
                 <td className="tabla__acciones">
-                  <button
-                    className="btn btn--texto"
-                    onClick={() => navigate(`/auditoria/${s.procesoId}`)}
-                  >
+                  <Button variant="ghost" onClick={() => navigate(`/auditoria/${s.procesoId}`)}>
                     Ver expediente
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={subastasPagination.page}
+          pageSize={subastasPagination.pageSize}
+          totalItems={subastasPagination.totalItems}
+          totalPages={subastasPagination.totalPages}
+          onPageChange={subastasPagination.setPage}
+          onPageSizeChange={subastasPagination.setPageSize}
+        />
+        </>
       )}
     </section>
   )
@@ -180,9 +189,9 @@ function celdaCSV(valor) {
 }
 
 function claseBaja(nivel) {
-  if (nivel === 'alta') return 'badge--ok'
-  if (nivel === 'moderada') return 'badge--warn'
-  return 'badge--off'
+  if (nivel === 'alta') return 'success'
+  if (nivel === 'moderada') return 'warning'
+  return 'neutral'
 }
 
 function formatearPesos(monto) {

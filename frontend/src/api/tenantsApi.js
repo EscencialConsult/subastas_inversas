@@ -1,4 +1,4 @@
-import { apiFetch } from './client.js'
+import { apiFetch } from './client'
 import { listarProcesos } from './comprasApi.js'
 import { listarSubastasRealizadas } from './subastasApi.js'
 import { listarUsuarios } from './usersApi.js'

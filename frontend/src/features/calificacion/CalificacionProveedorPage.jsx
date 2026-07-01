@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerProcesoParaEvaluacion, obtenerProveedoresDeProceso, calificarProveedor } from '../../api/comprasApi.js'
+import { SearchX } from 'lucide-react'
+import { useAuth } from '../../auth/AuthContext'
+import { Badge } from '../../components/ui/Badge'
+import { obtenerProcesoParaEvaluacion, obtenerProveedoresDeProceso, calificarProveedor } from '../../api/comprasApi'
+import { Alert } from '../../components/ui/Alert'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 const CLASE_CALIFICACION = {
-  pendiente: 'badge--info',
-  aprobado: 'badge--ok',
-  observado: 'badge--advertencia',
-  rechazado: 'badge--error',
+  pendiente: 'info',
+  aprobado: 'success',
+  observado: 'warning',
+  rechazado: 'error',
 }
 
 const ETIQUETA_CALIFICACION = {
@@ -104,9 +109,9 @@ export function CalificacionProveedorPage() {
     rechazado: 'Rejected',
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando...</p>
-  if (error && !proveedor) return <div className="alerta alerta--error">{error}</div>
-  if (!proceso || !proveedor) return <div className="estado-vacio"><p>Datos no disponibles.</p></div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (error && !proveedor) return <Alert variant="error">{error}</Alert>
+  if (!proceso || !proveedor) return <EmptyState icon={SearchX} title="Sin datos" description="Datos no disponibles." />
 
   const cal = proveedor.calificacion
   const yaCalificado = cal && cal.estado !== 'pendiente'
@@ -123,27 +128,25 @@ export function CalificacionProveedorPage() {
           {cal && (
             <span>
               &middot; Calificación actual:{' '}
-              <span className={`badge ${CLASE_CALIFICACION[cal.estado] ?? 'badge--info'}`}>
+              <Badge variant={CLASE_CALIFICACION[cal.estado] ?? 'info'}>
                 {ETIQUETA_CALIFICACION[cal.estado]}
-              </span>
+              </Badge>
             </span>
           )}
         </p>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
-      {exito && <div className="alerta alerta--ok">{exito}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
+      {exito && <Alert variant="success">{exito}</Alert>}
 
       {yaCalificado && (
-        <div className="alerta alerta--info">
-          {cal.estado === 'aprobado'
+        <Alert variant="info">{cal.estado === 'aprobado'
             ? 'Este proveedor ya fue aprobado y no se puede modificar su calificación.'
             : cal.estado === 'observado'
               ? 'Este proveedor fue observado. Puede cambiarlo a Aprobado si subsanó las observaciones.'
               : 'Este proveedor fue rechazado.'}
           {cal.evaluador && <span> Evaluado por: {cal.evaluador}.</span>}
-          {cal.fecha && <span> Fecha: {new Date(cal.fecha).toLocaleDateString()}.</span>}
-        </div>
+          {cal.fecha && <span> Fecha: {new Date(cal.fecha).toLocaleDateString()}.</span>}</Alert>
       )}
 
       {(!yaCalificado || (yaCalificado && cal.estado === 'observado')) && (

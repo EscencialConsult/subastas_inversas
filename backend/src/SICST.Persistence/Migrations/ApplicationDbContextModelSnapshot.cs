@@ -673,6 +673,54 @@ namespace SICST.Persistence.Migrations
                     b.ToTable("Contracts");
                 });
 
+            modelBuilder.Entity("SICST.Domain.Entities.ContractPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DelayDays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<decimal>("PaymentAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("PaymentDateUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("PenaltyAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("RegisteredById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("RegisteredById");
+
+                    b.HasIndex("CompanyId", "ContractId", "PaymentDateUtc");
+
+                    b.ToTable("ContractPayments");
+                });
+
             modelBuilder.Entity("SICST.Domain.Entities.ContractingMode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1734,6 +1782,33 @@ namespace SICST.Persistence.Migrations
                     b.Navigation("Supplier");
                 });
 
+            modelBuilder.Entity("SICST.Domain.Entities.ContractPayment", b =>
+                {
+                    b.HasOne("SICST.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SICST.Domain.Entities.Contract", "Contract")
+                        .WithMany("Payments")
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SICST.Domain.Entities.User", "RegisteredBy")
+                        .WithMany()
+                        .HasForeignKey("RegisteredById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("RegisteredBy");
+                });
+
             modelBuilder.Entity("SICST.Domain.Entities.ContractingMode", b =>
                 {
                     b.HasOne("SICST.Domain.Entities.Company", "Company")
@@ -2070,6 +2145,8 @@ namespace SICST.Persistence.Migrations
 
             modelBuilder.Entity("SICST.Domain.Entities.Contract", b =>
                 {
+                    b.Navigation("Payments");
+
                     b.Navigation("PurchaseOrder");
                 });
 

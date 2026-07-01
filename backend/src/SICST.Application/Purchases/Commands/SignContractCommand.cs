@@ -23,12 +23,18 @@ public class SignContractCommandHandler : IRequestHandler<SignContractCommand, C
     private readonly IApplicationDbContext _context;
     private readonly IPdfGenerator _pdfGenerator;
     private readonly IMfaProvider _mfaProvider;
+    private readonly IAdvancedDigitalSignatureService _signatureService;
 
-    public SignContractCommandHandler(IApplicationDbContext context, IPdfGenerator pdfGenerator, IMfaProvider mfaProvider)
+    public SignContractCommandHandler(
+        IApplicationDbContext context,
+        IPdfGenerator pdfGenerator,
+        IMfaProvider mfaProvider,
+        IAdvancedDigitalSignatureService signatureService)
     {
         _context = context;
         _pdfGenerator = pdfGenerator;
         _mfaProvider = mfaProvider;
+        _signatureService = signatureService;
     }
 
     public async Task<ContractDto?> Handle(SignContractCommand request, CancellationToken cancellationToken)
@@ -87,12 +93,19 @@ public class SignContractCommandHandler : IRequestHandler<SignContractCommand, C
         var now = DateTime.UtcNow;
 
         var material = $"{contract.Number}:{contract.Amount}:{contract.Terms}:{now:O}";
-        var signatureHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
+        var advancedSignature = await _signatureService.SignAsync(
+            new AdvancedSignatureRequest(
+                "contract",
+                contract.Id,
+                operatorUser.Id,
+                operatorUser.Email,
+                material),
+            cancellationToken);
 
         contract.Status = ContractStatus.Active;
         contract.SignedAtUtc = now;
         contract.SignedByOperatorId = request.SignedByOperatorId;
-        contract.SignatureHash = signatureHash;
+        contract.SignatureHash = advancedSignature.ContentHash;
         contract.DocumentTemplateId = template.Id;
 
         contract.DocumentPath = _pdfGenerator.GenerateContract(process, contract, contract.Supplier, template);

@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { listarProcesosParaCalificacion } from '../../api/comprasApi.js'
-import { etiquetaEstado, claseEstado } from '../../domain/compras.js'
+import { SearchX } from 'lucide-react'
+import { useAuth } from '../../auth/AuthContext'
+import { listarProcesosParaCalificacion } from '../../api/comprasApi'
+import { etiquetaEstado, claseEstado } from '../../domain/compras'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Input } from '../../components/ui/Input.jsx'
+import { Pagination, usePagination } from '../../components/ui/Pagination.jsx'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 export function CalificacionListPage() {
   const { tenantId } = useAuth()
@@ -12,6 +20,7 @@ export function CalificacionListPage() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  const procesosPagination = usePagination(procesos, { initialPageSize: 10 })
 
   async function cargar() {
     setCargando(true)
@@ -41,10 +50,10 @@ export function CalificacionListPage() {
         </p>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <div className="barra-busqueda">
-        <input
+        <Input
           placeholder="Buscar por código o título..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
@@ -52,12 +61,11 @@ export function CalificacionListPage() {
       </div>
 
       {cargando ? (
-        <p className="estado-cargando">Cargando...</p>
+        <div className="flex justify-center py-12"><Spinner /></div>
       ) : procesos.length === 0 ? (
-        <div className="estado-vacio">
-          <p>No hay procesos con proveedores pendientes de calificación.</p>
-        </div>
+        <EmptyState icon={SearchX} title="Sin procesos" description="No hay procesos con proveedores pendientes de calificación." />
       ) : (
+        <>
         <table className="tabla">
           <thead>
             <tr>
@@ -68,27 +76,31 @@ export function CalificacionListPage() {
             </tr>
           </thead>
           <tbody>
-            {procesos.map(p => (
+            {procesosPagination.paginatedItems.map(p => (
               <tr key={p.id}>
                 <td><code>{p.codigo}</code></td>
                 <td>{p.titulo}</td>
                 <td>
-                  <span className={`badge ${claseEstado(p.estado)}`}>
-                    {etiquetaEstado(p.estado)}
-                  </span>
+                  <Badge variant={claseEstado(p.estado)}>{etiquetaEstado(p.estado)}</Badge>
                 </td>
                 <td>
-                  <button
-                    className="btn btn--primario btn--chico"
-                    onClick={() => navigate(`/calificacion/${p.id}`)}
-                  >
+                  <Button size="sm" onClick={() => navigate(`/calificacion/${p.id}`)}>
                     Calificar proveedores
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={procesosPagination.page}
+          pageSize={procesosPagination.pageSize}
+          totalItems={procesosPagination.totalItems}
+          totalPages={procesosPagination.totalPages}
+          onPageChange={procesosPagination.setPage}
+          onPageSizeChange={procesosPagination.setPageSize}
+        />
+        </>
       )}
     </section>
   )

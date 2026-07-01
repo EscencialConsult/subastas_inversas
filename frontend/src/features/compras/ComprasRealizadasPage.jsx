@@ -1,11 +1,18 @@
-// Compras realizadas (legajos): archivo de las compras ya adjudicadas/aprobadas
-// del comprador, con el proveedor y el monto. Cada fila abre el legajo completo.
+// Compras realizadas (legajos): archivo de compras adjudicadas/aprobadas.
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { listarComprasRealizadas } from '../../api/comprasApi.js'
-import { etiquetaEstado, claseEstado } from '../../domain/compras.js'
+import { Package } from 'lucide-react'
+import { useAuth } from '../../auth/AuthContext'
+import { listarComprasRealizadas } from '../../api/comprasApi'
+import { etiquetaEstado, claseEstado } from '../../domain/compras'
+import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Input } from '../../components/ui/Input.jsx'
+import { Spinner } from '../../components/ui/Spinner.jsx'
+import { Table } from '../../components/ui/Table.jsx'
 
 export function ComprasRealizadasPage() {
   const { tenantId } = useAuth()
@@ -42,62 +49,49 @@ export function ComprasRealizadasPage() {
       </div>
 
       <div className="filtros">
-        <input
+        <Input
           className="filtros__busqueda"
-          placeholder="Buscar por código, título o proveedor…"
+          placeholder="Buscar por codigo, titulo o proveedor..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       {cargando ? (
-        <p className="estado-cargando">Cargando…</p>
-      ) : compras.length === 0 ? (
-        <div className="estado-vacio">
-          <p>Todavía no hay compras realizadas.</p>
+        <div className="flex justify-center py-12">
+          <Spinner />
         </div>
+      ) : compras.length === 0 ? (
+        <EmptyState icon={Package} title="Sin compras" description="Todavia no hay compras realizadas." />
       ) : (
-        <table className="tabla">
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Título</th>
-              <th>Proveedor</th>
-              <th>Monto</th>
-              <th>Fecha</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {compras.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  <code>{c.codigo}</code>
-                </td>
-                <td>{c.titulo}</td>
-                <td>{c.proveedor}</td>
-                <td>{formatearPesos(c.monto)}</td>
-                <td>{c.fecha}</td>
-                <td>
-                  <span className={`badge ${claseEstado(c.estado)}`}>
-                    {etiquetaEstado(c.estado)}
-                  </span>
-                </td>
-                <td className="tabla__acciones">
-                  <button
-                    className="btn btn--texto"
-                    onClick={() => navigate(`/compras/${c.id}`)}
-                  >
-                    Ver legajo
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table
+          data={compras}
+          pageSize={10}
+          columns={[
+            { header: 'Codigo', accessor: 'codigo', render: (valor) => <code>{valor}</code> },
+            { header: 'Titulo', accessor: 'titulo' },
+            { header: 'Proveedor', accessor: 'proveedor' },
+            { header: 'Monto', accessor: 'monto', render: (valor) => formatearPesos(valor) },
+            { header: 'Fecha', accessor: 'fecha' },
+            {
+              header: 'Estado',
+              accessor: 'estado',
+              render: (valor) => <Badge variant={claseEstado(valor)}>{etiquetaEstado(valor)}</Badge>,
+            },
+            {
+              header: '',
+              accessor: 'acciones',
+              sortKey: false,
+              render: (_, compra) => (
+                <Button variant="ghost" onClick={() => navigate(`/compras/${compra.id}`)}>
+                  Ver legajo
+                </Button>
+              ),
+            },
+          ]}
+        />
       )}
     </section>
   )

@@ -4,11 +4,15 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerProcesoParaAuditoria, listarInvitacionesProcesoAudit, obtenerResultadosEvaluacionParaAuditoria } from '../../api/comprasApi.js'
-import { obtenerSubastaDeProcesoParaAuditoria, analisisSubasta } from '../../api/subastasApi.js'
-import { nombresPorIds } from '../../api/usersApi.js'
-import { etiquetaEstado, claseEstado } from '../../domain/compras.js'
+import { useAuth } from '../../auth/AuthContext'
+import { obtenerProcesoParaAuditoria, listarInvitacionesProcesoAudit, obtenerResultadosEvaluacionParaAuditoria } from '../../api/comprasApi'
+import { obtenerSubastaDeProcesoParaAuditoria, analisisSubasta } from '../../api/subastasApi'
+import { listarAlertasRiesgo } from '../../api/auditoriaApi'
+import { nombresPorIds } from '../../api/usersApi'
+import { etiquetaEstado, claseEstado } from '../../domain/compras'
+import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../components/ui/Badge'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 export function AuditoriaDetailPage() {
   const { id } = useParams()
@@ -19,6 +23,7 @@ export function AuditoriaDetailPage() {
   const [subasta, setSubasta] = useState(null)
   const [invitaciones, setInvitaciones] = useState([])
   const [evalResults, setEvalResults] = useState(null)
+  const [alertasRiesgo, setAlertasRiesgo] = useState([])
   const [nombres, setNombres] = useState({})
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
@@ -47,6 +52,12 @@ export function AuditoriaDetailPage() {
         setEvalResults(null)
       }
 
+      try {
+        setAlertasRiesgo(await listarAlertasRiesgo({ tenantId, procesoId: id }))
+      } catch {
+        setAlertasRiesgo([])
+      }
+
       const ids = [
         p.compradorId,
         p.adjudicacion?.compradorId,
@@ -66,8 +77,8 @@ export function AuditoriaDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, id])
 
-  if (cargando) return <p className="estado-cargando">Cargando expediente…</p>
-  if (!proceso) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (!proceso) return <Alert variant="error">{error}</Alert>
 
   const nombre = (idUsuario) => nombres[idUsuario] ?? '—'
 
@@ -86,9 +97,41 @@ export function AuditoriaDetailPage() {
         </button>
       </div>
 
-      <div className="alerta alerta--info">
-        Vista de auditoría: solo lectura. No se puede modificar nada desde acá.
-      </div>
+      <Alert variant="info">Vista de auditoría: solo lectura. No se puede modificar nada desde acá.</Alert>
+
+      {alertasRiesgo.length > 0 && (
+        <div className="form">
+          <h2 className="form__titulo">Alertas automaticas de riesgo</h2>
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Severidad</th>
+                <th>Tipo</th>
+                <th>Detalle</th>
+                <th>Metrica</th>
+              </tr>
+            </thead>
+            <tbody>
+              {alertasRiesgo.map((alerta) => (
+                <tr key={`${alerta.codigo}:${alerta.detectadaEn}`}>
+                  <td>
+                    <span className={`badge ${claseSeveridad(alerta.severidad)}`}>
+                      {etiquetaSeveridad(alerta.severidad)}
+                    </span>
+                  </td>
+                  <td>{etiquetaAlerta(alerta.codigo)}</td>
+                  <td>{alerta.mensaje}</td>
+                  <td>
+                    {alerta.valor === null || alerta.valor === undefined
+                      ? '---'
+                      : `${alerta.valor}${alerta.unidad ? ` ${alerta.unidad}` : ''}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <LineaDeTiempo proceso={proceso} subasta={subasta} invitaciones={invitaciones} evalResults={evalResults} />
 
@@ -119,9 +162,7 @@ export function AuditoriaDetailPage() {
           <div className="auditoria-dato">
             <span className="auditoria-dato__label">Estado actual</span>
             <span className="auditoria-dato__valor">
-              <span className={`badge ${claseEstado(proceso.estado)}`}>
-                {etiquetaEstado(proceso.estado)}
-              </span>
+              <Badge variant={claseEstado(proceso.estado)}>{etiquetaEstado(proceso.estado)}</Badge>
             </span>
           </div>
           {proceso.specificationsHash && (
@@ -301,9 +342,9 @@ export function AuditoriaDetailPage() {
                   <td>{e.isExcluded ? '—' : `${e.totalWeightedScore ?? 0}%`}</td>
                   <td>
                     {e.isExcluded ? (
-                      <span className="badge badge--error" title={e.excludedReason || ''}>Sí</span>
+                      <Badge variant="error" className="cursor-help" title={e.excludedReason || ''}>Sí</Badge>
                     ) : (
-                      <span className="badge badge--ok">No</span>
+                      <Badge variant="success">No</Badge>
                     )}
                   </td>
                 </tr>
@@ -440,4 +481,30 @@ function formatearPesos(monto) {
     currency: 'ARS',
     maximumFractionDigits: 0,
   }).format(monto)
+}
+
+function etiquetaSeveridad(severidad) {
+  return {
+    high: 'Alta',
+    medium: 'Media',
+    info: 'Info',
+  }[severidad] ?? severidad
+}
+
+function claseSeveridad(severidad) {
+  return {
+    high: 'badge--error',
+    medium: 'badge--warn',
+    info: 'badge--info',
+  }[severidad] ?? 'badge--off'
+}
+
+function etiquetaAlerta(codigo) {
+  return {
+    single_offerer: 'Un solo oferente',
+    bid_concentration: 'Concentracion',
+    minimal_difference: 'Diferencia minima',
+    pab: 'PAB',
+    no_bids: 'Sin lances',
+  }[codigo] ?? codigo
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { obtenerSubastaPublica, suscribirSubastaPublica } from '../../api/publicoApi.js'
+import { obtenerSubastaPublica, suscribirSubastaPublica } from '../../api/publicoApi'
+import { Alert } from '../../components/ui/Alert'
 
 const REFRESCO_MS = 12000
 
@@ -81,11 +82,11 @@ export function SubastaPublicaPage() {
   }, [subasta])
 
   if (cargando) return <Estado texto="Cargando subasta..." />
-  if (error && !subasta) return <div className="alerta alerta--error">{error}</div>
+  if (error && !subasta) return <Alert variant="error">{error}</Alert>
 
   if (!subasta?.disponible) {
     return (
-      <section className="flex flex--col gap-24">
+      <section className="flex flex-col gap-24">
         <button
           className="btn btn--texto"
           style={{ alignSelf: 'flex-start' }}
@@ -117,9 +118,9 @@ export function SubastaPublicaPage() {
       : { texto: 'Activa', clase: 'badge--ok' }
 
   return (
-    <section className="flex flex--col gap-24">
+    <section className="flex flex-col gap-24">
       <div className="hero" style={{ padding: '24px 32px' }}>
-        <div className="flex flex--entre">
+        <div className="flex items-center justify-between">
           <div>
             <button
               className="btn btn--texto"
@@ -142,10 +143,8 @@ export function SubastaPublicaPage() {
         </div>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
-      <div className="alerta alerta--info">
-        Se muestran precios, tiempos y cantidad de lances. La identidad de los oferentes no se expone en esta etapa.
-      </div>
+      {error && <Alert variant="error">{error}</Alert>}
+      <Alert variant="info">Se muestran precios, tiempos y cantidad de lances. La identidad de los oferentes no se expone en esta etapa.</Alert>
 
       <div className="metric-grid">
         <MetricCard etiqueta="Precio actual" valor={formatearPesos(subasta.precioActual)} destacado />
@@ -166,7 +165,7 @@ export function SubastaPublicaPage() {
             Informacion publica de referencia para el seguimiento del proceso.
           </p>
         </div>
-        <div className="grid-3">
+        <div className="grid grid-cols-3 gap-3">
           <TimelineItem etiqueta="Inicio" valor={formatearFechaHora(subasta.inicioEn)} />
           <TimelineItem etiqueta="Mejor precio actual" valor={formatearPesos(subasta.precioActual)} />
           <TimelineItem etiqueta="Cierre previsto" valor={formatearFechaHora(subasta.cierreEn)} />
@@ -183,7 +182,7 @@ export function SubastaPublicaPage() {
           </p>
         </div>
         {subasta.ranking?.length > 0 ? (
-          <div className="flex flex--col gap-12">
+          <div className="flex flex-col gap-12">
             {subasta.ranking.map((item) => (
               <article className="row-item" key={`${item.posicion}-${item.nombre}`}>
                 <div>

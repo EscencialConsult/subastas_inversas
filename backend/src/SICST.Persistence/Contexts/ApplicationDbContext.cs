@@ -52,6 +52,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<AwardItem> AwardItems => Set<AwardItem>();
     public DbSet<Approval> Approvals => Set<Approval>();
     public DbSet<Contract> Contracts => Set<Contract>();
+    public DbSet<ContractPayment> ContractPayments => Set<ContractPayment>();
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<ReceptionConfirmation> ReceptionConfirmations => Set<ReceptionConfirmation>();
     public DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems => Set<ReceptionConfirmationItem>();
@@ -63,6 +64,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (ChangeTracker.Entries<AuditEvent>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException("El log de auditoria es append-only y no puede modificarse ni eliminarse.");
+        }
+
         if (ChangeTracker.Entries<Award>()
             .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted &&
                 !string.IsNullOrWhiteSpace(entry.Entity.ImmutableHash)))
@@ -110,6 +117,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         if (auditEntries.Count > 0)
         {
             var lastAudit = await AuditEvents
+                .IgnoreQueryFilters()
                 .OrderByDescending(e => e.Sequence)
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -632,6 +640,33 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(e => e.SignatureHash).HasMaxLength(64);
         });
 
+        modelBuilder.Entity<ContractPayment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.CompanyId, e.ContractId, e.PaymentDateUtc });
+            entity.Property(e => e.PaymentAmount).HasPrecision(18, 2);
+            entity.Property(e => e.PenaltyAmount).HasPrecision(18, 2);
+            entity.Property(e => e.DelayDays).IsRequired();
+            entity.Property(e => e.PaymentDateUtc).IsRequired();
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.Property(e => e.Notes).HasMaxLength(2000);
+
+            entity.HasOne(e => e.Company)
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Contract)
+                .WithMany(e => e.Payments)
+                .HasForeignKey(e => e.ContractId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.RegisteredBy)
+                .WithMany()
+                .HasForeignKey(e => e.RegisteredById)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<PurchaseOrder>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -814,6 +849,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         modelBuilder.Entity<Auction>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
         modelBuilder.Entity<AuditEvent>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
         modelBuilder.Entity<Contract>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
+        modelBuilder.Entity<ContractPayment>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
         modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
         modelBuilder.Entity<AccessLog>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
 

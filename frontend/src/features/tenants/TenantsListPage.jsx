@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listarTenants, cambiarEstadoTenant } from '../../api/tenantsApi.js'
+import { listarTenants, cambiarEstadoTenant } from '../../api/tenantsApi'
+import { Building2 } from 'lucide-react'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input.jsx'
+import { Pagination, usePagination } from '../../components/ui/Pagination.jsx'
+import { Select } from '../../components/ui/Select.jsx'
 
 export function TenantsListPage() {
   const navigate = useNavigate()
@@ -13,6 +22,7 @@ export function TenantsListPage() {
 
   const [busqueda, setBusqueda] = useState('')
   const [estado, setEstado] = useState('')
+  const tenantsPagination = usePagination(tenants, { initialPageSize: 10 })
 
   async function cargar() {
     setCargando(true)
@@ -46,78 +56,80 @@ export function TenantsListPage() {
     <section>
       <div className="encabezado">
         <h1>Tenants</h1>
-        <button className="btn btn--primario" onClick={() => navigate('/tenants/nuevo')}>
+        <Button onClick={() => navigate('/tenants/nuevo')}>
           + Nuevo tenant
-        </button>
+        </Button>
       </div>
 
       <div className="filtros">
-        <input
+        <Input
           className="filtros__busqueda"
           placeholder="Buscar por nombre o subdominio…"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
-        <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+        <Select value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Todos los estados</option>
           <option value="activos">Activos</option>
           <option value="inactivos">Inactivos</option>
-        </select>
+        </Select>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       {cargando ? (
-        <p className="estado-cargando">Cargando tenants…</p>
+        <div className="flex justify-center py-12"><Spinner /></div>
       ) : tenants.length === 0 ? (
-        <div className="estado-vacio">
-          <p>No hay tenants que coincidan con el filtro.</p>
-        </div>
+        <EmptyState icon={Building2} title="Sin empresas" description="No hay tenants que coincidan con el filtro." />
       ) : (
-        <table className="tabla">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Subdominio</th>
-              <th>Usuarios</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {tenants.map((t) => (
-              <tr key={t.id}>
-                <td>{t.nombre}</td>
-                <td>
-                  <code>{t.subdominio}</code>
-                </td>
-                <td>{t.cantidadUsuarios}</td>
-                <td>
-                  <span className={t.activo ? 'badge badge--ok' : 'badge badge--off'}>
-                    {t.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="tabla__acciones">
-                  <button
-                    className="btn btn--texto"
-                    onClick={() => navigate(`/tenants/${t.id}/detalle`)}
-                  >
-                    Detalle
-                  </button>
-                  <button
-                    className="btn btn--texto"
-                    onClick={() => navigate(`/tenants/${t.id}`)}
-                  >
-                    Editar
-                  </button>
-                  <button className="btn btn--texto" onClick={() => alternarEstado(t)}>
-                    {t.activo ? 'Desactivar' : 'Activar'}
-                  </button>
-                </td>
+        <>
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Subdominio</th>
+                <th>Usuarios</th>
+                <th>Estado</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {tenantsPagination.paginatedItems.map((t) => (
+                <tr key={t.id}>
+                  <td>{t.nombre}</td>
+                  <td>
+                    <code>{t.subdominio}</code>
+                  </td>
+                  <td>{t.cantidadUsuarios}</td>
+                  <td>
+                    <Badge variant={t.activo ? 'success' : 'neutral'}>
+                      {t.activo ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </td>
+                  <td className="tabla__acciones">
+                    <Button variant="ghost" onClick={() => navigate(`/tenants/${t.id}/detalle`)}>
+                      Detalle
+                    </Button>
+                    <Button variant="ghost" onClick={() => navigate(`/tenants/${t.id}`)}>
+                      Editar
+                    </Button>
+                    <Button variant="ghost" onClick={() => alternarEstado(t)}>
+                      {t.activo ? 'Desactivar' : 'Activar'}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <Pagination
+            page={tenantsPagination.page}
+            pageSize={tenantsPagination.pageSize}
+            totalItems={tenantsPagination.totalItems}
+            totalPages={tenantsPagination.totalPages}
+            onPageChange={tenantsPagination.setPage}
+            onPageSizeChange={tenantsPagination.setPageSize}
+          />
+        </>
       )}
     </section>
   )

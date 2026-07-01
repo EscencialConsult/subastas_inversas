@@ -3,15 +3,18 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/AuthContext'
 import {
   obtenerProcesoParaAprobacion,
   aprobarAdjudicacion,
   devolverAdjudicacion,
   rechazarAdjudicacion,
-} from '../../api/comprasApi.js'
-import { obtenerSubastaDeProcesoParaAprobacion, analisisSubasta } from '../../api/subastasApi.js'
-import { ESTADO_PROCESO } from '../../domain/compras.js'
+} from '../../api/comprasApi'
+import { obtenerSubastaDeProcesoParaAprobacion, analisisSubasta } from '../../api/subastasApi'
+import { ESTADO_PROCESO } from '../../domain/compras'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 export function AdjudicacionDetailPage() {
   const { id } = useParams()
@@ -82,8 +85,8 @@ export function AdjudicacionDetailPage() {
     }
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando…</p>
-  if (!proceso) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (!proceso) return <Alert variant="error">{error}</Alert>
 
   const pendiente = proceso.estado === ESTADO_PROCESO.ADJUDICADA
   const estaDevolviendo = accionMotivo === 'devolver'
@@ -105,7 +108,7 @@ export function AdjudicacionDetailPage() {
         </button>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <p className="proceso__descripcion">{proceso.titulo}</p>
 
@@ -134,11 +137,9 @@ export function AdjudicacionDetailPage() {
 
         {/* Aviso de gobernanza: si NO se adjudicó a la oferta más baja. */}
         {adjudicaNoEsLaMasBaja && (
-          <div className="alerta alerta--info">
-            Atención: la adjudicación propuesta no es la oferta más baja
+          <Alert variant="info">Atención: la adjudicación propuesta no es la oferta más baja
             ({masBaja?.proveedor}, {formatearPesos(masBaja?.monto)}). Revisá la
-            justificación antes de aprobar.
-          </div>
+            justificación antes de aprobar.</Alert>
         )}
 
         <h2 className="form__titulo">Ofertas</h2>
@@ -156,9 +157,9 @@ export function AdjudicacionDetailPage() {
                 <td>{o.proveedor}</td>
                 <td>{formatearPesos(o.monto)}</td>
                 <td className="tabla__acciones">
-                  {i === 0 && <span className="badge badge--off">Más baja</span>}
+{i === 0 && <Badge variant="neutral">Más baja</Badge>}
                   {esOfertaAdjudicada(o, adj) && (
-                    <span className="badge badge--ok">Adjudicado</span>
+                    <Badge variant="success">Adjudicado</Badge>
                   )}
                 </td>
               </tr>
@@ -228,9 +229,7 @@ export function AdjudicacionDetailPage() {
         )}
 
         {!pendiente && (
-          <div className="alerta alerta--info">
-            Esta adjudicación ya fue resuelta.
-          </div>
+          <Alert variant="info">Esta adjudicación ya fue resuelta.</Alert>
         )}
       </div>
     </section>

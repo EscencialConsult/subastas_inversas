@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/AuthContext'
 import {
   adjudicarProceso,
   declararProcesoDesierto,
@@ -14,8 +14,11 @@ import {
   obtenerProceso,
   obtenerResultadosEvaluacion,
   suspenderProcesoPorImpugnacion,
-} from '../../api/comprasApi.js'
-import { obtenerSubastaDeProceso } from '../../api/subastasApi.js'
+} from '../../api/comprasApi'
+import { obtenerSubastaDeProceso } from '../../api/subastasApi'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 export function AdjudicarPage() {
   const { id } = useParams()
@@ -116,8 +119,8 @@ export function AdjudicarPage() {
     }
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando…</p>
-  if (!proceso) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (!proceso) return <Alert variant="error">{error}</Alert>
 
   return (
     <section className="form-pagina">
@@ -130,16 +133,14 @@ export function AdjudicarPage() {
         </button>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <p className="proceso__descripcion">{proceso.titulo}</p>
 
       {dictamen && (
         <div className="form" style={{ marginBottom: 20 }}>
           <h2 className="form__titulo">Dictamen asistido</h2>
-          <div className="alerta alerta--info">
-            {dictamen.resumen}
-          </div>
+          <Alert variant="info">{dictamen.resumen}</Alert>
           {dictamen.tieneRecomendacion && (
             <div className="subasta__panel" style={{ marginBottom: 16 }}>
               <MetricCard etiqueta="Ganador sugerido" valor={dictamen.proveedor} />
@@ -150,7 +151,7 @@ export function AdjudicarPage() {
           )}
           <h3 className="form__subtitulo">Riesgos detectados</h3>
           {dictamen.riesgos.length > 0 ? (
-            <div className="flex flex--col gap-8">
+            <div className="flex flex-col gap-8">
               {dictamen.riesgos.map((riesgo) => (
                 <div className={`alerta ${riesgo.severidad === 'high' ? 'alerta--error' : 'alerta--info'}`} key={riesgo.codigo}>
                   {riesgo.mensaje}
@@ -158,7 +159,7 @@ export function AdjudicarPage() {
               ))}
             </div>
           ) : (
-            <div className="alerta alerta--info">No se detectaron riesgos relevantes para la recomendacion.</div>
+            <Alert variant="info">No se detectaron riesgos relevantes para la recomendacion.</Alert>
           )}
         </div>
       )}
@@ -186,9 +187,9 @@ export function AdjudicarPage() {
                     <td>{e.isExcluded ? '—' : `${e.totalWeightedScore ?? 0}%`}</td>
                     <td>
                       {e.isExcluded ? (
-                        <span className="badge badge--error" title={e.excludedReason || ''}>Excluido</span>
+                        <Badge variant="error" className="cursor-help" title={e.excludedReason || ''}>Excluido</Badge>
                       ) : (
-                        <span className="badge badge--ok">Apto</span>
+                        <Badge variant="success">Apto</Badge>
                       )}
                     </td>
                   </tr>
@@ -213,7 +214,7 @@ export function AdjudicarPage() {
             <tr key={o.id}>
               <td>{o.proveedor}</td>
               <td>{formatearPesos(o.monto)}</td>
-              <td>{i === 0 && <span className="badge badge--ok">Más baja</span>}</td>
+              <td>{i === 0 && <Badge variant="success">Más baja</Badge>}</td>
             </tr>
           ))}
         </tbody>
@@ -233,9 +234,7 @@ export function AdjudicarPage() {
           </select>
         </label>
 
-        <div className="alerta alerta--info">
-          La adjudicación queda pendiente de aprobación de la Autoridad.
-        </div>
+        <Alert variant="info">La adjudicación queda pendiente de aprobación de la Autoridad.</Alert>
 
         <div className="form__acciones">
           <button

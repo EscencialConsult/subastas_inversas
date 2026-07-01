@@ -2,10 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { listarUsuarios, cambiarEstadoUsuario } from '../../api/usersApi.js'
-import { resetPassword } from '../../api/authApi.js'
-import { ROLE_INFO, etiquetaRol } from '../../domain/roles.js'
+import { useAuth } from '../../auth/AuthContext'
+import { Clipboard, SearchX } from 'lucide-react'
+import { listarUsuarios, cambiarEstadoUsuario } from '../../api/usersApi'
+import { resetPassword } from '../../api/authApi'
+import { ROLE_INFO, etiquetaRol } from '../../domain/roles'
+import { Button } from '../../components/ui/Button'
+import { Modal } from '../../components/ui/Modal'
+import { Spinner } from '../../components/ui/Spinner.jsx'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../components/ui/Badge'
+import { Input } from '../../components/ui/Input.jsx'
+import { Pagination, usePagination } from '../../components/ui/Pagination.jsx'
+import { Select } from '../../components/ui/Select.jsx'
 
 export function UsuariosListPage() {
   const { tenantId } = useAuth()
@@ -21,6 +31,7 @@ export function UsuariosListPage() {
   const [busqueda, setBusqueda] = useState('')
   const [rol, setRol] = useState('')
   const [estado, setEstado] = useState('') // '', 'activos', 'inactivos'
+  const usuariosPagination = usePagination(usuarios, { initialPageSize: 10 })
 
   async function cargar() {
     if (!tenantId) return
@@ -78,13 +89,11 @@ export function UsuariosListPage() {
         <div className="encabezado">
           <h1>Usuarios</h1>
         </div>
-        <div className="alerta alerta--info">
-          Seleccioná una empresa desde{' '}
-          <button className="btn btn--texto" onClick={() => navigate('/tenants')}>
+        <Alert variant="info">Seleccioná una empresa desde{' '}
+          <Button variant="ghost" onClick={() => navigate('/tenants')}>
             Tenants
-          </button>{' '}
-          y luego ingresá a su detalle para administrar sus usuarios.
-        </div>
+          </Button>{' '}
+          y luego ingresá a su detalle para administrar sus usuarios.</Alert>
       </section>
     )
   }
@@ -93,121 +102,114 @@ export function UsuariosListPage() {
     <section>
       <div className="encabezado">
         <h1>Usuarios</h1>
-        <button className="btn btn--primario" onClick={() => navigate('/usuarios/nuevo')}>
-          + Nuevo usuario
-        </button>
+          <Button onClick={() => navigate('/usuarios/nuevo')}>
+            + Nuevo usuario
+          </Button>
       </div>
 
       <div className="filtros">
-        <input
+        <Input
           className="filtros__busqueda"
           placeholder="Buscar por nombre o email…"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
-        <select value={rol} onChange={(e) => setRol(e.target.value)}>
+        <Select value={rol} onChange={(e) => setRol(e.target.value)}>
           <option value="">Todos los roles</option>
           {Object.entries(ROLE_INFO).map(([clave, info]) => (
             <option key={clave} value={clave}>
               {info.label}
             </option>
           ))}
-        </select>
-        <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+        </Select>
+        <Select value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Todos los estados</option>
           <option value="activos">Activos</option>
           <option value="inactivos">Inactivos</option>
-        </select>
+        </Select>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       {cargando ? (
-        <p className="estado-cargando">Cargando usuarios…</p>
+        <div className="flex justify-center py-12"><Spinner /></div>
       ) : usuarios.length === 0 ? (
-        <div className="estado-vacio">
-          <p>No hay usuarios que coincidan con el filtro.</p>
-        </div>
+        <EmptyState icon={SearchX} title="Sin resultados" description="No hay usuarios que coincidan con el filtro." />
       ) : (
-        <table className="tabla">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Email</th>
-              <th>Rol</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {usuarios.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  {u.nombre} {u.apellido}
-                </td>
-                <td>{u.email}</td>
-                <td>{etiquetaRol(u.rol)}</td>
-                <td>
-                  <span className={u.activo ? 'badge badge--ok' : 'badge badge--off'}>
-                    {u.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="tabla__acciones">
-                  <button
-                    className="btn btn--texto"
-                    onClick={() => navigate(`/usuarios/${u.id}`)}
-                  >
-                    Editar
-                  </button>
-                  <button className="btn btn--texto" onClick={() => alternarEstado(u)}>
-                    {u.activo ? 'Desactivar' : 'Activar'}
-                  </button>
-                  <button className="btn btn--texto btn--texto-peligro" onClick={() => manejarResetPass(u)}>
-                    Resetear pass
-                  </button>
-                </td>
+        <>
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {usuariosPagination.paginatedItems.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    {u.nombre} {u.apellido}
+                  </td>
+                  <td>{u.email}</td>
+                  <td>{etiquetaRol(u.rol)}</td>
+                  <td>
+                    <Badge variant={u.activo ? 'success' : 'neutral'}>
+                      {u.activo ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </td>
+                  <td className="tabla__acciones">
+                    <Button variant="ghost" onClick={() => navigate(`/usuarios/${u.id}`)}>
+                      Editar
+                    </Button>
+                    <Button variant="ghost" onClick={() => alternarEstado(u)}>
+                      {u.activo ? 'Desactivar' : 'Activar'}
+                    </Button>
+                    <Button variant="ghost" className="text-error hover:bg-red-50 hover:text-error" onClick={() => manejarResetPass(u)}>
+                      Resetear pass
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <Pagination
+            page={usuariosPagination.page}
+            pageSize={usuariosPagination.pageSize}
+            totalItems={usuariosPagination.totalItems}
+            totalPages={usuariosPagination.totalPages}
+            onPageChange={usuariosPagination.setPage}
+            onPageSizeChange={usuariosPagination.setPageSize}
+          />
+        </>
       )}
 
-      {resetModal && (
-        <div className="modal-overlay" onClick={() => setResetModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal__header">
-              <h2>Contraseña restablecida</h2>
-            </div>
-            <div className="modal__body">
-              <p>
-                Se restableció la contraseña de <strong>{resetModal.usuario.nombre} {resetModal.usuario.apellido}</strong> ({resetModal.usuario.email}).
-              </p>
-              <div className="alerta alerta--info">
-                <strong>Nueva contraseña temporal:</strong>
-              </div>
-              <div className="contrasenia-temporal">
-                <code>{resetModal.nuevaPass}</code>
-                <button
-                  type="button"
-                  className="btn btn--icono"
-                  title="Copiar contraseña"
-                  onClick={() => navigator.clipboard.writeText(resetModal.nuevaPass)}
-                >
-                  📋
-                </button>
-              </div>
-              <p className="campo__ayuda">
-                El usuario deberá cambiar esta contraseña al iniciar sesión. Copiala ahora antes de cerrar.
-              </p>
-            </div>
-            <div className="modal__footer">
-              <button className="btn btn--primario" onClick={() => { setResetModal(null); cargar() }}>
-                Entendido, cerrar
-              </button>
-            </div>
-          </div>
+      <Modal
+        open={!!resetModal}
+        onClose={() => setResetModal(null)}
+        title="Contraseña restablecida"
+        footer={<Button onClick={() => { setResetModal(null); cargar() }}>Entendido, cerrar</Button>}
+      >
+        <p>
+          Se restableció la contraseña de <strong>{resetModal?.usuario.nombre} {resetModal?.usuario.apellido}</strong> ({resetModal?.usuario.email}).
+        </p>
+        <div className="bg-background border border-border rounded-md p-3 my-3 flex items-center gap-2">
+          <code className="flex-1 text-lg font-bold tracking-wide">{resetModal?.nuevaPass}</code>
+          <button
+            type="button"
+            className="btn btn--icono"
+            title="Copiar contraseña"
+            onClick={() => navigator.clipboard.writeText(resetModal?.nuevaPass)}
+          >
+            <Clipboard size={16} />
+          </button>
         </div>
-      )}
+        <p className="text-xs text-text-muted">
+          El usuario deberá cambiar esta contraseña al iniciar sesión. Copiala ahora antes de cerrar.
+        </p>
+      </Modal>
     </section>
   )
 }

@@ -1,5 +1,5 @@
-import { apiFetch, ApiError } from './client.js'
-import { ESTADO_PROCESO } from '../domain/compras.js'
+import { apiFetch, ApiError } from './client'
+import { ESTADO_PROCESO } from '../domain/compras'
 
 const ESTADOS_BACK_TO_FRONT = {
   0: ESTADO_PROCESO.BORRADOR,
@@ -446,6 +446,49 @@ export async function confirmarRecepcion({ tenantId, ordenCompraId, receptorId, 
   return mapReception(data)
 }
 
+export async function registrarPagoContrato({
+  tenantId,
+  contratoId,
+  operadorId,
+  fechaPago,
+  montoPago,
+  montoPenalidad,
+  diasDemora,
+  notas,
+}) {
+  const paymentAmount = Number(montoPago) || 0
+  const penaltyAmount = Number(montoPenalidad) || 0
+  const delayDays = Number(diasDemora) || 0
+
+  if (paymentAmount < 0 || penaltyAmount < 0) {
+    throw new ApiError('Los importes de pago y penalidad no pueden ser negativos.', 422)
+  }
+
+  if (paymentAmount === 0 && penaltyAmount === 0) {
+    throw new ApiError('Ingresá un pago o una penalidad para registrar.', 422)
+  }
+
+  if (penaltyAmount > 0 && delayDays <= 0) {
+    throw new ApiError('Para registrar una penalidad indicá los días de demora.', 422)
+  }
+
+  const data = await apiFetch(`/api/companies/${tenantId}/contracts/${contratoId}/payments`, {
+    method: 'POST',
+    body: JSON.stringify({
+      companyId: tenantId,
+      contractId: contratoId,
+      registeredById: operadorId,
+      paymentDateUtc: fechaPago ? new Date(`${fechaPago}T00:00:00`).toISOString() : null,
+      paymentAmount,
+      penaltyAmount,
+      delayDays,
+      notes: notas ?? '',
+    }),
+  })
+
+  return mapContractPayment(data)
+}
+
 function mapProceso(p) {
   const adjudicaciones = (p.awards ?? []).map(mapAward)
   const adjudicacion = p.award ? mapAward(p.award) : (adjudicaciones[0] ?? null)
@@ -528,6 +571,28 @@ function mapContract(contract) {
     creadoEn: contract.createdAtUtc,
     firmadoEn: contract.signedAtUtc,
     documentoUrl: contract.documentUrl ?? null,
+    formatoFirma: contract.signatureFormat ?? null,
+    algoritmoFirma: contract.signatureAlgorithm ?? null,
+    totalPagado: contract.totalPaid ?? 0,
+    totalPenalidades: contract.totalPenalties ?? 0,
+    saldoPendiente: contract.outstandingAmount ?? Math.max(0, Number(contract.amount || 0) - Number(contract.totalPaid || 0) - Number(contract.totalPenalties || 0)),
+    pagos: (contract.payments ?? []).map(mapContractPayment),
+  }
+}
+
+function mapContractPayment(payment) {
+  return {
+    id: payment.id,
+    tenantId: payment.companyId,
+    contratoId: payment.contractId,
+    operadorId: payment.registeredById,
+    operador: payment.registeredByName,
+    fechaPago: payment.paymentDateUtc,
+    montoPago: payment.paymentAmount,
+    montoPenalidad: payment.penaltyAmount,
+    diasDemora: payment.delayDays,
+    notas: payment.notes ?? '',
+    creadoEn: payment.createdAtUtc,
   }
 }
 

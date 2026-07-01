@@ -12,6 +12,7 @@ using SICST.Application.Purchases.Commands;
 using SICST.Application.Purchases.DTOs;
 using SICST.Application.Purchases.Queries;
 using SICST.Domain.Entities;
+using SICST.Infrastructure.Services;
 using SICST.Persistence.Contexts;
 using Xunit;
 
@@ -991,7 +992,7 @@ public class PurchaseProcessHandlerTests
         await context.SaveChangesAsync();
 
         var mfa = new MockMfaProvider();
-        var signed = await new SignContractCommandHandler(context, pdf, mfa)
+        var signed = await new SignContractCommandHandler(context, pdf, mfa, new LocalAdvancedDigitalSignatureService())
             .Handle(new SignContractCommand
             {
                 CompanyId = companyId,
@@ -1003,6 +1004,8 @@ public class PurchaseProcessHandlerTests
 
         Assert.NotNull(signed);
         Assert.Equal(ContractStatus.Active, signed.Status);
+        Assert.Equal("PKCS#7/X.509 detached", signed.SignatureFormat);
+        Assert.Equal("SHA256withRSA", signed.SignatureAlgorithm);
         Assert.Equal(PurchaseProcessStatus.Contracted, (await context.PurchaseProcesses.FindAsync(process.Id))!.Status);
 
         var emailMock = new MockEmailSender();
@@ -1059,6 +1062,25 @@ public class PurchaseProcessHandlerTests
 
         Assert.Equal(PurchaseOrderStatus.Received, (await context.PurchaseOrders.FindAsync(order.Id))!.Status);
         Assert.Equal(PurchaseProcessStatus.Received, (await context.PurchaseProcesses.FindAsync(process.Id))!.Status);
+
+        var payment = await new RegisterContractPaymentCommandHandler(context)
+            .Handle(new RegisterContractPaymentCommand
+            {
+                CompanyId = companyId,
+                ContractId = contract.Id,
+                RegisteredById = buyerId,
+                PaymentAmount = 450000m,
+                PenaltyAmount = 50000m,
+                DelayDays = 3,
+                Notes = "Pago final con penalidad por demora."
+            }, CancellationToken.None);
+
+        Assert.NotNull(payment);
+        Assert.Equal(450000m, payment.PaymentAmount);
+        Assert.Equal(50000m, payment.PenaltyAmount);
+        Assert.Equal(3, payment.DelayDays);
+        Assert.Equal(ContractStatus.Completed, (await context.Contracts.FindAsync(contract.Id))!.Status);
+        Assert.Equal(PurchaseProcessStatus.Closed, (await context.PurchaseProcesses.FindAsync(process.Id))!.Status);
     }
 
     [Fact]

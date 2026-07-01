@@ -61,4 +61,41 @@ public class AuditController : ControllerBase
 
         return Ok(events);
     }
+
+    [HttpGet("risk-alerts")]
+    public async Task<ActionResult<List<RiskAlertDto>>> GetRiskAlerts(
+        [FromQuery] Guid? companyId,
+        [FromQuery] Guid? purchaseProcessId,
+        [FromQuery] string? severity,
+        [FromQuery] int limit = 200)
+    {
+        var alerts = await _sender.Send(new GetRiskAlertsQuery(
+            companyId,
+            purchaseProcessId,
+            severity,
+            limit));
+
+        return Ok(alerts);
+    }
+
+    [HttpGet("integrity")]
+    public async Task<ActionResult<IntegrityVerificationDto>> VerifyIntegrity([FromQuery] Guid? companyId)
+    {
+        var result = await _sender.Send(new VerifyIntegrityQuery(companyId));
+        return Ok(result);
+    }
+
+    [HttpGet("risk-dashboard")]
+    public async Task<ActionResult<RiskDashboardDto>> GetRiskDashboard([FromQuery] Guid? companyId)
+    {
+        var dashboard = await _sender.Send(new GetRiskDashboardQuery(companyId));
+        return Ok(dashboard);
+    }
+
+    [HttpGet("export/signed-csv")]
+    public async Task<ActionResult<SignedAuditCsvExportDto>> ExportSignedCsv([FromQuery] Guid? companyId)
+    {
+        var export = await _sender.Send(new ExportSignedAuditCsvQuery(companyId));
+        return Ok(export);
+    }
 }

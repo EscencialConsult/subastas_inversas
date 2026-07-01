@@ -2,19 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerProceso } from '../../api/comprasApi.js'
+import { useAuth } from '../../auth/AuthContext'
+import { obtenerProceso } from '../../api/comprasApi'
 import {
   cerrarSubasta,
   mejorOferta,
   obtenerSubastaDeProceso,
   simularLance,
-} from '../../api/subastasApi.js'
+} from '../../api/subastasApi'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 const ESTADO_SUBASTA = {
-  Scheduled: { texto: 'Programada', clase: 'badge--info' },
-  Open: { texto: 'Abierta', clase: 'badge--ok' },
-  Closed: { texto: 'Cerrada', clase: 'badge--off' },
+  Scheduled: { texto: 'Programada', clase: 'info' },
+  Open: { texto: 'Abierta', clase: 'success' },
+  Closed: { texto: 'Cerrada', clase: 'neutral' },
 }
 
 export function SubastaPage() {
@@ -83,8 +86,8 @@ export function SubastaPage() {
     }
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando subasta...</p>
-  if (!subasta || !proceso) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (!subasta || !proceso) return <Alert variant="error">{error}</Alert>
 
   const inicio = new Date(subasta.inicioISO).getTime()
   const programada = subasta.estado === 'Scheduled' || ahoraMs < inicio
@@ -96,11 +99,9 @@ export function SubastaPage() {
 
   return (
     <section>
-      <div className="alerta alerta--info">
-        La apertura y el cierre se ejecutan automaticamente por el servidor.
-      </div>
+      <Alert variant="info">La apertura y el cierre se ejecutan automaticamente por el servidor.</Alert>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <div className="encabezado">
         <h1>
@@ -115,7 +116,7 @@ export function SubastaPage() {
       <div className="subasta__panel">
         <div className="subasta__card">
           <span className="subasta__label">Estado</span>
-          <span className={`badge ${estado.clase}`}>{estado.texto}</span>
+          <Badge variant={estado.clase}>{estado.texto}</Badge>
         </div>
         <div className="subasta__card">
           <span className="subasta__label">Mejor oferta actual</span>
@@ -247,13 +248,9 @@ export function SubastaPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>{l.proveedor}</span>
                   {l.isPab && (
-                    <span
-                      className="badge badge--error"
-                      style={{ fontSize: '10px', padding: '1px 6px', fontWeight: 'bold' }}
-                      title="Esta oferta esta por debajo del umbral de Precio Anormalmente Bajo (PAB)"
-                    >
+                    <Badge variant="error" className="text-[10px] px-1.5 py-0 font-bold cursor-help" title="Esta oferta esta por debajo del umbral de Precio Anormalmente Bajo (PAB)">
                       PAB
-                    </span>
+                    </Badge>
                   )}
                 </div>
               </td>

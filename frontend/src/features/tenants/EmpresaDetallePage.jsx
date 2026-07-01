@@ -3,9 +3,14 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { obtenerDetalleEmpresa } from '../../api/tenantsApi.js'
-import { resetPassword } from '../../api/authApi.js'
-import { etiquetaRol } from '../../domain/roles.js'
+import { Clipboard, SearchX } from 'lucide-react'
+import { Spinner } from '../../components/ui/Spinner.jsx'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { obtenerDetalleEmpresa } from '../../api/tenantsApi'
+import { resetPassword } from '../../api/authApi'
+import { etiquetaRol } from '../../domain/roles'
+import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../components/ui/Badge'
 
 function generarPass() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
@@ -42,8 +47,8 @@ export function EmpresaDetallePage() {
     }
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando…</p>
-  if (!data) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (!data) return <Alert variant="error">{error}</Alert>
 
   const { tenant, stats, usuarios } = data
 
@@ -70,9 +75,9 @@ export function EmpresaDetallePage() {
         </span>
         <span>
           Estado:{' '}
-          <span className={tenant.activo ? 'badge badge--ok' : 'badge badge--off'}>
+          <Badge variant={tenant.activo ? 'success' : 'neutral'}>
             {tenant.activo ? 'Activa' : 'Inactiva'}
-          </span>
+          </Badge>
         </span>
       </div>
 
@@ -103,9 +108,7 @@ export function EmpresaDetallePage() {
 
       <h2 className="form__titulo">Usuarios de la empresa</h2>
       {usuarios.length === 0 ? (
-        <div className="estado-vacio">
-          <p>Esta empresa todavía no tiene usuarios.</p>
-        </div>
+        <EmptyState icon={SearchX} title="Sin usuarios" description="Este tenant no tiene usuarios." />
       ) : (
         <table className="tabla">
           <thead>
@@ -126,9 +129,9 @@ export function EmpresaDetallePage() {
                 <td>{u.email}</td>
                 <td>{etiquetaRol(u.rol)}</td>
                 <td>
-                  <span className={u.activo ? 'badge badge--ok' : 'badge badge--off'}>
+                  <Badge variant={u.activo ? 'success' : 'neutral'}>
                     {u.activo ? 'Activo' : 'Inactivo'}
-                  </span>
+                  </Badge>
                 </td>
                 <td className="tabla__acciones">
                   <button className="btn btn--texto btn--texto-peligro" onClick={() => manejarResetPass(u)}>
@@ -151,9 +154,7 @@ export function EmpresaDetallePage() {
               <p>
                 Se restableció la contraseña de <strong>{resetModal.usuario.nombre} {resetModal.usuario.apellido}</strong> ({resetModal.usuario.email}).
               </p>
-              <div className="alerta alerta--info">
-                <strong>Nueva contraseña temporal:</strong>
-              </div>
+              <Alert variant="info"><strong>Nueva contraseña temporal:</strong></Alert>
               <div className="contrasenia-temporal">
                 <code>{resetModal.nuevaPass}</code>
                 <button
@@ -162,7 +163,7 @@ export function EmpresaDetallePage() {
                   title="Copiar contraseña"
                   onClick={() => navigator.clipboard.writeText(resetModal.nuevaPass)}
                 >
-                  📋
+                  <Clipboard size={16} />
                 </button>
               </div>
               <p className="campo__ayuda">

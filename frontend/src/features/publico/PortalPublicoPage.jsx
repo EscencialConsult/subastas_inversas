@@ -4,18 +4,23 @@ import {
   listarAdjudicacionesPublicas,
   listarProcesosPublicos,
   listarSubastasPublicas,
-} from '../../api/publicoApi.js'
-import { ESTADO_INFO, etiquetaEstado } from '../../domain/compras.js'
+} from '../../api/publicoApi'
+import { ESTADO_INFO, etiquetaEstado } from '../../domain/compras'
+import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input.jsx'
+import { Select } from '../../components/ui/Select.jsx'
 
 const ESTADO_BADGE = {
-  borrador: 'badge--off',
-  publicado: 'badge--info',
-  en_subasta: 'badge--warn',
-  cerrada: 'badge--info',
-  adjudicada: 'badge--warn',
-  aprobada: 'badge--ok',
-  desierta: 'badge--off',
-  cancelada: 'badge--error',
+  borrador: 'neutral',
+  publicado: 'info',
+  en_subasta: 'warning',
+  cerrada: 'info',
+  adjudicada: 'warning',
+  aprobada: 'success',
+  desierta: 'neutral',
+  cancelada: 'error',
 }
 
 export function PortalPublicoPage() {
@@ -92,7 +97,7 @@ export function PortalPublicoPage() {
   )
 
   return (
-    <section className="flex flex--col gap-24">
+    <section className="flex flex-col gap-24">
       <div className="hero">
         <div className="hero__inner">
           <div>
@@ -106,23 +111,17 @@ export function PortalPublicoPage() {
             </p>
           </div>
           <div className="hero__actions">
-            <button
-              className="btn btn--primario"
-              onClick={() => navigate('/registro-proveedor')}
-            >
+            <Button onClick={() => navigate('/registro-proveedor')}>
               Registrarme como proveedor
-            </button>
-            <button
-              className="btn btn--secundario"
-              onClick={() => navigate('/login')}
-            >
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/login')}>
               Ingresar al sistema
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <div className="metric-grid">
         {metricas.map((metrica) => (
@@ -166,12 +165,12 @@ export function PortalPublicoPage() {
               descripcion="Compras publicadas con estado, presupuesto estimado y organismo responsable."
               acciones={
                 <div className="busqueda">
-                  <input
+                  <Input
                     placeholder="Buscar codigo, titulo o empresa"
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                   />
-                  <select
+                  <Select
                     value={estado}
                     onChange={(e) => setEstado(e.target.value)}
                   >
@@ -181,7 +180,7 @@ export function PortalPublicoPage() {
                         {info.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               }
             >
@@ -199,7 +198,7 @@ export function PortalPublicoPage() {
                     <article className="card" key={proceso.id}>
                       <div className="card__header">
                         <code className="card__code">{proceso.codigo}</code>
-                        <Badge estado={proceso.estado} />
+                        <EstadoBadge estado={proceso.estado} />
                       </div>
                       <h3 className="card__title">{proceso.titulo}</h3>
                       <p className="card__desc">
@@ -210,16 +209,21 @@ export function PortalPublicoPage() {
                         <Dato etiqueta="Presupuesto" valor={formatearPesos(proceso.presupuestoEstimado)} />
                         <Dato etiqueta="Publicado" valor={formatearFecha(proceso.publicadoEn ?? proceso.creadoEn)} />
                       </dl>
-                      {proceso.tieneSubasta && (
-                        <div className="card__action">
-                          <button
-                            className="btn btn--primario"
+                      <div className="card__action flex flex-col gap-8">
+                        <Button
+                          variant="secondary"
+                          onClick={() => navigate(`/portal/procesos/${proceso.id}`)}
+                        >
+                          Ver ficha
+                        </Button>
+                        {proceso.tieneSubasta && (
+                          <Button
                             onClick={() => navigate(`/portal/subasta/${proceso.id}`)}
                           >
                             Ver subasta
-                          </button>
-                        </div>
-                      )}
+                          </Button>
+                        )}
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -241,7 +245,7 @@ export function PortalPublicoPage() {
                   inicial="S"
                 />
               ) : (
-                <div className="flex flex--col gap-12">
+                <div className="flex flex-col gap-12">
                   {subastas.map((subasta) => (
                     <FilaPublica
                       key={subasta.id}
@@ -251,7 +255,7 @@ export function PortalPublicoPage() {
                       valor={formatearPesos(subasta.precioActual)}
                       detalle={`${subasta.finalizada ? 'Finalizada' : 'Activa'} - ${subasta.cantidadLances} lances`}
                       accion="Ver detalle"
-                      onClick={() => navigate(`/portal/subasta/${subasta.procesoId}`)}
+                      onClick={() => navigate(`/portal/procesos/${subasta.procesoId}`)}
                     />
                   ))}
                 </div>
@@ -273,7 +277,7 @@ export function PortalPublicoPage() {
                   inicial="A"
                 />
               ) : (
-                <div className="flex flex--col gap-12">
+                <div className="flex flex-col gap-12">
                   {adjudicaciones.map((adjudicacion) => (
                     <FilaPublica
                       key={adjudicacion.id}
@@ -309,19 +313,19 @@ function PanelTab({ titulo, descripcion, acciones, children }) {
   )
 }
 
-function Badge({ estado }) {
+function EstadoBadge({ estado }) {
   return (
-    <span className={`badge ${ESTADO_BADGE[estado] ?? 'badge--off'}`}>
+    <Badge variant={ESTADO_BADGE[estado] ?? 'neutral'}>
       {etiquetaEstado(estado)}
-    </span>
+    </Badge>
   )
 }
 
 function Dato({ etiqueta, valor }) {
   return (
     <div>
-      <dt className="text-xs text-suave" style={{ fontWeight: 600 }}>{etiqueta}</dt>
-      <dd className="mt-4" style={{ fontWeight: 700 }}>{valor}</dd>
+      <dt className="text-xs text-text-muted font-semibold">{etiqueta}</dt>
+      <dd className="mt-4 font-bold">{valor}</dd>
     </div>
   )
 }
@@ -339,9 +343,9 @@ function FilaPublica({ codigo, titulo, descripcion, valor, detalle, accion, onCl
         <small className="row-item__detail">{detalle}</small>
       </div>
       {accion && (
-        <button className="row-item__action" onClick={onClick}>
+        <Button variant="link" onClick={onClick}>
           {accion}
-        </button>
+        </Button>
       )}
     </article>
   )

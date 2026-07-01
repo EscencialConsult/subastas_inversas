@@ -1,5 +1,5 @@
-import { API_URL, apiFetch } from './client.js'
-import { ESTADO_PROCESO } from '../domain/compras.js'
+import { API_URL, apiFetch } from './client'
+import { ESTADO_PROCESO } from '../domain/compras'
 
 const ESTADOS_BACK_TO_FRONT = {
   0: ESTADO_PROCESO.BORRADOR,
@@ -44,23 +44,29 @@ export async function listarProcesosPublicos({ busqueda = '', estado = '' } = {}
   if (busqueda.trim()) params.set('search', busqueda.trim())
 
   const data = await apiFetch(`/api/public/purchase-processes${params.toString() ? `?${params}` : ''}`)
-  let filas = data.map((item) => ({
-    id: item.id,
-    companyId: item.companyId,
-    codigo: item.code,
-    titulo: item.title,
-    descripcion: item.description,
-    estado: ESTADOS_BACK_TO_FRONT[item.status] ?? item.status,
-    estadoBackend: item.status,
-    empresa: item.companyName,
-    tieneSubasta: Boolean(item.hasAuction),
-    presupuestoEstimado: item.estimatedBudget,
-    creadoEn: item.createdAtUtc,
-    publicadoEn: item.publishedAtUtc,
-  }))
+  let filas = data.map(mapearProcesoPublico)
 
   if (estado) filas = filas.filter((f) => f.estado === estado)
   return filas
+}
+
+export async function obtenerProcesoPublico({ procesoId }) {
+  const item = await apiFetch(`/api/public/purchase-processes/${procesoId}`)
+  return {
+    ...mapearProcesoPublico(item),
+    cerradoEn: item.closedAtUtc,
+    especificacionesHash: item.specificationsHash ?? '',
+    items: (item.items ?? []).map((linea) => ({
+      id: linea.id,
+      descripcion: linea.description,
+      cantidad: linea.quantity,
+      unidad: linea.unit,
+      precioUnitarioEstimado: linea.estimatedUnitPrice,
+      totalEstimado: linea.estimatedTotal,
+    })),
+    subasta: item.auction ? mapearSubastaPublica(item.auction) : null,
+    adjudicaciones: (item.awards ?? []).map(mapearAdjudicacionPublica),
+  }
 }
 
 export async function listarSubastasPublicas() {
@@ -73,19 +79,7 @@ export async function listarAdjudicacionesPublicas({ busqueda = '' } = {}) {
   if (busqueda.trim()) params.set('search', busqueda.trim())
 
   const data = await apiFetch(`/api/public/awards${params.toString() ? `?${params}` : ''}`)
-  return data.map((item) => ({
-    id: item.id,
-    procesoId: item.purchaseProcessId,
-    companyId: item.companyId,
-    empresa: item.companyName,
-    codigo: item.processCode,
-    titulo: item.processTitle,
-    proveedor: item.supplierName,
-    monto: item.amount,
-    adjudicadoEn: item.adjudicatedAtUtc,
-    observaciones: item.observations,
-    actaUrl: item.actUrl,
-  }))
+  return data.map(mapearAdjudicacionPublica)
 }
 
 export async function obtenerSubastaPublica({ procesoId }) {
@@ -178,5 +172,38 @@ function mapearSubastaPublica(subasta) {
       Math.round((cierre.getTime() - inicio.getTime()) / 60000),
     ),
     montos: [],
+  }
+}
+
+function mapearProcesoPublico(item) {
+  return {
+    id: item.id,
+    companyId: item.companyId,
+    codigo: item.code,
+    titulo: item.title,
+    descripcion: item.description,
+    estado: ESTADOS_BACK_TO_FRONT[item.status] ?? item.status,
+    estadoBackend: item.status,
+    empresa: item.companyName,
+    tieneSubasta: Boolean(item.hasAuction),
+    presupuestoEstimado: item.estimatedBudget,
+    creadoEn: item.createdAtUtc,
+    publicadoEn: item.publishedAtUtc,
+  }
+}
+
+function mapearAdjudicacionPublica(item) {
+  return {
+    id: item.id,
+    procesoId: item.purchaseProcessId,
+    companyId: item.companyId,
+    empresa: item.companyName,
+    codigo: item.processCode,
+    titulo: item.processTitle,
+    proveedor: item.supplierName,
+    monto: item.amount,
+    adjudicadoEn: item.adjudicatedAtUtc,
+    observaciones: item.observations,
+    actaUrl: item.actUrl,
   }
 }

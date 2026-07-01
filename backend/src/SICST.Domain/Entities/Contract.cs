@@ -51,4 +51,32 @@ public class Contract
     public string? SignatureHash { get; set; }
 
     public PurchaseOrder? PurchaseOrder { get; set; }
+
+    public List<ContractPayment> Payments { get; set; } = [];
+}
+
+public class ContractPayment
+{
+    public Guid Id { get; set; }
+
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
+
+    public Guid ContractId { get; set; }
+    public Contract Contract { get; set; } = null!;
+
+    public Guid RegisteredById { get; set; }
+    public User RegisteredBy { get; set; } = null!;
+
+    public DateTime PaymentDateUtc { get; set; }
+
+    public decimal PaymentAmount { get; set; }
+
+    public decimal PenaltyAmount { get; set; }
+
+    public int DelayDays { get; set; }
+
+    public string Notes { get; set; } = string.Empty;
+
+    public DateTime CreatedAtUtc { get; set; }
 }

@@ -10,6 +10,21 @@ public record GetPublicPurchaseProcessesQuery(Guid? CompanyId = null, string? Se
 
 public class GetPublicPurchaseProcessesQueryHandler : IRequestHandler<GetPublicPurchaseProcessesQuery, List<PublicPurchaseProcessDto>>
 {
+    public static readonly PurchaseProcessStatus[] PublicStatuses =
+    [
+        PurchaseProcessStatus.PendingApproval,
+        PurchaseProcessStatus.Approved,
+        PurchaseProcessStatus.InAuction,
+        PurchaseProcessStatus.Evaluation,
+        PurchaseProcessStatus.Adjudicated,
+        PurchaseProcessStatus.Contracted,
+        PurchaseProcessStatus.PurchaseOrderIssued,
+        PurchaseProcessStatus.Received,
+        PurchaseProcessStatus.Closed,
+        PurchaseProcessStatus.Deserted,
+        PurchaseProcessStatus.SuspendedByChallenge
+    ];
+
     private readonly IApplicationDbContext _context;
 
     public GetPublicPurchaseProcessesQueryHandler(IApplicationDbContext context)
@@ -19,24 +34,9 @@ public class GetPublicPurchaseProcessesQueryHandler : IRequestHandler<GetPublicP
 
     public async Task<List<PublicPurchaseProcessDto>> Handle(GetPublicPurchaseProcessesQuery request, CancellationToken cancellationToken)
     {
-        var publicStatuses = new[]
-        {
-            PurchaseProcessStatus.PendingApproval,
-            PurchaseProcessStatus.Approved,
-            PurchaseProcessStatus.InAuction,
-            PurchaseProcessStatus.Evaluation,
-            PurchaseProcessStatus.Adjudicated,
-            PurchaseProcessStatus.Contracted,
-            PurchaseProcessStatus.PurchaseOrderIssued,
-            PurchaseProcessStatus.Received,
-            PurchaseProcessStatus.Closed,
-            PurchaseProcessStatus.Deserted,
-            PurchaseProcessStatus.SuspendedByChallenge
-        };
-
         var query = _context.PurchaseProcesses
             .Include(p => p.Company)
-            .Where(p => publicStatuses.Contains(p.Status));
+            .Where(p => PublicStatuses.Contains(p.Status));
 
         if (request.CompanyId.HasValue)
         {

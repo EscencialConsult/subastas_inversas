@@ -2,9 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { listarProcesosParaAprobacion } from '../../api/comprasApi.js'
-import { ESTADO_PROCESO, claseEstado, etiquetaEstado } from '../../domain/compras.js'
+import { ClipboardList } from 'lucide-react'
+import { useAuth } from '../../auth/AuthContext'
+import { listarProcesosParaAprobacion } from '../../api/comprasApi'
+import { ESTADO_PROCESO, claseEstado, etiquetaEstado } from '../../domain/compras'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Pagination, usePagination } from '../../components/ui/Pagination.jsx'
+import { Select } from '../../components/ui/Select.jsx'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 const FILTROS = {
   pendientes: ESTADO_PROCESO.ADJUDICADA,
@@ -20,6 +28,7 @@ export function AdjudicacionesListPage() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [filtro, setFiltro] = useState('pendientes')
+  const procesosPagination = usePagination(procesos, { initialPageSize: 10 })
 
   async function cargar() {
     setCargando(true)
@@ -50,22 +59,21 @@ export function AdjudicacionesListPage() {
       </div>
 
       <div className="filtros">
-        <select value={filtro} onChange={(e) => setFiltro(e.target.value)}>
+        <Select value={filtro} onChange={(e) => setFiltro(e.target.value)}>
           <option value="pendientes">Pendientes</option>
           <option value="aprobadas">Aprobadas</option>
           <option value="todas">Todas</option>
-        </select>
+        </Select>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       {cargando ? (
-        <p className="estado-cargando">Cargando...</p>
+        <div className="flex justify-center py-12"><Spinner /></div>
       ) : procesos.length === 0 ? (
-        <div className="estado-vacio">
-          <p>No hay adjudicaciones para el filtro seleccionado.</p>
-        </div>
+        <EmptyState icon={ClipboardList} title="Sin adjudicaciones" description="No hay adjudicaciones para el filtro seleccionado." />
       ) : (
+        <>
         <table className="tabla">
           <thead>
             <tr>
@@ -77,7 +85,7 @@ export function AdjudicacionesListPage() {
             </tr>
           </thead>
           <tbody>
-            {procesos.map((p) => (
+            {procesosPagination.paginatedItems.map((p) => (
               <tr key={p.id}>
                 <td>
                   <code>{p.codigo}</code>
@@ -85,22 +93,26 @@ export function AdjudicacionesListPage() {
                 <td>{p.titulo}</td>
                 <td>{p.adjudicacion?.proveedor ?? '-'}</td>
                 <td>
-                  <span className={`badge ${claseEstado(p.estado)}`}>
-                    {etiquetaEstado(p.estado)}
-                  </span>
+                  <Badge variant={claseEstado(p.estado)}>{etiquetaEstado(p.estado)}</Badge>
                 </td>
                 <td className="tabla__acciones">
-                  <button
-                    className="btn btn--texto"
-                    onClick={() => navigate(`/adjudicaciones/${p.id}`)}
-                  >
+                  <Button variant="ghost" onClick={() => navigate(`/adjudicaciones/${p.id}`)}>
                     {p.estado === ESTADO_PROCESO.ADJUDICADA ? 'Revisar' : 'Ver'}
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={procesosPagination.page}
+          pageSize={procesosPagination.pageSize}
+          totalItems={procesosPagination.totalItems}
+          totalPages={procesosPagination.totalPages}
+          onPageChange={procesosPagination.setPage}
+          onPageSizeChange={procesosPagination.setPageSize}
+        />
+        </>
       )}
     </section>
   )

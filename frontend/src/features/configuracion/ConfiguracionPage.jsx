@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { useAuth } from '../../auth/AuthContext'
+import { useConfirm } from '../../context/ConfirmContext.jsx'
+import { useToast } from '../../context/ToastContext.jsx'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 import {
   actualizarCircuitoAprobacion,
   actualizarModalidadContratacion,
@@ -12,7 +16,7 @@ import {
   listarCircuitosAprobacion,
   listarModalidadesContratacion,
   listarPlantillasDocumento,
-} from '../../api/configuracionApi.js'
+} from '../../api/configuracionApi'
 
 const FORM_INICIAL = {
   name: '',
@@ -53,6 +57,8 @@ const TIPOS_PLANTILLA = [
 
 export function ConfiguracionPage() {
   const { tenantId } = useAuth()
+  const confirm = useConfirm()
+  const toast = useToast()
   const [modalidades, setModalidades] = useState([])
   const [circuitos, setCircuitos] = useState([])
   const [plantillas, setPlantillas] = useState([])
@@ -127,6 +133,7 @@ export function ConfiguracionPage() {
       }
       cancelarEdicion()
       await cargarConfiguracion()
+      toast.success(editandoId ? 'Modalidad actualizada.' : 'Modalidad creada.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -135,13 +142,20 @@ export function ConfiguracionPage() {
   }
 
   async function eliminar(id) {
-    if (!window.confirm('Eliminar esta modalidad? Si esta en uso, quedara inactiva.')) return
+    const confirmado = await confirm({
+      variant: 'danger',
+      title: 'Eliminar modalidad',
+      message: 'Eliminar esta modalidad? Si esta en uso, quedara inactiva.',
+      confirmText: 'Eliminar',
+    })
+    if (!confirmado) return
 
     setError('')
     try {
       await eliminarModalidadContratacion({ tenantId, id })
       await cargarConfiguracion()
       if (editandoId === id) cancelarEdicion()
+      toast.success('Modalidad eliminada o inactivada.')
     } catch (err) {
       setError(err.message)
     }
@@ -209,6 +223,7 @@ export function ConfiguracionPage() {
       }
       cancelarCircuito()
       await cargarConfiguracion()
+      toast.success(editandoCircuitoId ? 'Circuito actualizado.' : 'Circuito creado.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -217,13 +232,20 @@ export function ConfiguracionPage() {
   }
 
   async function eliminarCircuito(id) {
-    if (!window.confirm('Eliminar este circuito? Si esta en uso, quedara inactivo.')) return
+    const confirmado = await confirm({
+      variant: 'danger',
+      title: 'Eliminar circuito',
+      message: 'Eliminar este circuito? Si esta en uso, quedara inactivo.',
+      confirmText: 'Eliminar',
+    })
+    if (!confirmado) return
 
     setError('')
     try {
       await eliminarCircuitoAprobacion({ tenantId, id })
       await cargarConfiguracion()
       if (editandoCircuitoId === id) cancelarCircuito()
+      toast.success('Circuito eliminado o inactivado.')
     } catch (err) {
       setError(err.message)
     }
@@ -254,6 +276,7 @@ export function ConfiguracionPage() {
       await crearVersionPlantillaDocumento({ tenantId, datos: plantillaForm })
       setPlantillaForm((prev) => ({ ...prev, content: '' }))
       await cargarConfiguracion()
+      toast.success('Version de plantilla creada.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -266,6 +289,7 @@ export function ConfiguracionPage() {
     try {
       await activarPlantillaDocumento({ tenantId, id })
       await cargarConfiguracion()
+      toast.success('Plantilla activada.')
     } catch (err) {
       setError(err.message)
     }
@@ -277,7 +301,7 @@ export function ConfiguracionPage() {
         <h1>Configuracion</h1>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <form className="form" onSubmit={guardar}>
         <h2 className="form__titulo">
@@ -359,7 +383,7 @@ export function ConfiguracionPage() {
       <div className="form">
         <h2 className="form__titulo">Modalidades</h2>
         {cargando ? (
-          <p className="estado-cargando">Cargando modalidades...</p>
+          <div className="flex justify-center py-12"><Spinner /></div>
         ) : modalidades.length === 0 ? (
           <div className="empty-state">
             <p>No hay modalidades configuradas.</p>
@@ -506,7 +530,7 @@ export function ConfiguracionPage() {
       <div className="form">
         <h2 className="form__titulo">Circuitos de aprobacion</h2>
         {cargando ? (
-          <p className="estado-cargando">Cargando circuitos...</p>
+          <div className="flex justify-center py-12"><Spinner /></div>
         ) : circuitos.length === 0 ? (
           <div className="empty-state">
             <p>No hay circuitos configurados.</p>
@@ -619,7 +643,7 @@ export function ConfiguracionPage() {
       <div className="form">
         <h2 className="form__titulo">Plantillas de documentos</h2>
         {cargando ? (
-          <p className="estado-cargando">Cargando plantillas...</p>
+          <div className="flex justify-center py-12"><Spinner /></div>
         ) : plantillas.length === 0 ? (
           <div className="empty-state">
             <p>No hay plantillas configuradas.</p>

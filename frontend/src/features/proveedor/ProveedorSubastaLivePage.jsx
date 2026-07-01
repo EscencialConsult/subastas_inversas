@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { obtenerProveedorDeUsuario, obtenerSubastaProveedor, realizarLance } from '../../api/proveedoresApi.js'
-import { crearConexionSubastas } from '../../api/subastasRealtime.js'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { obtenerProveedorDeUsuario, obtenerSubastaProveedor, realizarLance } from '../../api/proveedoresApi'
+import { crearConexionSubastas } from '../../api/subastasRealtime'
+import { useAuth } from '../../auth/AuthContext'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 export function ProveedorSubastaLivePage() {
   const { auctionId } = useParams()
@@ -112,9 +115,9 @@ export function ProveedorSubastaLivePage() {
     return Math.min(...subasta.lances.map((lance) => Number(lance.monto)))
   }, [subasta])
 
-  if (cargando) return <p className="estado-cargando">Cargando sala...</p>
-  if (error && !subasta) return <div className="alerta alerta--error">{error}</div>
-  if (!subasta || !proveedor) return <div className="alerta alerta--error">No se pudo cargar la subasta.</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (error && !subasta) return <Alert variant="error">{error}</Alert>
+  if (!subasta || !proveedor) return <Alert variant="error">No se pudo cargar la subasta.</Alert>
 
   const inicioMs = new Date(subasta.inicioISO).getTime()
   const finMs = new Date(subasta.finISO).getTime()
@@ -180,8 +183,8 @@ export function ProveedorSubastaLivePage() {
         </button>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
-      {mensaje && <div className="alerta alerta--info">{mensaje}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
+      {mensaje && <Alert variant="info">{mensaje}</Alert>}
 
       <div className="subasta__panel">
         <MetricCard etiqueta="Conexion" valor={conexion} />
@@ -191,7 +194,7 @@ export function ProveedorSubastaLivePage() {
       </div>
 
       <form className="form" onSubmit={enviarLance}>
-        <div className="grid-3">
+        <div className="grid grid-cols-3 gap-3">
           <div className="form__grupo">
             <label className="form__label">Nuevo lance</label>
             <input
@@ -243,7 +246,7 @@ export function ProveedorSubastaLivePage() {
                   <td>{lance.proveedor}</td>
                   <td>
                     {formatearPesos(lance.monto)}{' '}
-                    {lance.isPab && <span className="badge badge--error">PAB</span>}
+                    {lance.isPab && <Badge variant="error">PAB</Badge>}
                   </td>
                   <td>{formatearFecha(lance.fechaServidor)}</td>
                   <td>

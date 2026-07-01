@@ -1,9 +1,34 @@
 import { useState } from 'react'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { actualizarPerfil, cambiarContrasena } from '../../api/usersApi.js'
-import { activarMfa, desactivarMfa, prepararMfa } from '../../api/authApi.js'
-import { etiquetaRol } from '../../domain/roles.js'
-import { User, Shield, Lock, Key, Smartphone, CheckCircle, Save, RefreshCw, RotateCcw } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useAuth } from '../../auth/AuthContext'
+import { useToast } from '../../context/ToastContext.jsx'
+import { actualizarPerfil, cambiarContrasena } from '../../api/usersApi'
+import { activarMfa, desactivarMfa, prepararMfa } from '../../api/authApi'
+import { etiquetaRol } from '../../domain/roles'
+import { User, Shield, Lock, Smartphone, CheckCircle, Save, RefreshCw, RotateCcw } from 'lucide-react'
+import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input.jsx'
+
+const perfilSchema = z.object({
+  nombre: z.string().trim().min(2, 'Ingresa el nombre.'),
+  apellido: z.string().trim().min(2, 'Ingresa el apellido.'),
+  email: z.string().trim().email('Ingresa un email valido.'),
+})
+
+const passwordSchema = z
+  .object({
+    actual: z.string().min(1, 'Ingresa tu contrasena actual.'),
+    nueva: z.string().min(6, 'La nueva contrasena debe tener al menos 6 caracteres.'),
+    repetir: z.string().min(1, 'Repeti la nueva contrasena.'),
+  })
+  .refine((data) => data.nueva === data.repetir, {
+    path: ['repetir'],
+    message: 'La repeticion no coincide.',
+  })
 
 export function PerfilPage() {
   const { usuario, tenant, actualizarUsuarioSesion } = useAuth()
@@ -28,29 +53,29 @@ export function PerfilPage() {
 }
 
 function DatosPersonales({ usuario, tenant, onGuardado }) {
-  const [datos, setDatos] = useState({
-    nombre: usuario.nombre,
-    apellido: usuario.apellido,
-    email: usuario.email,
-  })
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
-  const [ok, setOk] = useState(false)
+  const toast = useToast()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(perfilSchema),
+    defaultValues: {
+      nombre: usuario.nombre,
+      apellido: usuario.apellido,
+      email: usuario.email,
+    },
+  })
 
-  function actualizar(campo, valor) {
-    setDatos((prev) => ({ ...prev, [campo]: valor }))
-    setOk(false)
-  }
-
-  async function manejarSubmit(e) {
-    e.preventDefault()
+  async function manejarSubmit(datos) {
     setError('')
-    setOk(false)
     setGuardando(true)
     try {
       const actualizado = await actualizarPerfil({ id: usuario.id, datos })
       onGuardado(actualizado)
-      setOk(true)
+      toast.success('Tus datos se guardaron.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -59,69 +84,62 @@ function DatosPersonales({ usuario, tenant, onGuardado }) {
   }
 
   return (
-    <form className="form" onSubmit={manejarSubmit}>
+    <form className="form" onSubmit={handleSubmit(manejarSubmit)} noValidate>
       <h2 className="form__titulo" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <User size={20} /> Datos personales
       </h2>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
-      {ok && <div className="alerta alerta--ok">Tus datos se guardaron.</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-        <label className="campo">
-          <span>Nombre</span>
-          <input value={datos.nombre} onChange={(e) => actualizar('nombre', e.target.value)} />
-        </label>
-
-        <label className="campo">
-          <span>Apellido</span>
-          <input value={datos.apellido} onChange={(e) => actualizar('apellido', e.target.value)} />
-        </label>
-
-        <label className="campo" style={{ gridColumn: '1 / -1' }}>
-          <span>Email</span>
-          <input
+        <Input label="Nombre" error={errors.nombre?.message} required {...register('nombre')} />
+        <Input label="Apellido" error={errors.apellido?.message} required {...register('apellido')} />
+        <div style={{ gridColumn: '1 / -1' }}>
+          <Input
+            label="Email"
             type="email"
-            value={datos.email}
-            onChange={(e) => actualizar('email', e.target.value)}
+            error={errors.email?.message}
+            required
+            {...register('email')}
           />
-        </label>
+        </div>
       </div>
 
       <div className="perfil__solo-lectura" style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
         <span><strong>Rol:</strong> {etiquetaRol(usuario.rol)}</span>
-        {tenant && <span><strong>Organización:</strong> {tenant.nombre}</span>}
+        {tenant && <span><strong>Organizacion:</strong> {tenant.nombre}</span>}
       </div>
 
       <div className="form__acciones">
-        <button type="submit" className="btn btn--primario" disabled={guardando} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {guardando ? 'Guardando…' : <><Save size={16} /> Guardar cambios</>}
-        </button>
+        <Button type="submit" loading={guardando} icon={<Save size={16} />}>
+          Guardar cambios
+        </Button>
       </div>
     </form>
   )
 }
 
 function CambiarContrasena({ usuario }) {
-  const [campos, setCampos] = useState({ actual: '', nueva: '', repetir: '' })
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
-  const [ok, setOk] = useState(false)
+  const toast = useToast()
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: { actual: '', nueva: '', repetir: '' },
+  })
 
-  function actualizar(campo, valor) {
-    setCampos((prev) => ({ ...prev, [campo]: valor }))
-    setOk(false)
-  }
-
-  async function manejarSubmit(e) {
-    e.preventDefault()
+  async function manejarSubmit(campos) {
     setError('')
-    setOk(false)
     setGuardando(true)
     try {
       await cambiarContrasena({ id: usuario.id, ...campos })
-      setOk(true)
-      setCampos({ actual: '', nueva: '', repetir: '' })
+      toast.success('Contrasena actualizada.')
+      reset()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -130,56 +148,45 @@ function CambiarContrasena({ usuario }) {
   }
 
   return (
-    <form className="form" onSubmit={manejarSubmit}>
+    <form className="form" onSubmit={handleSubmit(manejarSubmit)} noValidate>
       <h2 className="form__titulo" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Lock size={20} /> Cambiar contraseña
+        <Lock size={20} /> Cambiar contrasena
       </h2>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
-      {ok && <div className="alerta alerta--ok">Contraseña actualizada.</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
-      <label className="campo">
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Key size={14} /> Contraseña actual
-        </span>
-        <input
-          type="password"
-          value={campos.actual}
-          onChange={(e) => actualizar('actual', e.target.value)}
-          autoComplete="current-password"
-        />
-      </label>
+      <Input
+        label="Contrasena actual"
+        type="password"
+        autoComplete="current-password"
+        error={errors.actual?.message}
+        required
+        {...register('actual')}
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
-        <label className="campo">
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Lock size={14} /> Nueva contraseña
-          </span>
-          <input
-            type="password"
-            value={campos.nueva}
-            onChange={(e) => actualizar('nueva', e.target.value)}
-            autoComplete="new-password"
-          />
-        </label>
-
-        <label className="campo">
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <RefreshCw size={14} /> Repetir nueva
-          </span>
-          <input
-            type="password"
-            value={campos.repetir}
-            onChange={(e) => actualizar('repetir', e.target.value)}
-            autoComplete="new-password"
-          />
-        </label>
+        <Input
+          label="Nueva contrasena"
+          type="password"
+          autoComplete="new-password"
+          error={errors.nueva?.message}
+          required
+          {...register('nueva')}
+        />
+        <Input
+          label="Repetir nueva"
+          type="password"
+          autoComplete="new-password"
+          error={errors.repetir?.message}
+          required
+          {...register('repetir')}
+        />
       </div>
 
       <div className="form__acciones">
-        <button type="submit" className="btn btn--primario" disabled={guardando} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {guardando ? 'Guardando…' : <><RefreshCw size={16} /> Cambiar contraseña</>}
-        </button>
+        <Button type="submit" loading={guardando} icon={<RefreshCw size={16} />}>
+          Cambiar contrasena
+        </Button>
       </div>
     </form>
   )
@@ -190,12 +197,11 @@ function Mfa({ usuario, onGuardado }) {
   const [codigo, setCodigo] = useState('')
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState('')
-  const [ok, setOk] = useState('')
+  const toast = useToast()
 
   async function iniciarSetup() {
     setCargando(true)
     setError('')
-    setOk('')
     try {
       const data = await prepararMfa()
       setSetup(data)
@@ -209,13 +215,12 @@ function Mfa({ usuario, onGuardado }) {
   async function confirmar() {
     setCargando(true)
     setError('')
-    setOk('')
     try {
       await activarMfa({ code: codigo })
       onGuardado({ ...usuario, mfaActivo: true })
       setSetup(null)
       setCodigo('')
-      setOk('MFA activado.')
+      toast.success('MFA activado.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -226,12 +231,11 @@ function Mfa({ usuario, onGuardado }) {
   async function desactivar() {
     setCargando(true)
     setError('')
-    setOk('')
     try {
       await desactivarMfa({ code: codigo })
       onGuardado({ ...usuario, mfaActivo: false })
       setCodigo('')
-      setOk('MFA desactivado.')
+      toast.success('MFA desactivado.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -239,26 +243,23 @@ function Mfa({ usuario, onGuardado }) {
     }
   }
 
-  const estadoBadge = usuario.mfaActivo ? 'badge badge--ok' : 'badge badge--off'
-
   return (
     <div className="form">
       <h2 className="form__titulo" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Shield size={20} /> Autenticación multifactor
+        <Shield size={20} /> Autenticacion multifactor
       </h2>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
-      {ok && <div className="alerta alerta--ok">{ok}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <p className="campo__ayuda" style={{ marginBottom: 12 }}>
-        Estado: <span className={estadoBadge}>{usuario.mfaActivo ? 'Activo' : 'Inactivo'}</span>
+        Estado: <Badge variant={usuario.mfaActivo ? 'success' : 'neutral'}>{usuario.mfaActivo ? 'Activo' : 'Inactivo'}</Badge>
       </p>
 
       {!usuario.mfaActivo && !setup && (
         <div className="form__acciones">
-          <button className="btn btn--primario" type="button" onClick={iniciarSetup} disabled={cargando} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Smartphone size={16} /> Activar MFA
-          </button>
+          <Button type="button" onClick={iniciarSetup} disabled={cargando} icon={<Smartphone size={16} />}>
+            Activar MFA
+          </Button>
         </div>
       )}
 
@@ -268,43 +269,39 @@ function Mfa({ usuario, onGuardado }) {
             <span><strong>Secret:</strong> <code>{setup.secret}</code></span>
             <span><strong>URI:</strong> <code>{setup.otpAuthUri}</code></span>
           </div>
-          <label className="campo">
-            <span>Código de verificación</span>
-            <input
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-            />
-          </label>
+          <Input
+            label="Codigo de verificacion"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456"
+          />
           <div className="form__acciones">
-            <button className="btn btn--texto" type="button" onClick={() => setSetup(null)}>
+            <Button variant="ghost" type="button" onClick={() => setSetup(null)}>
               Cancelar
-            </button>
-            <button className="btn btn--primario" type="button" onClick={confirmar} disabled={cargando} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <CheckCircle size={16} /> Confirmar MFA
-            </button>
+            </Button>
+            <Button type="button" onClick={confirmar} disabled={cargando} icon={<CheckCircle size={16} />}>
+              Confirmar MFA
+            </Button>
           </div>
         </>
       )}
 
       {usuario.mfaActivo && (
         <>
-          <label className="campo">
-            <span>Código actual</span>
-            <input
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-            />
-          </label>
+          <Input
+            label="Codigo actual"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456"
+          />
           <div className="form__acciones">
-            <button className="btn btn--peligro" type="button" onClick={desactivar} disabled={cargando} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <RotateCcw size={16} /> Desactivar MFA
-            </button>
+            <Button variant="danger" type="button" onClick={desactivar} disabled={cargando} icon={<RotateCcw size={16} />}>
+              Desactivar MFA
+            </Button>
           </div>
         </>
       )}

@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { obtenerProcesoParaEvaluacion } from '../../api/comprasApi.js'
-import { obtenerSubastaDeProcesoParaEvaluacion } from '../../api/subastasApi.js'
+import { X, Check } from 'lucide-react'
+import { useAuth } from '../../auth/AuthContext'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { obtenerProcesoParaEvaluacion } from '../../api/comprasApi'
+import { obtenerSubastaDeProcesoParaEvaluacion } from '../../api/subastasApi'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 import {
   obtenerCriteriosEvaluacionParaEvaluador,
   guardarCriteriosEvaluacionParaEvaluador,
   evaluarProveedores,
   obtenerResultadosEvaluacionParaEvaluador,
-} from '../../api/comprasApi.js'
+} from '../../api/comprasApi'
 
 export function EvaluacionProcesoPage() {
   const { id } = useParams()
@@ -281,8 +285,8 @@ export function EvaluacionProcesoPage() {
     }
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando...</p>
-  if (!proceso) return <div className="alerta alerta--error">{error}</div>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (!proceso) return <Alert variant="error">{error}</Alert>
 
   if (results && !editandoCriterios) {
     return (
@@ -292,7 +296,7 @@ export function EvaluacionProcesoPage() {
           <button className="btn btn--texto" onClick={() => navigate('/evaluacion')}>Volver</button>
         </div>
         <p className="proceso__descripcion">{proceso.titulo}</p>
-        <div className="alerta alerta--ok">Evaluación registrada exitosamente.</div>
+        <Alert variant="success">Evaluación registrada exitosamente.</Alert>
         <button className="btn btn--texto" onClick={() => { setResults(null); setEditandoCriterios(true) }}>
           Editar evaluación
         </button>
@@ -309,7 +313,7 @@ export function EvaluacionProcesoPage() {
 
       <p className="proceso__descripcion">{proceso.titulo}</p>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <div className="form">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -335,7 +339,7 @@ export function EvaluacionProcesoPage() {
                 <div key={idx} className="wizard-item-row" style={{ marginBottom: '8px' }}>
                   <input value={c.name} onChange={e => actualizarCriterioForm(realIdx, 'name', e.target.value)} placeholder="Nombre del criterio" style={{ flex: 2 }} />
                   <input value={c.description || ''} onChange={e => actualizarCriterioForm(realIdx, 'description', e.target.value)} placeholder="Descripción (opcional)" style={{ flex: 3 }} />
-                  <button type="button" className="btn btn--texto btn--texto-peligro" onClick={() => quitarCriterioForm(realIdx)}>✕</button>
+                  <button type="button" className="btn btn--texto btn--texto-peligro" onClick={() => quitarCriterioForm(realIdx)}><X size={14} /></button>
                 </div>
               )
             })}
@@ -360,14 +364,14 @@ export function EvaluacionProcesoPage() {
                   <input value={c.name} onChange={e => actualizarCriterioForm(realIdx, 'name', e.target.value)} placeholder="Nombre del criterio" />
                   <input value={c.description || ''} onChange={e => actualizarCriterioForm(realIdx, 'description', e.target.value)} placeholder="Descripción (opcional)" />
                   <input type="number" min="0" max="100" value={c.weight} onChange={e => actualizarCriterioForm(realIdx, 'weight', e.target.value)} />
-                  <button type="button" className="btn btn--texto btn--texto-peligro" onClick={() => quitarCriterioForm(realIdx)}>✕</button>
+                  <button type="button" className="btn btn--texto btn--texto-peligro" onClick={() => quitarCriterioForm(realIdx)}><X size={14} /></button>
                 </div>
               )
             })}
             {(() => {
               const weightSum = criteriaForm.filter(c => c.type === 'Weighted').reduce((s, c) => s + (Number(c.weight) || 0), 0)
               if (criteriaForm.filter(c => c.type === 'Weighted').length > 0 && weightSum !== 100) {
-                return <div className="alerta alerta--advertencia">La suma de pesos debe ser 100% (actual: {weightSum}%)</div>
+                return <Alert variant="warning">La suma de pesos debe ser 100% (actual: {weightSum}%)</Alert>
               }
               return null
             })()}
@@ -396,9 +400,7 @@ export function EvaluacionProcesoPage() {
             )}
 
             {criteria.length === 0 && (
-              <div className="alerta alerta--info" style={{ marginTop: '16px' }}>
-                No hay criterios definidos. Haz clic en "Editar criterios" para crearlos.
-              </div>
+<Alert variant="info" className="mt-4">No hay criterios definidos. Haz clic en "Editar criterios" para crearlos.</Alert>
             )}
           </>
         )}
@@ -408,7 +410,7 @@ export function EvaluacionProcesoPage() {
         <form className="form" onSubmit={guardarEvaluacion} style={{ marginTop: '16px' }}>
           <h2 className="form__titulo">Evaluación por Proveedor</h2>
           <p className="form__seccion-ayuda">
-            Exclusionary: marcar ✓ o ✗. Ponderados: asignar puntaje de 0 a 100.
+            Exclusionary: marcar <Check size={12} className="inline" /> o <X size={12} className="inline" />. Ponderados: asignar puntaje de 0 a 100.
           </p>
 
           <div style={{ overflowX: 'auto' }}>
@@ -442,7 +444,7 @@ export function EvaluacionProcesoPage() {
                               value={getPassed(c.id, s.id) ? 'true' : 'false'}
                               onChange={e => handlePassedChange(c.id, s.id, e.target.value === 'true')}
                             >
-                              <option value="true">✓ Sí</option>
+                              <option value="true">Sí</option>
                               <option value="false">✗ No</option>
                             </select>
                           ) : (
@@ -461,9 +463,9 @@ export function EvaluacionProcesoPage() {
                       <td>{score !== null ? `${score}%` : '—'}</td>
                       <td>
                         {excluded ? (
-                          <span className="badge badge--error">Excluido</span>
+                          <Badge variant="error">Excluido</Badge>
                         ) : (
-                          <span className="badge badge--ok">Apto</span>
+                          <Badge variant="success">Apto</Badge>
                         )}
                       </td>
                     </tr>
@@ -482,9 +484,7 @@ export function EvaluacionProcesoPage() {
       )}
 
       {!editandoCriterios && postores.length === 0 && (
-        <div className="alerta alerta--info" style={{ marginTop: '16px' }}>
-          No hay postores en la subasta para evaluar.
-        </div>
+        <Alert variant="info" className="mt-4">No hay postores en la subasta para evaluar.</Alert>
       )}
     </section>
   )

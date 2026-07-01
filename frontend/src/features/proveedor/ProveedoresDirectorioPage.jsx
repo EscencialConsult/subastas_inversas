@@ -1,30 +1,41 @@
-// Directorio de la red de proveedores (read-only). Lo ven el comprador y la
-// supervisión. La invitación a procesos llegará con el módulo de proveedores.
+// Directorio de proveedores compartido entre empresas.
 
 import { useEffect, useState } from 'react'
-import { useAuth } from '../../auth/AuthContext.jsx'
+import { Users } from 'lucide-react'
+import { useAuth } from '../../auth/AuthContext'
+import { useToast } from '../../context/ToastContext.jsx'
 import {
   habilitarProveedorEmpresa,
   listarProveedores,
   listarProveedoresParaAuditoria,
-} from '../../api/proveedoresApi.js'
-import { invitarProveedorAProceso, listarProcesos } from '../../api/comprasApi.js'
-import { ESTADO_PROCESO } from '../../domain/compras.js'
+} from '../../api/proveedoresApi'
+import { invitarProveedorAProceso, listarProcesos } from '../../api/comprasApi'
+import { ESTADO_PROCESO } from '../../domain/compras'
+import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { Card } from '../../components/ui/Card.jsx'
+import { EmptyState } from '../../components/ui/EmptyState.jsx'
+import { Input } from '../../components/ui/Input.jsx'
+import { Select } from '../../components/ui/Select.jsx'
+import { Spinner } from '../../components/ui/Spinner.jsx'
+import { Table } from '../../components/ui/Table.jsx'
 
 const ESTADO = {
-  verificado: { texto: 'Verificado', clase: 'badge--ok' },
-  pendiente: { texto: 'Pendiente', clase: 'badge--warn' },
+  verificado: { texto: 'Verificado', variant: 'success' },
+  pendiente: { texto: 'Pendiente', variant: 'warning' },
 }
 
 const ESTADO_EMPRESA = {
-  sin_habilitar: { texto: 'Sin habilitar', clase: 'badge--off' },
-  habilitado: { texto: 'Habilitado', clase: 'badge--ok' },
-  habilitado_con_alerta: { texto: 'Habilitado con alerta', clase: 'badge--warn' },
-  bloqueado: { texto: 'Bloqueado', clase: 'badge--error' },
+  sin_habilitar: { texto: 'Sin habilitar', variant: 'neutral' },
+  habilitado: { texto: 'Habilitado', variant: 'success' },
+  habilitado_con_alerta: { texto: 'Habilitado con alerta', variant: 'warning' },
+  bloqueado: { texto: 'Bloqueado', variant: 'error' },
 }
 
 export function ProveedoresDirectorioPage() {
   const { rol, tenantId } = useAuth()
+  const toast = useToast()
   const [proveedores, setProveedores] = useState([])
   const [cargando, setCargando] = useState(true)
   const [procesandoId, setProcesandoId] = useState(null)
@@ -32,7 +43,6 @@ export function ProveedoresDirectorioPage() {
   const [procesosInvitables, setProcesosInvitables] = useState([])
   const [procesoSeleccionadoId, setProcesoSeleccionadoId] = useState('')
   const [error, setError] = useState('')
-  const [mensaje, setMensaje] = useState('')
 
   const [busqueda, setBusqueda] = useState('')
   const [estado, setEstado] = useState('')
@@ -86,7 +96,6 @@ export function ProveedoresDirectorioPage() {
 
     setProcesandoId(proveedorId)
     setError('')
-    setMensaje('')
     try {
       const resultado = await habilitarProveedorEmpresa({ tenantId, proveedorId })
       setProveedores((actual) =>
@@ -101,7 +110,7 @@ export function ProveedoresDirectorioPage() {
             : proveedor,
         ),
       )
-      setMensaje('Proveedor evaluado para tu empresa.')
+      toast.success('Proveedor evaluado para tu empresa.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -114,14 +123,13 @@ export function ProveedoresDirectorioPage() {
 
     setInvitandoId(proveedorId)
     setError('')
-    setMensaje('')
     try {
       await invitarProveedorAProceso({
         tenantId,
         procesoId: procesoSeleccionadoId,
         proveedorId,
       })
-      setMensaje('Invitacion enviada al proveedor.')
+      toast.success('Invitacion enviada al proveedor.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -129,160 +137,146 @@ export function ProveedoresDirectorioPage() {
     }
   }
 
+  const columns = [
+    { header: 'Razon social', accessor: 'razonSocial' },
+    { header: 'CUIT', accessor: 'cuit', render: (valor) => <code>{valor}</code> },
+    { header: 'Rubro', accessor: 'rubro' },
+    { header: 'Provincia', accessor: 'provincia' },
+    {
+      header: 'Estado',
+      accessor: 'estado',
+      render: (valor) => {
+        const estadoProveedor = ESTADO[valor] ?? ESTADO.pendiente
+        return <Badge variant={estadoProveedor.variant}>{estadoProveedor.texto}</Badge>
+      },
+    },
+    {
+      header: 'Habilitacion',
+      accessor: 'estadoEmpresa',
+      render: (valor, proveedor) => {
+        const estadoEmpresa = ESTADO_EMPRESA[valor] ?? ESTADO_EMPRESA.sin_habilitar
+        return (
+          <div className="flex flex-col gap-1">
+            <Badge variant={estadoEmpresa.variant}>{estadoEmpresa.texto}</Badge>
+            {proveedor.advertenciaEmpresa && (
+              <small className="text-xs text-text-muted">{proveedor.advertenciaEmpresa}</small>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      header: '',
+      accessor: 'acciones',
+      sortKey: false,
+      render: (_, proveedor) => {
+        const puedeGestionarHabilitacion = rol === 'comprador' || rol === 'administrador'
+        const requiereHabilitacion =
+          proveedor.estadoEmpresa === 'sin_habilitar' || proveedor.estadoEmpresa === 'bloqueado'
+
+        if (!tenantId) return null
+
+        return (
+          <div className="flex flex-wrap justify-end gap-2">
+            {puedeGestionarHabilitacion && requiereHabilitacion && (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => habilitar(proveedor.id)}
+                disabled={procesandoId === proveedor.id}
+              >
+                {procesandoId === proveedor.id ? 'Evaluando...' : 'Habilitar'}
+              </Button>
+            )}
+            {rol === 'comprador' && (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => invitar(proveedor.id)}
+                disabled={
+                  invitandoId === proveedor.id ||
+                  !procesoSeleccionadoId ||
+                  proveedor.estadoEmpresa === 'sin_habilitar' ||
+                  proveedor.estadoEmpresa === 'bloqueado'
+                }
+              >
+                {invitandoId === proveedor.id ? 'Invitando...' : 'Invitar'}
+              </Button>
+            )}
+          </div>
+        )
+      },
+    },
+  ]
+
   return (
     <section>
       <div className="encabezado">
         <h1>Proveedores</h1>
       </div>
 
-      <div className="alerta alerta--info">
-        Red de proveedores compartida: un proveedor se registra una vez y queda
-        disponible para todas las empresas.
-      </div>
+      <Alert variant="info">
+        Red de proveedores compartida: un proveedor se registra una vez y queda disponible para todas las empresas.
+      </Alert>
 
       <div className="filtros">
-        <input
+        <Input
           className="filtros__busqueda"
-          placeholder="Buscar por razón social, CUIT, rubro o provincia…"
+          placeholder="Buscar por razon social, CUIT, rubro o provincia..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
-        <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+        <Select value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Todos los estados</option>
           <option value="verificado">Verificado</option>
           <option value="pendiente">Pendiente</option>
-        </select>
-        <input
-          placeholder="Rubro"
-          value={rubro}
-          onChange={(e) => setRubro(e.target.value)}
-        />
-        <input
-          placeholder="Provincia"
-          value={provincia}
-          onChange={(e) => setProvincia(e.target.value)}
-        />
-        <input
-          placeholder="Localidad"
-          value={localidad}
-          onChange={(e) => setLocalidad(e.target.value)}
-        />
-        <select value={cercania} onChange={(e) => setCercania(e.target.value)}>
+        </Select>
+        <Input placeholder="Rubro" value={rubro} onChange={(e) => setRubro(e.target.value)} />
+        <Input placeholder="Provincia" value={provincia} onChange={(e) => setProvincia(e.target.value)} />
+        <Input placeholder="Localidad" value={localidad} onChange={(e) => setLocalidad(e.target.value)} />
+        <Select value={cercania} onChange={(e) => setCercania(e.target.value)}>
           <option value="">Cercania</option>
           <option value="sameProvince">Misma provincia</option>
           <option value="sameLocality">Misma localidad</option>
-        </select>
+        </Select>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
-      {mensaje && <div className="alerta alerta--ok">{mensaje}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       {rol === 'comprador' && (
-        <div className="form" style={{ marginBottom: 16 }}>
-          <h2 className="form__titulo">Invitar a proceso</h2>
+        <Card hover={false} className="mb-4">
+          <h2 className="text-base font-semibold text-text m-0">Invitar a proceso</h2>
           {procesosInvitables.length === 0 ? (
-            <p className="form__seccion-ayuda">
-              Publica un proceso de compra antes de invitar proveedores.
-            </p>
+            <p className="text-sm text-text-muted mt-2 mb-0">Publica un proceso de compra antes de invitar proveedores.</p>
           ) : (
-            <label className="campo">
-              <span>Proceso publicado</span>
-              <select
-                value={procesoSeleccionadoId}
-                onChange={(e) => setProcesoSeleccionadoId(e.target.value)}
-              >
-                {procesosInvitables.map((proceso) => (
-                  <option key={proceso.id} value={proceso.id}>
-                    {proceso.codigo} - {proceso.titulo}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Proceso publicado"
+              value={procesoSeleccionadoId}
+              onChange={(e) => setProcesoSeleccionadoId(e.target.value)}
+              fieldClassName="mt-4 mb-0"
+            >
+              {procesosInvitables.map((proceso) => (
+                <option key={proceso.id} value={proceso.id}>
+                  {proceso.codigo} - {proceso.titulo}
+                </option>
+              ))}
+            </Select>
           )}
-        </div>
+        </Card>
       )}
 
       {cargando ? (
-        <p className="estado-cargando">Cargando proveedores…</p>
-      ) : proveedores.length === 0 ? (
-        <div className="estado-vacio">
-          <p>No hay proveedores que coincidan con el filtro.</p>
+        <div className="flex justify-center py-12">
+          <Spinner />
         </div>
+      ) : proveedores.length === 0 ? (
+        <EmptyState icon={Users} title="Sin proveedores" description="No hay proveedores que coincidan con el filtro." />
       ) : (
-        <table className="tabla">
-          <thead>
-            <tr>
-              <th>Razón social</th>
-              <th>CUIT</th>
-              <th>Rubro</th>
-              <th>Provincia</th>
-              <th>Estado</th>
-              <th>Habilitacion</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {proveedores.map((p) => {
-              const e = ESTADO[p.estado] ?? ESTADO.pendiente
-              const estadoEmpresa = ESTADO_EMPRESA[p.estadoEmpresa] ?? ESTADO_EMPRESA.sin_habilitar
-              const puedeGestionarHabilitacion = rol === 'comprador' || rol === 'administrador'
-              const requiereHabilitacion =
-                p.estadoEmpresa === 'sin_habilitar' || p.estadoEmpresa === 'bloqueado'
-              return (
-                <tr key={p.id}>
-                  <td>{p.razonSocial}</td>
-                  <td>
-                    <code>{p.cuit}</code>
-                  </td>
-                  <td>{p.rubro}</td>
-                  <td>{p.provincia}</td>
-                  <td>
-                    <span className={`badge ${e.clase}`}>{e.texto}</span>
-                  </td>
-                  <td>
-                    <span className={`badge ${estadoEmpresa.clase}`}>{estadoEmpresa.texto}</span>
-                    {p.advertenciaEmpresa && <small className="tabla__nota">{p.advertenciaEmpresa}</small>}
-                  </td>
-                  <td>
-                    {tenantId && (
-                      <div className="tabla__acciones">
-                        {puedeGestionarHabilitacion && requiereHabilitacion && (
-                          <button
-                            className="btn btn--texto"
-                            type="button"
-                            onClick={() => habilitar(p.id)}
-                            disabled={procesandoId === p.id}
-                          >
-                            {procesandoId === p.id ? 'Evaluando...' : 'Habilitar'}
-                          </button>
-                        )}
-                        {rol === 'comprador' && (
-                          <button
-                            className="btn btn--texto"
-                            type="button"
-                            onClick={() => invitar(p.id)}
-                            disabled={
-                              invitandoId === p.id ||
-                              !procesoSeleccionadoId ||
-                              p.estadoEmpresa === 'sin_habilitar' ||
-                              p.estadoEmpresa === 'bloqueado'
-                            }
-                          >
-                            {invitandoId === p.id ? 'Invitando...' : 'Invitar'}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <Table data={proveedores} columns={columns} pageSize={10} />
       )}
 
       {rol === 'comprador' && (
-        <p className="campo__ayuda" style={{ marginTop: 12 }}>
+        <p className="text-xs text-text-muted mt-3">
           Para invitar, el proveedor debe estar habilitado o habilitado con alerta para tu empresa.
         </p>
       )}

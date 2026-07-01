@@ -47,6 +47,8 @@ public class SupplierArcaVerificationService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var arca = scope.ServiceProvider.GetRequiredService<IArcaVerificationService>();
+        var dgr = scope.ServiceProvider.GetRequiredService<IDgrTaxComplianceService>();
+        var repsal = scope.ServiceProvider.GetRequiredService<IRepsalComplianceService>();
         var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
 
@@ -66,9 +68,27 @@ public class SupplierArcaVerificationService : BackgroundService
                 supplier.Province,
                 supplier.Locality), cancellationToken);
 
-            supplier.ArcaVerificationNotes = result.Notes;
+            var externalNotes = new List<string> { $"ARCA: {result.Notes}" };
+            var externalVerified = result.Verified;
 
             if (result.Verified)
+            {
+                var externalRequest = new ExternalComplianceRequest(
+                    supplier.Cuit,
+                    supplier.BusinessName,
+                    supplier.Province,
+                    supplier.Locality);
+                var dgrResult = await dgr.VerifyAsync(externalRequest, cancellationToken);
+                var repsalResult = await repsal.VerifyAsync(externalRequest, cancellationToken);
+
+                externalNotes.Add($"{dgrResult.Provider}: {dgrResult.Notes}");
+                externalNotes.Add($"{repsalResult.Provider}: {repsalResult.Notes}");
+                externalVerified = dgrResult.Verified && repsalResult.Verified;
+            }
+
+            supplier.ArcaVerificationNotes = string.Join(" | ", externalNotes);
+
+            if (externalVerified)
             {
                 var temporaryPassword = GenerateTemporaryPassword();
                 supplier.Status = SupplierStatus.Verified;

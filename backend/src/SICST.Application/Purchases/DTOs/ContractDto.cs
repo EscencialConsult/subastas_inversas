@@ -21,6 +21,27 @@ public class ContractDto
     public Guid? SignedByOperatorId { get; set; }
     public string? SignedByOperatorName { get; set; }
     public string? SignatureHash { get; set; }
+    public string? SignatureFormat { get; set; }
+    public string? SignatureAlgorithm { get; set; }
     public string DocumentUrl { get; set; } = string.Empty;
     public Guid? DocumentTemplateId { get; set; }
+    public decimal TotalPaid { get; set; }
+    public decimal TotalPenalties { get; set; }
+    public decimal OutstandingAmount { get; set; }
+    public List<ContractPaymentDto> Payments { get; set; } = [];
+}
+
+public class ContractPaymentDto
+{
+    public Guid Id { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid ContractId { get; set; }
+    public Guid RegisteredById { get; set; }
+    public string RegisteredByName { get; set; } = string.Empty;
+    public DateTime PaymentDateUtc { get; set; }
+    public decimal PaymentAmount { get; set; }
+    public decimal PenaltyAmount { get; set; }
+    public int DelayDays { get; set; }
+    public string Notes { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
 }

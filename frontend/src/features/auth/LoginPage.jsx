@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import { ROLES } from '../../domain/roles.js'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useAuth } from '../../auth/AuthContext'
+import { Badge } from '../../components/ui/Badge'
+import { Alert } from '../../components/ui/Alert'
+import { ROLES } from '../../domain/roles'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input.jsx'
 
 const USUARIOS_DEMO = [
   { email: 'admin@sicst.com', rol: 'Super Admin', password: 'Admin123!' },
@@ -13,24 +20,37 @@ const USUARIOS_DEMO = [
   { email: 'ventas@kotler.com', rol: 'Proveedor', password:'123456' },
 ]
 
+const loginSchema = z.object({
+  email: z.string().trim().email('Ingresá un email válido.'),
+  password: z.string().min(1, 'Ingresá tu contraseña.'),
+  mfaCode: z.string().optional(),
+})
+
 export function LoginPage() {
   const { login, verificarMfa, cargando } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const destino = location.state?.from?.pathname ?? '/'
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [mfaToken, setMfaToken] = useState('')
-  const [mfaCode, setMfaCode] = useState('')
   const [usuarioPendiente, setUsuarioPendiente] = useState(null)
   const [error, setError] = useState('')
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    setError: setFieldError,
+    clearErrors,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '', mfaCode: '' },
+  })
 
-  async function manejarSubmit(e) {
-    e.preventDefault()
+  async function manejarSubmit(datos) {
     setError('')
     try {
-      const respuesta = await login({ email, password })
+      const respuesta = await login({ email: datos.email, password: datos.password })
       if (respuesta?.requiereMfa) {
         setMfaToken(respuesta.mfaToken)
         setUsuarioPendiente(respuesta.usuarioPendiente)
@@ -42,11 +62,14 @@ export function LoginPage() {
     }
   }
 
-  async function manejarMfa(e) {
-    e.preventDefault()
+  async function manejarMfa(datos) {
+    if (!/^\d{6}$/.test(datos.mfaCode ?? '')) {
+      setFieldError('mfaCode', { message: 'Ingresá el código de 6 dígitos.' })
+      return
+    }
     setError('')
     try {
-      const usuario = await verificarMfa({ mfaToken, code: mfaCode })
+      const usuario = await verificarMfa({ mfaToken, code: datos.mfaCode })
       navigate(destinoSeguroPorRol(usuario?.rol, destino), { replace: true })
     } catch (err) {
       setError(err.message)
@@ -54,10 +77,11 @@ export function LoginPage() {
   }
 
   function usarDemo(usuario) {
-    setEmail(usuario.email)
-    setPassword(usuario.password)
+    setValue('email', usuario.email, { shouldValidate: true })
+    setValue('password', usuario.password, { shouldValidate: true })
+    setValue('mfaCode', '')
+    clearErrors()
     setMfaToken('')
-    setMfaCode('')
     setUsuarioPendiente(null)
   }
 
@@ -67,15 +91,15 @@ export function LoginPage() {
         <div className="contenedor page-header__inner">
           <Link to="/portal" className="page-header__brand">
             <span className="page-header__logo">SC</span>
-            <span className="flex flex--col">
+            <span className="flex flex-col">
               <span className="page-header__title">SICST</span>
               <span className="page-header__subtitle">Acceso al sistema</span>
             </span>
           </Link>
           <nav className="page-header__nav">
-            <Link to="/portal" className="btn btn--secundario">
-              Portal publico
-            </Link>
+            <Button as={Link} to="/portal" variant="secondary">
+              Portal público
+            </Button>
           </nav>
         </div>
       </header>
@@ -83,7 +107,7 @@ export function LoginPage() {
       <section className="public-form">
         <form
           className="public-form__card"
-          onSubmit={mfaToken ? manejarMfa : manejarSubmit}
+          onSubmit={handleSubmit(mfaToken ? manejarMfa : manejarSubmit)}
         >
           <div>
             <span className="public-form__tag">Inicio de sesion</span>
@@ -95,82 +119,77 @@ export function LoginPage() {
             </p>
           </div>
 
-          {error && (
-            <div className="alerta alerta--error mt-16">
-              {error}
-            </div>
-          )}
+          {error && <Alert variant="error" className="mt-16">{error}</Alert>}
 
           {!mfaToken ? (
             <div className="public-form__grid">
-              <label className="campo">
-                <span>Email</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tu@email.com"
-                  autoComplete="username"
-                />
-              </label>
+              <Input
+                label="Email"
+                type="email"
+                placeholder="tu@email.com"
+                autoComplete="username"
+                error={errors.email?.message}
+                required
+                {...register('email')}
+              />
 
-              <label className="campo">
-                <span>Contrasena</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="********"
-                  autoComplete="current-password"
-                />
-              </label>
+              <Input
+                label="Contrasena"
+                type="password"
+                placeholder="********"
+                autoComplete="current-password"
+                error={errors.password?.message}
+                required
+                {...register('password')}
+              />
             </div>
           ) : (
             <div className="public-form__grid">
-              <label className="campo">
-                <span>Codigo MFA</span>
-                <input
-                  value={mfaCode}
-                  onChange={(e) => setMfaCode(e.target.value)}
-                  placeholder="123456"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                />
-              </label>
-              <button
-                className="btn btn--texto"
+              <Input
+                label="Codigo MFA"
+                placeholder="123456"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                error={errors.mfaCode?.message}
+                required
+                {...register('mfaCode')}
+              />
+              <Button
+                variant="link"
                 type="button"
-                style={{ marginTop: 4, alignSelf: 'flex-start' }}
+                className="mt-1 self-start"
                 onClick={() => {
                   setMfaToken('')
-                  setMfaCode('')
+                  setValue('mfaCode', '')
+                  clearErrors('mfaCode')
                   setUsuarioPendiente(null)
                 }}
               >
                 Usar otra cuenta
-              </button>
+              </Button>
             </div>
           )}
 
-          <button
-            className="btn btn--primario btn--full mt-16"
+          <Button
+            className="mt-16"
+            fullWidth
             type="submit"
-            disabled={cargando}
+            loading={cargando}
           >
-            {cargando ? 'Ingresando...' : mfaToken ? 'Verificar codigo' : 'Ingresar'}
-          </button>
+            {mfaToken ? 'Verificar codigo' : 'Ingresar'}
+          </Button>
 
           {!mfaToken && (
-            <div className="text-center mt-16" style={{ fontSize: 13 }}>
-              <p className="text-suave">
+            <div className="text-center mt-16 text-sm">
+              <p className="text-muted">
                 Sos proveedor?{' '}
-                <Link className="text-ok" style={{ fontWeight: 700 }} to="/registro-proveedor">
+                <Link className="text-success font-bold" to="/registro-proveedor">
                   Registrate aca
                 </Link>
               </p>
-              <Link className="btn btn--texto mt-8" to="/portal">
-                Ver portal publico sin ingresar
-              </Link>
+              <Button as={Link} variant="link" className="mt-8" to="/portal">
+                Ver portal público sin ingresar
+              </Button>
             </div>
           )}
 
@@ -183,7 +202,7 @@ export function LoginPage() {
                     Selecciona uno para autocompletar el email y contraseña.
                   </p>
                 </div>
-                <span className="badge badge--off">Demo</span>
+                <Badge variant="neutral">Demo</Badge>
               </div>
               <div className="demo-section__list">
                 {USUARIOS_DEMO.map((usuario) => (

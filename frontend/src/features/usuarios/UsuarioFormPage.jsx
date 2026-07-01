@@ -1,35 +1,53 @@
-// Alta y edición de usuario (la misma pantalla sirve para ambos).
-//
-// Si la ruta trae :id -> edición; si no -> alta.
-
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext.jsx'
-import {
-  obtenerUsuario,
-  crearUsuario,
-  actualizarUsuario,
-} from '../../api/usersApi.js'
-import { ROLE_INFO, ROLES_ASIGNABLES_POR_EMPRESA } from '../../domain/roles.js'
+import { useForm, useWatch } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useAuth } from '../../auth/AuthContext'
+import { obtenerUsuario, crearUsuario, actualizarUsuario } from '../../api/usersApi'
+import { ROLE_INFO, ROLES_ASIGNABLES_POR_EMPRESA } from '../../domain/roles'
+import { Alert } from '../../components/ui/Alert'
+import { Button } from '../../components/ui/Button'
+import { Checkbox } from '../../components/ui/Checkbox.jsx'
+import { Input } from '../../components/ui/Input.jsx'
+import { Select } from '../../components/ui/Select.jsx'
+import { Spinner } from '../../components/ui/Spinner.jsx'
 
 const VACIO = { nombre: '', apellido: '', email: '', rol: '', activo: true }
+
+const usuarioSchema = z.object({
+  nombre: z.string().trim().min(2, 'Ingresa el nombre.'),
+  apellido: z.string().trim().min(2, 'Ingresa el apellido.'),
+  email: z.string().trim().email('Ingresa un email valido.'),
+  rol: z.string().min(1, 'Elegi un rol.'),
+  activo: z.boolean(),
+})
 
 export function UsuarioFormPage() {
   const { id } = useParams()
   const esEdicion = Boolean(id)
   const { tenantId } = useAuth()
   const navigate = useNavigate()
-
-  const [datos, setDatos] = useState(VACIO)
   const [cargando, setCargando] = useState(esEdicion)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+  const {
+    register,
+    handleSubmit,
+    reset,
+    control,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(usuarioSchema),
+    defaultValues: VACIO,
+  })
+  const rolSeleccionado = useWatch({ control, name: 'rol' })
 
   useEffect(() => {
     if (!esEdicion) return
     obtenerUsuario({ tenantId, id })
       .then((u) =>
-        setDatos({
+        reset({
           nombre: u.nombre,
           apellido: u.apellido,
           email: u.email,
@@ -39,14 +57,9 @@ export function UsuarioFormPage() {
       )
       .catch((err) => setError(err.message))
       .finally(() => setCargando(false))
-  }, [esEdicion, tenantId, id])
+  }, [esEdicion, tenantId, id, reset])
 
-  function actualizarCampo(campo, valor) {
-    setDatos((prev) => ({ ...prev, [campo]: valor }))
-  }
-
-  async function manejarSubmit(e) {
-    e.preventDefault()
+  async function manejarSubmit(datos) {
     setError('')
     setGuardando(true)
     try {
@@ -63,7 +76,7 @@ export function UsuarioFormPage() {
     }
   }
 
-  if (cargando) return <p className="estado-cargando">Cargando…</p>
+  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
 
   return (
     <section className="form-pagina">
@@ -71,72 +84,43 @@ export function UsuarioFormPage() {
         <h1>{esEdicion ? 'Editar usuario' : 'Nuevo usuario'}</h1>
       </div>
 
-      {error && <div className="alerta alerta--error">{error}</div>}
+      {error && <Alert variant="error">{error}</Alert>}
 
-      <form className="form" onSubmit={manejarSubmit}>
-        <label className="campo">
-          <span>Nombre</span>
-          <input
-            value={datos.nombre}
-            onChange={(e) => actualizarCampo('nombre', e.target.value)}
-          />
-        </label>
+      <form className="form" onSubmit={handleSubmit(manejarSubmit)} noValidate>
+        <Input label="Nombre" error={errors.nombre?.message} required {...register('nombre')} />
+        <Input label="Apellido" error={errors.apellido?.message} required {...register('apellido')} />
+        <Input
+          label="Email"
+          type="email"
+          error={errors.email?.message}
+          required
+          {...register('email')}
+        />
 
-        <label className="campo">
-          <span>Apellido</span>
-          <input
-            value={datos.apellido}
-            onChange={(e) => actualizarCampo('apellido', e.target.value)}
-          />
-        </label>
+        <Select
+          label="Rol"
+          help={rolSeleccionado ? ROLE_INFO[rolSeleccionado].descripcion : undefined}
+          error={errors.rol?.message}
+          required
+          {...register('rol')}
+        >
+          <option value="">Elegi un rol...</option>
+          {ROLES_ASIGNABLES_POR_EMPRESA.map((clave) => (
+            <option key={clave} value={clave}>
+              {ROLE_INFO[clave].label}
+            </option>
+          ))}
+        </Select>
 
-        <label className="campo">
-          <span>Email</span>
-          <input
-            type="email"
-            value={datos.email}
-            onChange={(e) => actualizarCampo('email', e.target.value)}
-          />
-        </label>
-
-        <label className="campo">
-          <span>Rol</span>
-          <select
-            value={datos.rol}
-            onChange={(e) => actualizarCampo('rol', e.target.value)}
-          >
-            <option value="">Elegí un rol…</option>
-            {ROLES_ASIGNABLES_POR_EMPRESA.map((clave) => (
-              <option key={clave} value={clave}>
-                {ROLE_INFO[clave].label}
-              </option>
-            ))}
-          </select>
-          {datos.rol && (
-            <small className="campo__ayuda">{ROLE_INFO[datos.rol].descripcion}</small>
-          )}
-        </label>
-
-        <label className="campo campo--checkbox">
-          <input
-            type="checkbox"
-            checked={datos.activo}
-            onChange={(e) => actualizarCampo('activo', e.target.checked)}
-          />
-          <span>Usuario activo</span>
-        </label>
+        <Checkbox label="Usuario activo" {...register('activo')} />
 
         <div className="form__acciones">
-          <button
-            type="button"
-            className="btn btn--texto"
-            onClick={() => navigate('/usuarios')}
-          >
+          <Button variant="ghost" onClick={() => navigate('/usuarios')}>
             Cancelar
-          </button>
-          <button type="submit" className="btn btn--primario" disabled={guardando}>
-            {guardando ? 'Guardando…' : 'Guardar'}
-          </button>
+          </Button>
+          <Button type="submit" loading={guardando}>
+            Guardar
+          </Button>
         </div>
       </form>
     </section>

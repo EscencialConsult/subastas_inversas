@@ -87,6 +87,13 @@ public static class PurchaseProcessMapping
 
     public static ContractDto ToContractDto(Contract contract)
     {
+        var orderedPayments = contract.Payments
+            .OrderByDescending(p => p.PaymentDateUtc)
+            .ThenByDescending(p => p.CreatedAtUtc)
+            .ToList();
+        var totalPaid = orderedPayments.Sum(p => p.PaymentAmount);
+        var totalPenalties = orderedPayments.Sum(p => p.PenaltyAmount);
+
         return new ContractDto
         {
             Id = contract.Id,
@@ -106,8 +113,32 @@ public static class PurchaseProcessMapping
             SignedByOperatorId = contract.SignedByOperatorId,
             SignedByOperatorName = contract.SignedByOperator != null ? $"{contract.SignedByOperator.FirstName} {contract.SignedByOperator.LastName}" : null,
             SignatureHash = contract.SignatureHash,
+            SignatureFormat = string.IsNullOrWhiteSpace(contract.SignatureHash) ? null : "PKCS#7/X.509 detached",
+            SignatureAlgorithm = string.IsNullOrWhiteSpace(contract.SignatureHash) ? null : "SHA256withRSA",
             DocumentUrl = $"/api/companies/{contract.CompanyId}/contracts/{contract.Id}/pdf",
-            DocumentTemplateId = contract.DocumentTemplateId
+            DocumentTemplateId = contract.DocumentTemplateId,
+            TotalPaid = totalPaid,
+            TotalPenalties = totalPenalties,
+            OutstandingAmount = Math.Max(0, contract.Amount - totalPaid - totalPenalties),
+            Payments = orderedPayments.Select(ToContractPaymentDto).ToList()
+        };
+    }
+
+    public static ContractPaymentDto ToContractPaymentDto(ContractPayment payment)
+    {
+        return new ContractPaymentDto
+        {
+            Id = payment.Id,
+            CompanyId = payment.CompanyId,
+            ContractId = payment.ContractId,
+            RegisteredById = payment.RegisteredById,
+            RegisteredByName = payment.RegisteredBy != null ? $"{payment.RegisteredBy.FirstName} {payment.RegisteredBy.LastName}" : string.Empty,
+            PaymentDateUtc = payment.PaymentDateUtc,
+            PaymentAmount = payment.PaymentAmount,
+            PenaltyAmount = payment.PenaltyAmount,
+            DelayDays = payment.DelayDays,
+            Notes = payment.Notes,
+            CreatedAtUtc = payment.CreatedAtUtc
         };
     }
 

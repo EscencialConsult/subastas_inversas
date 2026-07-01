@@ -17,6 +17,9 @@ public static class DependencyInjection
         services.AddSingleton<IMfaProvider, TotpMfaProvider>();
         services.AddSingleton<IAuctionStateCache, InMemoryAuctionStateCache>();
         services.AddSingleton<IArcaVerificationService, MockArcaVerificationService>();
+        services.AddSingleton<IDgrTaxComplianceService, MockDgrTaxComplianceService>();
+        services.AddSingleton<IRepsalComplianceService, MockRepsalComplianceService>();
+        services.AddSingleton<IAdvancedDigitalSignatureService, LocalAdvancedDigitalSignatureService>();
         services.AddSingleton<IEmailSender, ConsoleEmailSender>();
         var redisConnectionString = configuration["Redis:ConnectionString"];
         if (!string.IsNullOrWhiteSpace(redisConnectionString))

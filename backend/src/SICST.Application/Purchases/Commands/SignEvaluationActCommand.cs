@@ -25,11 +25,16 @@ public class SignEvaluationActCommandHandler : IRequestHandler<SignEvaluationAct
 {
     private readonly IApplicationDbContext _context;
     private readonly IPdfGenerator _pdfGenerator;
+    private readonly IAdvancedDigitalSignatureService _signatureService;
 
-    public SignEvaluationActCommandHandler(IApplicationDbContext context, IPdfGenerator pdfGenerator)
+    public SignEvaluationActCommandHandler(
+        IApplicationDbContext context,
+        IPdfGenerator pdfGenerator,
+        IAdvancedDigitalSignatureService signatureService)
     {
         _context = context;
         _pdfGenerator = pdfGenerator;
+        _signatureService = signatureService;
     }
 
     public async Task<PurchaseProcessDto?> Handle(SignEvaluationActCommand request, CancellationToken cancellationToken)
@@ -102,6 +107,14 @@ public class SignEvaluationActCommandHandler : IRequestHandler<SignEvaluationAct
             Encoding.UTF8.GetBytes(hash)
         );
         var signature = Convert.ToHexString(signatureBytes).ToLowerInvariant();
+        await _signatureService.SignAsync(
+            new AdvancedSignatureRequest(
+                "evaluation-act",
+                process.Id,
+                evaluator.Id,
+                evaluator.Email,
+                material),
+            cancellationToken);
 
         // Process base64 signature image
         byte[]? signatureImageBytes = null;
