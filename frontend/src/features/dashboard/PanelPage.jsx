@@ -5,9 +5,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
-import { obtenerPanel } from '../../api/dashboardApi'
-import { Spinner } from '../../components/ui/Spinner.jsx'
-import { Alert } from '../../components/ui/Alert'
+import { obtenerPanel } from '../../shared/api/dashboardApi'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
+import { Alert } from '../../shared/ui/Alert'
 
 export function PanelPage() {
   const { usuario, tenant, rol } = useAuth()

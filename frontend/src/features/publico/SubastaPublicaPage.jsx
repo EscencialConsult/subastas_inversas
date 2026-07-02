@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { obtenerSubastaPublica, suscribirSubastaPublica } from '../../api/publicoApi'
-import { Alert } from '../../components/ui/Alert'
+import { obtenerSubastaPublica, suscribirSubastaPublica } from '../../shared/api/publicoApi'
+import { Alert } from '../../shared/ui/Alert'
 
 const REFRESCO_MS = 12000
 

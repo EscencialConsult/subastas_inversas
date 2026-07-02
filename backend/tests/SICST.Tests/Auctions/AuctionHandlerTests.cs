@@ -1,3 +1,5 @@
+using SICST.Application.Common.Security;
+using SICST.Application.Common.Exceptions;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -8,9 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SICST.Api.Hubs;
 using SICST.Api.Services;
-using SICST.Application.Auctions;
-using SICST.Application.Auctions.Commands;
-using SICST.Application.Auctions.DTOs;
+using SICST.Application.Modules.Auctions;
+using SICST.Application.Modules.Auctions.Commands;
+using SICST.Application.Modules.Auctions.DTOs;
 using SICST.Application.Common.Interfaces;
 using SICST.Domain.Entities;
 using SICST.Infrastructure.Auctions;
@@ -176,7 +178,7 @@ public class AuctionHandlerTests
                 DurationMinutes = 10
             }, CancellationToken.None);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
             new PlaceBidCommandHandler(context, cache, CreateBidLock()).Handle(new PlaceBidCommand
             {
                 AuctionId = auction.Id,
@@ -200,7 +202,7 @@ public class AuctionHandlerTests
                 DurationMinutes = 10
             }, CancellationToken.None);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
             new CloseAuctionCommandHandler(context, cache)
                 .Handle(new CloseAuctionCommand(seed.CompanyId, auction.Id), CancellationToken.None));
     }
@@ -221,7 +223,7 @@ public class AuctionHandlerTests
 
         var handler = new PlaceBidCommandHandler(context, cache, CreateBidLock());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
             handler.Handle(new PlaceBidCommand
             {
                 AuctionId = auction.Id,
@@ -403,7 +405,7 @@ public class AuctionHandlerTests
         await new CloseAuctionCommandHandler(context, cache)
             .Handle(new CloseAuctionCommand(seed.CompanyId, auction.Id), CancellationToken.None);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
             new PlaceBidCommandHandler(context, cache, CreateBidLock()).Handle(new PlaceBidCommand
             {
                 AuctionId = auction.Id,
@@ -572,9 +574,11 @@ public class AuctionHandlerTests
                         Amount = amount
                     }, CancellationToken.None);
             }
-            catch (InvalidOperationException ex) when (
+            catch (Exception ex) when (
                 ex.Message.Contains("precio actual", StringComparison.OrdinalIgnoreCase)
-                || ex.Message.Contains("decremento minimo", StringComparison.OrdinalIgnoreCase))
+                || ex.Message.Contains("decremento minimo", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("decremento mínimo", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("oferta debe ser menor", StringComparison.OrdinalIgnoreCase))
             {
                 await Task.Delay(5);
             }

@@ -14,8 +14,8 @@ public class PagedResult<T>
     {
         Items = items;
         TotalCount = totalCount;
-        PageNumber = pageNumber;
-        PageSize = pageSize;
-        TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        PageNumber = Paging.NormalizePageNumber(pageNumber);
+        PageSize = Paging.NormalizePageSize(pageSize);
+        TotalPages = (int)Math.Ceiling(totalCount / (double)PageSize);
     }
 }

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using SICST.Application.Auth.Commands;
+using SICST.Application.Modules.Identity.Auth.Commands;
 using SICST.Application.Common.Interfaces;
 using SICST.Domain.Entities;
 using SICST.Infrastructure.Security;
@@ -271,6 +271,71 @@ public class AuthTests
         Assert.NotEmpty(response.RefreshToken);
         Assert.NotEqual(refreshToken, response.RefreshToken);
         Assert.Equal(RefreshTokenHelper.Hash(response.RefreshToken), user.RefreshTokenHash);
+    }
+
+    [Fact]
+    public async Task RefreshToken_ShouldThrow_WhenTokenWasRevoked()
+    {
+        // Arrange
+        var (context, config) = CreateContextAndConfig();
+        var jwtProvider = new JwtProvider(config);
+
+        var refreshToken = RefreshTokenHelper.Generate();
+        var email = "revoked@test.com";
+        context.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            PasswordHash = "hash",
+            FirstName = "Revoked",
+            LastName = "User",
+            Role = UserRole.Admin,
+            Active = true,
+            RefreshTokenHash = RefreshTokenHelper.Hash(refreshToken),
+            RefreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(1),
+            RefreshTokenRevokedAtUtc = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var handler = new RefreshTokenCommandHandler(context, jwtProvider);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            handler.Handle(new RefreshTokenCommand { Email = email, RefreshToken = refreshToken }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RefreshToken_ShouldRevokeChain_WhenTokenDoesNotMatch()
+    {
+        // Arrange
+        var (context, config) = CreateContextAndConfig();
+        var jwtProvider = new JwtProvider(config);
+
+        var email = "reuse@test.com";
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            PasswordHash = "hash",
+            FirstName = "Reuse",
+            LastName = "User",
+            Role = UserRole.Admin,
+            Active = true,
+            RefreshTokenHash = RefreshTokenHelper.Hash(RefreshTokenHelper.Generate()),
+            RefreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(1)
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var handler = new RefreshTokenCommandHandler(context, jwtProvider);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            handler.Handle(new RefreshTokenCommand { Email = email, RefreshToken = "stale-token" }, CancellationToken.None));
+
+        Assert.Null(user.RefreshTokenHash);
+        Assert.Null(user.RefreshTokenExpiresAtUtc);
+        Assert.NotNull(user.RefreshTokenRevokedAtUtc);
     }
 
     [Fact]

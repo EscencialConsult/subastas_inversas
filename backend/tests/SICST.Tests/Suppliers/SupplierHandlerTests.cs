@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using SICST.Application.Suppliers.Commands;
-using SICST.Application.Suppliers.Queries;
+using SICST.Application.Modules.Suppliers.Commands;
+using SICST.Application.Modules.Suppliers.Queries;
 using SICST.Domain.Entities;
 using SICST.Infrastructure.Security;
 using SICST.Persistence.Contexts;
@@ -12,13 +12,7 @@ public class SupplierHandlerTests
 {
     private ApplicationDbContext CreateDbContext()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-
-        var context = new ApplicationDbContext(options, new SICST.Tests.TestCurrentTenant());
-        context.Database.EnsureCreated();
-        return context;
+        return TestDbContextFactory.Create(new SICST.Tests.TestCurrentTenant());
     }
 
     [Fact]

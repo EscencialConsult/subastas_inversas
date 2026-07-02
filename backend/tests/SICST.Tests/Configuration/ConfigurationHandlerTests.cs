@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using SICST.Application.Configuration;
-using SICST.Application.Configuration.Commands;
-using SICST.Application.Configuration.Queries;
+using SICST.Application.Modules.Configuration;
+using SICST.Application.Modules.Configuration.Commands;
+using SICST.Application.Modules.Configuration.Queries;
 using SICST.Domain.Entities;
 using SICST.Persistence.Contexts;
 using Xunit;

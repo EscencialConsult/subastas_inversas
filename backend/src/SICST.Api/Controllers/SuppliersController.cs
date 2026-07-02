@@ -1,12 +1,12 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SICST.Application.Auctions.DTOs;
-using SICST.Application.Purchases.Commands;
-using SICST.Application.Purchases.DTOs;
-using SICST.Application.Suppliers.Commands;
-using SICST.Application.Suppliers.DTOs;
-using SICST.Application.Suppliers.Queries;
+using SICST.Application.Modules.Auctions.DTOs;
+using SICST.Application.Modules.Purchases.Commands;
+using SICST.Application.Modules.Purchases.DTOs;
+using SICST.Application.Modules.Suppliers.Commands;
+using SICST.Application.Modules.Suppliers.DTOs;
+using SICST.Application.Modules.Suppliers.Queries;
 using SICST.Domain.Entities;
 using SICST.Application.Common.Security;
 using SICST.Application.Common.Models;
@@ -154,10 +154,12 @@ public class SuppliersController : ControllerBase
     [RequestSizeLimit(10_000_000)]
     public async Task<ActionResult<SupplierDocumentDto>> UploadDocument(
         Guid supplierId,
-        [FromForm] SupplierDocumentType type,
-        [FromForm] DateTime expiresAtUtc,
-        [FromForm] IFormFile file)
+        [FromForm] UploadDocumentRequest request)
     {
+        var file = request.File;
+        var type = request.Type;
+        var expiresAtUtc = request.ExpiresAtUtc;
+
         if (file == null || file.Length == 0)
         {
             return BadRequest(new { message = "El archivo es obligatorio." });
@@ -374,4 +376,11 @@ public class SuppliersController : ControllerBase
 
         return Ok(auction);
     }
+}
+
+public class UploadDocumentRequest
+{
+    public SupplierDocumentType Type { get; set; }
+    public DateTime ExpiresAtUtc { get; set; }
+    public IFormFile File { get; set; } = null!;
 }

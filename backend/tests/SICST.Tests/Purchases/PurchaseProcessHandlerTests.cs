@@ -1,16 +1,17 @@
+using SICST.Application.Common.Security;
 using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using SICST.Application.Auctions;
-using SICST.Application.Auctions.Commands;
-using SICST.Application.Auctions.DTOs;
+using SICST.Application.Modules.Auctions;
+using SICST.Application.Modules.Auctions.Commands;
+using SICST.Application.Modules.Auctions.DTOs;
 using SICST.Application.Common.Interfaces;
 using SICST.Application.Common.Interfaces;
-using SICST.Application.Purchases.Commands;
-using SICST.Application.Purchases.DTOs;
-using SICST.Application.Purchases.Queries;
+using SICST.Application.Modules.Purchases.Commands;
+using SICST.Application.Modules.Purchases.DTOs;
+using SICST.Application.Modules.Purchases.Queries;
 using SICST.Domain.Entities;
 using SICST.Infrastructure.Services;
 using SICST.Persistence.Contexts;
@@ -22,13 +23,7 @@ public class PurchaseProcessHandlerTests
 {
     private ApplicationDbContext CreateDbContext()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-
-        var context = new ApplicationDbContext(options, new SICST.Tests.TestCurrentTenant());
-        context.Database.EnsureCreated();
-        return context;
+        return TestDbContextFactory.Create(new SICST.Tests.TestCurrentTenant());
     }
 
     [Fact]
@@ -1194,15 +1189,16 @@ public class PurchaseProcessHandlerTests
         Assert.All(result.Awards, award => Assert.Single(award.Items));
     }
 
-    [Fact]
+    [Fact(Skip = "Diagnostico manual contra una base externa; no debe ejecutarse en CI.")]
     public async Task DiagnoseDatabasePermissions()
     {
-        var connectionString = "Host=ep-patient-resonance-ac52dman.sa-east-1.aws.neon.tech;Port=5432;Database=neondb;Username=neondb_owner;Password=npg_MoSTAghQlJ48;SSL Mode=Require;Trust Server Certificate=true;Timeout=60;Command Timeout=60;Keepalive=30";
+        var connectionString = Environment.GetEnvironmentVariable("SICST_DIAGNOSTIC_CONNECTION_STRING")
+            ?? throw new InvalidOperationException("Definir SICST_DIAGNOSTIC_CONNECTION_STRING para ejecutar este diagnostico.");
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(connectionString)
             .Options;
 
-        using var context = new ApplicationDbContext(options, null);
+        using var context = new ApplicationDbContext(options, new TestCurrentTenant());
         var compradorPermissions = await context.RolePermissions
             .Where(rp => rp.Role == UserRole.Comprador)
             .Select(rp => rp.Permission.Code)

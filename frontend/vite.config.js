@@ -13,6 +13,18 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': path.resolve(dirname, './src'),
+      'components/ui': path.resolve(dirname, './src/shared/ui'),
+      'components/SignaturePad': path.resolve(dirname, './src/shared/ui/SignaturePad'),
+      'components/Layout': path.resolve(dirname, './src/app/layout/Layout'),
+      'api': path.resolve(dirname, './src/shared/api'),
+    },
+  },
+  optimizeDeps: {
+    include: ['@hookform/resolvers/zod', 'react-hook-form', 'react-router-dom', 'zod'],
+  },
   test: {
     projects: [{
       extends: true,

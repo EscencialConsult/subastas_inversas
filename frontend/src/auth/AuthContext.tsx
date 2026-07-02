@@ -10,8 +10,8 @@ import {
   type MfaInput,
   type TenantSesion,
   type UsuarioSesion,
-} from '../api/authApi'
-import { clearAccessToken, setAccessToken } from '../api/client'
+} from '../shared/api/authApi'
+import { clearAccessToken, setAccessToken } from '../shared/api/client'
 import type { RolType } from '../domain/roles'
 
 const CLAVE_STORAGE_LEGACY = 'sicst.sesion'

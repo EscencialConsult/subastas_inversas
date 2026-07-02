@@ -9,12 +9,12 @@ import {
   aprobarAdjudicacion,
   devolverAdjudicacion,
   rechazarAdjudicacion,
-} from '../../api/comprasApi'
-import { obtenerSubastaDeProcesoParaAprobacion, analisisSubasta } from '../../api/subastasApi'
+} from '../../shared/api/comprasApi'
+import { obtenerSubastaDeProcesoParaAprobacion, analisisSubasta } from '../../shared/api/subastasApi'
 import { ESTADO_PROCESO } from '../../domain/compras'
-import { Badge } from '../../components/ui/Badge'
-import { Alert } from '../../components/ui/Alert'
-import { Spinner } from '../../components/ui/Spinner.jsx'
+import { Badge } from '../../shared/ui/Badge'
+import { Alert } from '../../shared/ui/Alert'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
 
 export function AdjudicacionDetailPage() {
   const { id } = useParams()

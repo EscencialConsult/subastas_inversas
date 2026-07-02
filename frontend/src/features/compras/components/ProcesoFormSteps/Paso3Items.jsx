@@ -1,6 +1,6 @@
 import { Package, X } from 'lucide-react'
-import { EmptyState } from '../../../../components/ui/EmptyState.jsx'
-import { Input } from '../../../../components/ui/Input.jsx'
+import { EmptyState } from '../../../../shared/ui/EmptyState.jsx'
+import { Input } from '../../../../shared/ui/Input.jsx'
 
 export function Paso3Items({ datos, agregarItem, actualizarItem, quitarItem }) {
   return (

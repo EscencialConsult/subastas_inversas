@@ -1,3 +1,4 @@
+using SICST.Application.Common.Security;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -5,7 +6,7 @@ using System.Linq;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using SICST.Application.Auctions;
+using SICST.Application.Modules.Auctions;
 using SICST.Application.Common.Interfaces;
 using SICST.Domain.Entities;
 

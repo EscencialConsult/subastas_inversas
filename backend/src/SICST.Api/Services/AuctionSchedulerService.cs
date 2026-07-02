@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using SICST.Api.Hubs;
-using SICST.Application.Auctions;
-using SICST.Application.Auctions.DTOs;
+using SICST.Application.Common.Security;
+using SICST.Application.Modules.Auctions;
+using SICST.Application.Modules.Auctions.DTOs;
 using SICST.Application.Common.Interfaces;
 using SICST.Application.Public;
 using SICST.Domain.Entities;

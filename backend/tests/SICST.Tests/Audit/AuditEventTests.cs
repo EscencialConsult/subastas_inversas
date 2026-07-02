@@ -17,13 +17,7 @@ public class AuditEventTests
 
     private static ApplicationDbContext CreateDbContext(SICST.Tests.TestCurrentTenant currentTenant)
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-
-        var context = new ApplicationDbContext(options, currentTenant);
-        context.Database.EnsureCreated();
-        return context;
+        return TestDbContextFactory.Create(currentTenant);
     }
 
     [Fact]

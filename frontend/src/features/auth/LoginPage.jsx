@@ -4,11 +4,11 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../../auth/AuthContext'
-import { Badge } from '../../components/ui/Badge'
-import { Alert } from '../../components/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
+import { Alert } from '../../shared/ui/Alert'
 import { ROLES } from '../../domain/roles'
-import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input.jsx'
+import { Button } from '../../shared/ui/Button'
+import { Input } from '../../shared/ui/Input.jsx'
 
 const USUARIOS_DEMO = [
   { email: 'admin@sicst.com', rol: 'Super Admin', password: 'Admin123!' },

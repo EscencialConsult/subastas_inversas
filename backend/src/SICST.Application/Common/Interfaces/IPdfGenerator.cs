@@ -1,5 +1,6 @@
+using SICST.Application.Common.Security;
 using System.Collections.Generic;
-using SICST.Application.Auctions;
+using SICST.Application.Modules.Auctions;
 using SICST.Domain.Entities;
 
 namespace SICST.Application.Common.Interfaces;

@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
-import { Alert } from '../../components/ui/Alert'
-import { Spinner } from '../../components/ui/Spinner.jsx'
+import { Alert } from '../../shared/ui/Alert'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
 import {
   listarInvitacionesDeProveedor,
   listarSubastasProveedor,
   obtenerProveedorDeUsuario,
   responderInvitacion,
-} from '../../api/proveedoresApi'
+} from '../../shared/api/proveedoresApi'
 
 const ESTADO_INVITACION = {
   pendiente: { texto: 'Pendiente', clase: 'badge--warn' },

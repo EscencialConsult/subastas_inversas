@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
-import { Badge } from '../../components/ui/Badge'
-import { obtenerProcesoParaEvaluacion, obtenerProveedoresDeProceso, calificarProveedor } from '../../api/comprasApi'
-import { Alert } from '../../components/ui/Alert'
-import { EmptyState } from '../../components/ui/EmptyState.jsx'
-import { Spinner } from '../../components/ui/Spinner.jsx'
+import { Badge } from '../../shared/ui/Badge'
+import { obtenerProcesoParaEvaluacion, obtenerProveedoresDeProceso, calificarProveedor } from '../../shared/api/comprasApi'
+import { Alert } from '../../shared/ui/Alert'
+import { EmptyState } from '../../shared/ui/EmptyState.jsx'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
 
 const CLASE_CALIFICACION = {
   pendiente: 'info',

@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using SICST.Application.Audit.Queries;
+using SICST.Application.Modules.Audit.Queries;
 using SICST.Domain.Entities;
 using SICST.Persistence.Contexts;
 using Xunit;

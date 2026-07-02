@@ -71,6 +71,8 @@ namespace SICST.Persistence.Migrations
 
                     b.HasIndex("Email", "OccurredAtUtc");
 
+                    b.HasIndex("CompanyId", "Success", "OccurredAtUtc");
+
                     b.ToTable("AccessLogs");
                 });
 
@@ -245,10 +247,12 @@ namespace SICST.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CompanyId");
-
                     b.HasIndex("PurchaseProcessId")
                         .IsUnique();
+
+                    b.HasIndex("CompanyId", "ClosedAtUtc");
+
+                    b.HasIndex("CompanyId", "Status", "EndsAtUtc");
 
                     b.ToTable("Auctions");
                 });
@@ -333,7 +337,11 @@ namespace SICST.Persistence.Migrations
                     b.HasIndex("Sequence")
                         .IsUnique();
 
+                    b.HasIndex("CompanyId", "CreatedAtUtc");
+
                     b.HasIndex("EntityName", "EntityId");
+
+                    b.HasIndex("CompanyId", "Action", "CreatedAtUtc");
 
                     b.ToTable("AuditEvents");
                 });
@@ -471,6 +479,8 @@ namespace SICST.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("AuctionId", "Amount");
 
                     b.HasIndex("AuctionId", "PlacedAtUtc");
 
@@ -1146,6 +1156,10 @@ namespace SICST.Persistence.Migrations
                     b.HasIndex("CompanyId", "Code")
                         .IsUnique();
 
+                    b.HasIndex("CompanyId", "Title");
+
+                    b.HasIndex("CompanyId", "Status", "CreatedAtUtc");
+
                     b.ToTable("PurchaseProcesses");
                 });
 
@@ -1302,6 +1316,8 @@ namespace SICST.Persistence.Migrations
 
                     b.HasIndex("Cuit")
                         .IsUnique();
+
+                    b.HasIndex("Status");
 
                     b.HasIndex("UserId")
                         .IsUnique();
@@ -1531,6 +1547,9 @@ namespace SICST.Persistence.Migrations
                     b.Property<string>("RefreshTokenHash")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime?>("RefreshTokenRevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Role")
                         .HasColumnType("integer");

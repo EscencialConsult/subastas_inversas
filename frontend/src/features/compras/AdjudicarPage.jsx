@@ -14,11 +14,11 @@ import {
   obtenerProceso,
   obtenerResultadosEvaluacion,
   suspenderProcesoPorImpugnacion,
-} from '../../api/comprasApi'
-import { obtenerSubastaDeProceso } from '../../api/subastasApi'
-import { Badge } from '../../components/ui/Badge'
-import { Alert } from '../../components/ui/Alert'
-import { Spinner } from '../../components/ui/Spinner.jsx'
+} from '../../shared/api/comprasApi'
+import { obtenerSubastaDeProceso } from '../../shared/api/subastasApi'
+import { Badge } from '../../shared/ui/Badge'
+import { Alert } from '../../shared/ui/Alert'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
 
 export function AdjudicarPage() {
   const { id } = useParams()

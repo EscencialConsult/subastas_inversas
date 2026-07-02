@@ -1,4 +1,4 @@
-import { Alert } from '../../../../components/ui/Alert'
+import { Alert } from '../../../../shared/ui/Alert'
 
 export function Paso5Requisitos({ docRequisitos, setDocRequisitos }) {
   const toggleRequisito = (requisito, checked) => {

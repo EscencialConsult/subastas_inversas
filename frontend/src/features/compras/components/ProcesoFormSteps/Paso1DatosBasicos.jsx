@@ -1,5 +1,5 @@
-import { Input } from '../../../../components/ui/Input.jsx'
-import { Textarea } from '../../../../components/ui/Textarea.jsx'
+import { Input } from '../../../../shared/ui/Input.jsx'
+import { Textarea } from '../../../../shared/ui/Textarea.jsx'
 
 export function Paso1DatosBasicos({ register, datos, actualizarDatos, formErrors }) {
   return (

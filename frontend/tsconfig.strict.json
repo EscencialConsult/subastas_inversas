@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": [
+    "src/domain/**/*.ts",
+    "src/shared/api/auditoriaApi.ts",
+    "src/shared/api/authApi.ts",
+    "src/shared/api/client.ts",
+    "src/shared/api/comprasApi.ts",
+    "src/shared/api/configuracionApi.ts",
+    "src/shared/api/proveedoresApi.ts",
+    "src/shared/api/publicoApi.ts",
+    "src/shared/api/subastasApi.ts",
+    "src/shared/api/subastasRealtime.ts",
+    "src/shared/api/tenantsApi.ts",
+    "src/shared/api/usersApi.ts",
+    "src/features/**/hooks/**/*.ts",
+    "src/shared/ui/**/*.tsx"
+  ]
+}

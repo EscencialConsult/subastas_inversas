@@ -8,10 +8,10 @@ import {
   obtenerProveedorDeUsuario,
   subsanarDocumentoProveedor,
   subirDocumentoProveedor,
-} from '../../api/proveedoresApi'
-import { Badge } from '../../components/ui/Badge'
-import { Alert } from '../../components/ui/Alert'
-import { Spinner } from '../../components/ui/Spinner.jsx'
+} from '../../shared/api/proveedoresApi'
+import { Badge } from '../../shared/ui/Badge'
+import { Alert } from '../../shared/ui/Alert'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
 
 const ESTADO = {
   pendiente: { texto: 'Pendiente de verificacion', clase: 'neutral' },

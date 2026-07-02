@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Toast } from '../components/ui/Toast.jsx'
+import { Toast } from '../shared/ui/Toast.jsx'
 
 const ToastContext = createContext(null)
 

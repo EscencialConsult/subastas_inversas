@@ -4,13 +4,13 @@ import {
   listarAdjudicacionesPublicas,
   listarProcesosPublicos,
   listarSubastasPublicas,
-} from '../../api/publicoApi'
+} from '../../shared/api/publicoApi'
 import { ESTADO_INFO, etiquetaEstado } from '../../domain/compras'
-import { Alert } from '../../components/ui/Alert'
-import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input.jsx'
-import { Select } from '../../components/ui/Select.jsx'
+import { Alert } from '../../shared/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
+import { Button } from '../../shared/ui/Button'
+import { Input } from '../../shared/ui/Input.jsx'
+import { Select } from '../../shared/ui/Select.jsx'
 
 const ESTADO_BADGE = {
   borrador: 'neutral',

@@ -1,8 +1,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SICST.Application.Audit.DTOs;
-using SICST.Application.Audit.Queries;
+using SICST.Application.Modules.Audit.DTOs;
+using SICST.Application.Modules.Audit.Queries;
 using SICST.Application.Common.Security;
 using SICST.Domain.Entities;
 

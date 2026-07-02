@@ -35,6 +35,7 @@ public interface IApplicationDbContext
     DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems { get; }
     DbSet<AuditEvent> AuditEvents { get; }
     DbSet<AccessLog> AccessLogs { get; }
+    DbSet<OutboxMessage> OutboxMessages { get; }
     DbSet<EvaluationCriterion> EvaluationCriteria { get; }
     DbSet<SupplierEvaluation> SupplierEvaluations { get; }
     DbSet<SupplierCriterionResult> SupplierCriterionResults { get; }

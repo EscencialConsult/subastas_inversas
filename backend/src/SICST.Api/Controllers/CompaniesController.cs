@@ -2,9 +2,9 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SICST.Application.Common.Security;
-using SICST.Application.Companies.Commands;
-using SICST.Application.Companies.DTOs;
-using SICST.Application.Companies.Queries;
+using SICST.Application.Modules.Tenancy.Companies.Commands;
+using SICST.Application.Modules.Tenancy.Companies.DTOs;
+using SICST.Application.Modules.Tenancy.Companies.Queries;
 using SICST.Application.Common.Models;
 
 namespace SICST.Api.Controllers;

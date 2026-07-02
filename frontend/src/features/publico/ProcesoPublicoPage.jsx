@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { obtenerProcesoPublico, suscribirSubastaPublica } from '../../api/publicoApi'
+import { obtenerProcesoPublico, suscribirSubastaPublica } from '../../shared/api/publicoApi'
 import { etiquetaEstado } from '../../domain/compras'
-import { Alert } from '../../components/ui/Alert'
+import { Alert } from '../../shared/ui/Alert'
 
 const ESTADO_BADGE = {
   borrador: 'badge--off',

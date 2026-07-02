@@ -1,6 +1,6 @@
-import { Input } from '../../../../components/ui/Input.jsx'
-import { Select } from '../../../../components/ui/Select.jsx'
-import { Alert } from '../../../../components/ui/Alert'
+import { Input } from '../../../../shared/ui/Input.jsx'
+import { Select } from '../../../../shared/ui/Select.jsx'
+import { Alert } from '../../../../shared/ui/Alert'
 
 export function Paso2Presupuesto({ register, datos, actualizarDatos, formErrors, modalidadSugerida, modalidades, navigate }) {
   return (

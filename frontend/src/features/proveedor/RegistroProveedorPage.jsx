@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { registrarProveedor } from '../../api/proveedoresApi'
-import { Alert } from '../../components/ui/Alert'
-import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input.jsx'
+import { registrarProveedor } from '../../shared/api/proveedoresApi'
+import { Alert } from '../../shared/ui/Alert'
+import { Button } from '../../shared/ui/Button'
+import { Input } from '../../shared/ui/Input.jsx'
 
 const VACIO = {
   razonSocial: '',

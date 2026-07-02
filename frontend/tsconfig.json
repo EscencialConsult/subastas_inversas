@@ -6,6 +6,15 @@
     "module": "ESNext",
     "skipLibCheck": true,
     "types": ["vite/client"],
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "components/ui/*": ["src/shared/ui/*"],
+      "components/SignaturePad": ["src/shared/ui/SignaturePad.jsx"],
+      "components/Layout": ["src/app/layout/Layout.jsx"],
+      "api/*": ["src/shared/api/*"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",

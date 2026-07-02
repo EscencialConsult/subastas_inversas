@@ -1,42 +1,24 @@
 // Auditoría: el auditor ve TODOS los procesos del tenant, en cualquier estado.
 // Es solo lectura: no tiene acciones que modifiquen nada.
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileText, Shield, UserCheck } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
-import {
-  exportarAuditoriaCsvFirmado,
-  listarAlertasRiesgo,
-  listarBitacoraAccesos,
-  obtenerPanelRiesgoAuditoria,
-  verificarIntegridad,
-} from '../../api/auditoriaApi'
-import { listarProcesosParaAuditoria } from '../../api/comprasApi'
 import {
   ESTADO_INFO,
   etiquetaEstado,
   claseEstado,
 } from '../../domain/compras'
-import { Badge } from '../../components/ui/Badge'
-import { Alert } from '../../components/ui/Alert'
-import { Button } from '../../components/ui/Button'
-import { EmptyState } from '../../components/ui/EmptyState.jsx'
-import { Spinner } from '../../components/ui/Spinner.jsx'
+import { Badge } from '../../shared/ui/Badge'
+import { Button } from '../../shared/ui/Button'
+import { EmptyResults, ErrorState, LoadingState } from '../../shared/ui/StateViews.jsx'
+import { Alert } from '../../shared/ui/Alert'
+import { useAuditoria } from './hooks/useAuditoria'
 
 export function AuditoriaListPage() {
   const { tenantId } = useAuth()
   const navigate = useNavigate()
-
-  const [procesos, setProcesos] = useState([])
-  const [accesos, setAccesos] = useState([])
-  const [alertas, setAlertas] = useState([])
-  const [panelRiesgo, setPanelRiesgo] = useState(null)
-  const [integridad, setIntegridad] = useState(null)
-  const [cargando, setCargando] = useState(true)
-  const [verificandoIntegridad, setVerificandoIntegridad] = useState(false)
-  const [exportandoCsv, setExportandoCsv] = useState(false)
-  const [error, setError] = useState('')
 
   const [busqueda, setBusqueda] = useState('')
   const [estado, setEstado] = useState('')
@@ -44,61 +26,30 @@ export function AuditoriaListPage() {
   const [exitoAcceso, setExitoAcceso] = useState('')
   const [severidadAlerta, setSeveridadAlerta] = useState('')
 
-  async function cargar() {
-    setCargando(true)
-    setError('')
-    try {
-      const lista = await listarProcesosParaAuditoria({ tenantId, busqueda, estado })
-      const bitacora = await listarBitacoraAccesos({
-        tenantId,
-        email: emailAcceso,
-        exito: exitoAcceso,
-      })
-      const riesgos = await listarAlertasRiesgo({
-        tenantId,
-        severidad: severidadAlerta,
-      })
-      const panel = await obtenerPanelRiesgoAuditoria({ tenantId })
-      setProcesos(lista)
-      setAccesos(bitacora)
-      setAlertas(riesgos)
-      setPanelRiesgo(panel)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setCargando(false)
-    }
-  }
-
-  useEffect(() => {
-    const t = setTimeout(cargar, 250)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, busqueda, estado, emailAcceso, exitoAcceso, severidadAlerta])
-
-  async function ejecutarVerificacionIntegridad() {
-    setVerificandoIntegridad(true)
-    setError('')
-    try {
-      setIntegridad(await verificarIntegridad({ tenantId }))
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setVerificandoIntegridad(false)
-    }
-  }
+  const {
+    procesos,
+    accesos,
+    alertas,
+    panelRiesgo,
+    integridad,
+    cargando,
+    verificandoIntegridad,
+    exportandoCsv,
+    error,
+    ejecutarVerificacionIntegridad,
+    exportarCsvFirmado,
+  } = useAuditoria({
+    tenantId,
+    busqueda,
+    estado,
+    emailAcceso,
+    exitoAcceso,
+    severidadAlerta,
+  })
 
   async function descargarCsvFirmado() {
-    setExportandoCsv(true)
-    setError('')
-    try {
-      const exportacion = await exportarAuditoriaCsvFirmado({ tenantId })
-      descargarArchivoCsv(exportacion)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setExportandoCsv(false)
-    }
+    const exportacion = await exportarCsvFirmado()
+    if (exportacion) descargarArchivoCsv(exportacion)
   }
 
   return (
@@ -130,7 +81,7 @@ export function AuditoriaListPage() {
         </select>
       </div>
 
-      {error && <Alert variant="error">{error}</Alert>}
+      <ErrorState message={error} title="Error de auditoria" />
 
       {panelRiesgo && (
         <div className="form">
@@ -277,7 +228,7 @@ export function AuditoriaListPage() {
       </div>
 
       {!cargando && alertas.length === 0 ? (
-        <EmptyState icon={Shield} title="Sin alertas" description="No hay alertas automaticas para los filtros seleccionados." />
+        <EmptyResults icon={Shield} title="Sin alertas" description="No hay alertas automaticas para los filtros seleccionados." />
       ) : (
         !cargando && (
           <table className="tabla">
@@ -320,9 +271,9 @@ export function AuditoriaListPage() {
       )}
 
       {cargando ? (
-        <div className="flex justify-center py-12"><Spinner /></div>
+        <LoadingState label="Cargando auditoria..." />
       ) : procesos.length === 0 ? (
-        <EmptyState icon={FileText} title="Sin procesos" description="No hay procesos que coincidan con el filtro." />
+        <EmptyResults icon={FileText} title="Sin procesos" description="No hay procesos que coincidan con el filtro." />
       ) : (
         <table className="tabla">
           <thead>
@@ -376,7 +327,7 @@ export function AuditoriaListPage() {
       </div>
 
       {!cargando && accesos.length === 0 ? (
-        <EmptyState icon={UserCheck} title="Sin accesos" description="No hay accesos que coincidan con el filtro." />
+        <EmptyResults icon={UserCheck} title="Sin accesos" description="No hay accesos que coincidan con el filtro." />
       ) : (
         !cargando && (
           <table className="tabla">

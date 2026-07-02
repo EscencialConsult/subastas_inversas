@@ -11,11 +11,7 @@ public static class DatabaseInitializer
     {
         if (context is DbContext dbContext)
         {
-            if (dbContext.Database.IsRelational())
-            {
-                await dbContext.Database.MigrateAsync();
-            }
-            else
+            if (!dbContext.Database.IsRelational())
             {
                 await dbContext.Database.EnsureCreatedAsync();
             }
@@ -40,6 +36,7 @@ public static class DatabaseInitializer
         }
 
         await SeedPermissionsAsync(context);
+        await SeedDemoDataAsync(context, passwordHasher);
     }
 
     private static async Task SeedPermissionsAsync(IApplicationDbContext context)
@@ -121,5 +118,109 @@ public static class DatabaseInitializer
         }
 
         await context.SaveChangesAsync(CancellationToken.None);
+    }
+
+    private static async Task SeedDemoDataAsync(IApplicationDbContext context, IPasswordHasher passwordHasher)
+    {
+        // 1. Seed demo company (tenant)
+        var demoCompany = await context.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Domain == "prueba.com");
+        if (demoCompany == null)
+        {
+            demoCompany = new Company
+            {
+                Id = Guid.NewGuid(),
+                Name = "Organismo de Prueba",
+                Domain = "prueba.com",
+                Logo = "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+                PrimaryColor = "#0055AA",
+                IsPublicEntity = true
+            };
+            context.Companies.Add(demoCompany);
+            await context.SaveChangesAsync(CancellationToken.None);
+
+            // Create Company Configuration
+            var config = new CompanyConfiguration
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = demoCompany.Id,
+                DefaultCurrency = "ARS",
+                TimeZone = "America/Argentina/Buenos_Aires",
+                MinimumBidDecrementPercentage = 1,
+                AuctionExtensionMinutes = 2,
+                RequireSupplierVerification = true,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            context.CompanyConfigurations.Add(config);
+
+            // Create Contracting Modes
+            var mode = new ContractingMode
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = demoCompany.Id,
+                Name = "Subasta Inversa",
+                Description = "Procedimiento de subasta inversa",
+                MinAmount = 0,
+                MaxAmount = null,
+                RequiresAuction = true,
+                Active = true,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            context.ContractingModes.Add(mode);
+            await context.SaveChangesAsync(CancellationToken.None);
+        }
+
+        // 2. Seed Users
+        var demoUsers = new List<(string Email, string FirstName, string LastName, UserRole Role, Guid? CompanyId)>
+        {
+            ("admin@prueba.com", "Admin", "Tenant", UserRole.Admin, demoCompany.Id),
+            ("usuario1@prueba.com", "Juan", "Comprador", UserRole.Comprador, demoCompany.Id),
+            ("usuario2@prueba.com", "Pedro", "Evaluador", UserRole.Evaluador, demoCompany.Id),
+            ("usuario3@prueba.com", "Maria", "Autoridad", UserRole.Autoridad, demoCompany.Id),
+            ("usuario4@prueba.com", "Lucia", "Auditor", UserRole.Auditor, demoCompany.Id),
+            ("ventas@kotler.com", "Carlos", "Proveedor", UserRole.Proveedor, null)
+        };
+
+        foreach (var u in demoUsers)
+        {
+            var userExists = await context.Users.IgnoreQueryFilters().AnyAsync(user => user.Email == u.Email);
+            if (!userExists)
+            {
+                var newUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = u.Email,
+                    FirstName = u.FirstName,
+                    LastName = u.LastName,
+                    PasswordHash = passwordHasher.Hash("123456"),
+                    Role = u.Role,
+                    Active = true,
+                    CompanyId = u.CompanyId
+                };
+                context.Users.Add(newUser);
+                await context.SaveChangesAsync(CancellationToken.None);
+
+                // If role is Proveedor, also create the Supplier entity!
+                if (u.Role == UserRole.Proveedor)
+                {
+                    var supplier = new Supplier
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = newUser.Id,
+                        Cuit = "30-12345678-1",
+                        BusinessName = "Kotler S.A.",
+                        Email = u.Email,
+                        BusinessCategory = "Servicios de IT e Insumos",
+                        Province = "Buenos Aires",
+                        Locality = "CABA",
+                        Status = SupplierStatus.Verified,
+                        ArcaVerified = true,
+                        ArcaVerificationStatus = ArcaVerificationStatus.Verified,
+                        CreatedAtUtc = DateTime.UtcNow
+                    };
+                    context.Suppliers.Add(supplier);
+                    await context.SaveChangesAsync(CancellationToken.None);
+                }
+            }
+        }
     }
 }

@@ -42,7 +42,7 @@ public class JwtProvider : IJwtProvider
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(7), // Token expires in 7 days
+            expires: DateTime.UtcNow.AddMinutes(GetAccessTokenMinutes()),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
@@ -111,5 +111,13 @@ public class JwtProvider : IJwtProvider
         {
             return false;
         }
+    }
+
+    private int GetAccessTokenMinutes()
+    {
+        var configuredMinutes = int.TryParse(_configuration["Jwt:AccessTokenMinutes"], out var minutes)
+            ? minutes
+            : 15;
+        return Math.Clamp(configuredMinutes, 5, 60);
     }
 }

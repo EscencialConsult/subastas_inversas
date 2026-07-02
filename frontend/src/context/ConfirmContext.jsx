@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { AlertTriangle, HelpCircle, Info } from 'lucide-react'
-import { Modal } from '../components/ui/Modal'
-import { Button } from '../components/ui/Button'
+import { Modal } from '../shared/ui/Modal'
+import { Button } from '../shared/ui/Button'
 
 const ConfirmContext = createContext(null)
 

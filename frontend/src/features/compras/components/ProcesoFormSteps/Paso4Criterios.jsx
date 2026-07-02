@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { Alert } from '../../../../components/ui/Alert'
+import { Alert } from '../../../../shared/ui/Alert'
 
 export function Paso4Criterios({ criteriosEvaluacion, setCriteriosEvaluacion }) {
   const excluyentes = criteriosEvaluacion.filter(c => c.type === 'Exclusionary')

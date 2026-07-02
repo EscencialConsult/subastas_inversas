@@ -1,5 +1,7 @@
 using System.Net;
-using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
+using SICST.Application.Common.Exceptions;
+using ValidationException = SICST.Application.Common.Exceptions.ValidationException;
 
 namespace SICST.Api.Middlewares;
 
@@ -27,34 +29,57 @@ public class ErrorHandlingMiddleware
         }
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        var code = HttpStatusCode.InternalServerError;
-        var message = "Ha ocurrido un error interno en el servidor.";
+        var statusCode = (int)HttpStatusCode.InternalServerError;
+        var title = "Error interno";
+        var detail = "Ha ocurrido un error interno en el servidor.";
+        IDictionary<string, string[]>? errors = null;
 
-        if (exception is InvalidOperationException)
+        if (exception is ValidationException validationException)
         {
-            var msg = exception.Message.ToLower();
-            if (msg.Contains("no encontrado") || msg.Contains("no existe") || msg.Contains("not found"))
-            {
-                code = HttpStatusCode.NotFound;
-            }
-            else
-            {
-                code = HttpStatusCode.BadRequest;
-            }
-            message = exception.Message;
+            statusCode = validationException.StatusCode;
+            title = validationException.Title;
+            detail = validationException.Message;
+            errors = validationException.Errors;
+        }
+        else if (exception is AppException appException)
+        {
+            statusCode = appException.StatusCode;
+            title = appException.Title;
+            detail = appException.Message;
         }
         else if (exception is UnauthorizedAccessException)
         {
-            code = HttpStatusCode.Unauthorized;
-            message = exception.Message;
+            statusCode = (int)HttpStatusCode.Unauthorized;
+            title = "No autorizado";
+            detail = exception.Message;
+        }
+        else if (exception is InvalidOperationException)
+        {
+            var msg = exception.Message.ToLowerInvariant();
+            statusCode = msg.Contains("no encontrado") || msg.Contains("no existe") || msg.Contains("not found")
+                ? (int)HttpStatusCode.NotFound
+                : (int)HttpStatusCode.BadRequest;
+            title = statusCode == (int)HttpStatusCode.NotFound ? "Recurso no encontrado" : "Regla de negocio";
+            detail = exception.Message;
         }
 
-        context.Response.ContentType = "application/json";
-        context.Response.StatusCode = (int)code;
+        var problem = new ProblemDetails
+        {
+            Status = statusCode,
+            Title = title,
+            Detail = detail,
+            Instance = context.Request.Path
+        };
+        problem.Extensions["traceId"] = context.TraceIdentifier;
+        if (errors != null)
+        {
+            problem.Extensions["errors"] = errors;
+        }
 
-        var result = JsonSerializer.Serialize(new { message });
-        return context.Response.WriteAsync(result);
+        context.Response.ContentType = "application/problem+json";
+        context.Response.StatusCode = statusCode;
+        await context.Response.WriteAsJsonAsync(problem);
     }
 }

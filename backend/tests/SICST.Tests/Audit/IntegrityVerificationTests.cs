@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
-using SICST.Application.Audit.Queries;
+using SICST.Application.Modules.Audit.Queries;
 using SICST.Domain.Entities;
 using SICST.Persistence.Contexts;
 using Xunit;
@@ -13,13 +13,7 @@ public class IntegrityVerificationTests
 {
     private static ApplicationDbContext CreateDbContext()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-
-        var context = new ApplicationDbContext(options, new SICST.Tests.TestCurrentTenant());
-        context.Database.EnsureCreated();
-        return context;
+        return TestDbContextFactory.Create(new SICST.Tests.TestCurrentTenant());
     }
 
     [Fact]

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { obtenerTenant, crearTenant, actualizarTenant } from '../../api/tenantsApi'
+import { obtenerTenant, crearTenant, actualizarTenant } from '../../shared/api/tenantsApi'
 import { Building2, Globe, Image, Palette, ShieldCheck, CheckCircle, Clipboard } from 'lucide-react'
-import { Spinner } from '../../components/ui/Spinner.jsx'
-import { Alert } from '../../components/ui/Alert'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
+import { Alert } from '../../shared/ui/Alert'
 
 const COLOR_PRIMARIO_DEFAULT = '#1d4ed8'
 const VACIO = {

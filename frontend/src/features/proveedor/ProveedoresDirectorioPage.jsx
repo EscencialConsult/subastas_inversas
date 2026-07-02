@@ -8,18 +8,18 @@ import {
   habilitarProveedorEmpresa,
   listarProveedores,
   listarProveedoresParaAuditoria,
-} from '../../api/proveedoresApi'
-import { invitarProveedorAProceso, listarProcesos } from '../../api/comprasApi'
+} from '../../shared/api/proveedoresApi'
+import { invitarProveedorAProceso, listarProcesos } from '../../shared/api/comprasApi'
 import { ESTADO_PROCESO } from '../../domain/compras'
-import { Alert } from '../../components/ui/Alert'
-import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
-import { Card } from '../../components/ui/Card.jsx'
-import { EmptyState } from '../../components/ui/EmptyState.jsx'
-import { Input } from '../../components/ui/Input.jsx'
-import { Select } from '../../components/ui/Select.jsx'
-import { Spinner } from '../../components/ui/Spinner.jsx'
-import { Table } from '../../components/ui/Table.jsx'
+import { Alert } from '../../shared/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
+import { Button } from '../../shared/ui/Button'
+import { Card } from '../../shared/ui/Card.jsx'
+import { EmptyState } from '../../shared/ui/EmptyState.jsx'
+import { Input } from '../../shared/ui/Input.jsx'
+import { Select } from '../../shared/ui/Select.jsx'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
+import { Table } from '../../shared/ui/Table.jsx'
 
 const ESTADO = {
   verificado: { texto: 'Verificado', variant: 'success' },

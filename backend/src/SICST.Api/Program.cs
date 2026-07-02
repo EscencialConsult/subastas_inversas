@@ -1,13 +1,17 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using SICST.Api.Auth;
+using SICST.Api.Health;
 using SICST.Api.Hubs;
 using SICST.Api.Middlewares;
+using SICST.Api.Observability;
 using SICST.Api.Services;
 using SICST.Api.Tenancy;
 using SICST.Application;
@@ -16,21 +20,38 @@ using SICST.Application.Common.Interfaces;
 using SICST.Infrastructure;
 using SICST.Persistence;
 using SICST.Persistence.Contexts;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using SICST.Api.Conventions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "O";
+});
 builder.Logging.AddDebug();
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Conventions.Add(new ApiVersionRouteConvention());
+});
 builder.Services.AddMemoryCache();
 builder.Services.AddSignalR();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentTenant, CurrentTenant>();
 builder.Services.AddHostedService<AuctionSchedulerService>();
 builder.Services.AddHostedService<SupplierArcaVerificationService>();
+builder.Services.AddHostedService<OutboxDispatcherService>();
+builder.Services.AddSingleton<IUploadStorage, LocalUploadStorage>();
+builder.Services.AddSingleton<IAntivirusScanner, NoOpAntivirusScanner>();
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database", tags: ["ready", "db"])
+    .AddCheck<RedisHealthCheck>("redis", tags: ["ready", "cache"])
+    .AddCheck<StorageHealthCheck>("storage", tags: ["ready", "uploads"])
+    .AddCheck<AntivirusHealthCheck>("antivirus", tags: ["ready", "security"]);
 
 if (builder.Environment.IsDevelopment())
 {
@@ -85,6 +106,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
 
 // Configure JWT Authentication
 builder.Services.AddAuthentication(options =>
@@ -161,6 +186,11 @@ builder.Services.AddSwaggerGen(options =>
     {
         [new OpenApiSecuritySchemeReference("bearer", document)] = new List<string>()
     });
+
+    options.CustomOperationIds(apiDesc =>
+    {
+        return apiDesc.TryGetMethodInfo(out var methodInfo) ? methodInfo.Name : null;
+    });
 });
 
 var app = builder.Build();
@@ -171,12 +201,21 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
 
 app.UseCors("ConfiguredCors"); // Must be called before UseRouting/UseEndpoints/UseAuthentication/UseAuthorization
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();
 
+app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseMiddleware<RequestObservabilityMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseMiddleware<TenantResolutionMiddleware>();
 
@@ -185,16 +224,41 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<AuctionHub>("/hubs/auctions");
-
-// Seed Database on startup
-using (var scope = app.Services.CreateScope())
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await dbContext.Database.MigrateAsync();
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = WriteHealthReport
+});
 
-    var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
-    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-    await DatabaseInitializer.SeedAsync(context, passwordHasher);
+if (ShouldInitializeDatabase(app.Configuration, app.Environment))
+{
+    try
+    {
+        using (var scope = app.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            if (dbContext.Database.IsSqlite())
+            {
+                await dbContext.Database.EnsureCreatedAsync();
+            }
+            else
+            {
+                await dbContext.Database.MigrateAsync();
+            }
+
+            var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+            var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+            await DatabaseInitializer.SeedAsync(context, passwordHasher);
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Database initialization failed or server is unreachable. App will continue to start.");
+    }
 }
 
 app.Run();
@@ -210,5 +274,28 @@ static string GetRequiredConfigurationValue(IConfiguration configuration, string
     return value;
 }
 
+static bool ShouldInitializeDatabase(IConfiguration configuration, IWebHostEnvironment environment)
+{
+    return configuration.GetValue<bool>("Database:InitializeOnStartup");
+}
 
+static Task WriteHealthReport(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+    var payload = new
+    {
+        status = report.Status.ToString(),
+        totalDurationMs = report.TotalDuration.TotalMilliseconds,
+        entries = report.Entries.ToDictionary(
+            entry => entry.Key,
+            entry => new
+            {
+                status = entry.Value.Status.ToString(),
+                description = entry.Value.Description,
+                durationMs = entry.Value.Duration.TotalMilliseconds
+            })
+    };
+
+    return context.Response.WriteAsync(JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+}
 

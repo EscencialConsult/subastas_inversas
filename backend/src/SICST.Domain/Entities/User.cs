@@ -35,6 +35,8 @@ public class User
 
     public DateTime? RefreshTokenExpiresAtUtc { get; set; }
 
+    public DateTime? RefreshTokenRevokedAtUtc { get; set; }
+
     // Navigation and Foreign Key to Company
     public Guid? CompanyId { get; set; }
     public Company? Company { get; set; }

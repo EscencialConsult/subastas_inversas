@@ -1,6 +1,6 @@
 import { Users } from 'lucide-react'
-import { Spinner } from '../../../../components/ui/Spinner.jsx'
-import { EmptyState } from '../../../../components/ui/EmptyState.jsx'
+import { Spinner } from '../../../../shared/ui/Spinner.jsx'
+import { EmptyState } from '../../../../shared/ui/EmptyState.jsx'
 
 export function Paso7Invitaciones({ cargandoProveedores, proveedores, invitadosIds, manejarInvitacion }) {
   return (

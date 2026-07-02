@@ -1,18 +1,12 @@
 // Monitor de subasta para el comprador.
 
-import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
-import { obtenerProceso } from '../../api/comprasApi'
-import {
-  cerrarSubasta,
-  mejorOferta,
-  obtenerSubastaDeProceso,
-  simularLance,
-} from '../../api/subastasApi'
-import { Badge } from '../../components/ui/Badge'
-import { Alert } from '../../components/ui/Alert'
-import { Spinner } from '../../components/ui/Spinner.jsx'
+import { mejorOferta } from '../../shared/api/subastasApi'
+import { Badge } from '../../shared/ui/Badge'
+import { Alert } from '../../shared/ui/Alert'
+import { LoadingState } from '../../shared/ui/StateViews.jsx'
+import { useSubasta } from './hooks/useSubasta'
 
 const ESTADO_SUBASTA = {
   Scheduled: { texto: 'Programada', clase: 'info' },
@@ -24,53 +18,21 @@ export function SubastaPage() {
   const { procesoId } = useParams()
   const { tenantId } = useAuth()
   const navigate = useNavigate()
-
-  const [proceso, setProceso] = useState(null)
-  const [subasta, setSubasta] = useState(null)
-  const [cargando, setCargando] = useState(true)
-  const [error, setError] = useState('')
-  const [restante, setRestante] = useState(null)
-  const [ahoraMs, setAhoraMs] = useState(() => Date.now())
-
-  async function cargar() {
-    try {
-      const [p, s] = await Promise.all([
-        obtenerProceso({ tenantId, id: procesoId }),
-        obtenerSubastaDeProceso({ tenantId, procesoId }),
-      ])
-      setProceso(p)
-      setSubasta(s)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setCargando(false)
-    }
-  }
-
-  useEffect(() => {
-    const t = setTimeout(cargar, 0)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, procesoId])
-
-  useEffect(() => {
-    if (!subasta) return
-    const inicio = new Date(subasta.inicioISO).getTime()
-    const cierre = new Date(subasta.finISO).getTime()
-    const tick = () => {
-      const ahora = Date.now()
-      setAhoraMs(ahora)
-      setRestante(ahora < inicio ? inicio - ahora : cierre - ahora)
-    }
-    tick()
-    const intervalo = setInterval(tick, 1000)
-    return () => clearInterval(intervalo)
-  }, [subasta])
+  const {
+    proceso,
+    subasta,
+    cargando,
+    error,
+    setError,
+    restante,
+    ahoraMs,
+    simularNuevoLance,
+    cerrar: cerrarSubastaActual,
+  } = useSubasta({ tenantId, procesoId })
 
   async function nuevoLance() {
     try {
-      const s = await simularLance({ tenantId, procesoId })
-      setSubasta(s)
+      await simularNuevoLance()
     } catch (err) {
       setError(err.message)
     }
@@ -79,14 +41,14 @@ export function SubastaPage() {
   async function cerrar() {
     setError('')
     try {
-      await cerrarSubasta({ tenantId, procesoId })
+      await cerrarSubastaActual()
       navigate('/compras')
     } catch (err) {
       setError(err.message)
     }
   }
 
-  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (cargando) return <LoadingState label="Cargando subasta..." />
   if (!subasta || !proceso) return <Alert variant="error">{error}</Alert>
 
   const inicio = new Date(subasta.inicioISO).getTime()

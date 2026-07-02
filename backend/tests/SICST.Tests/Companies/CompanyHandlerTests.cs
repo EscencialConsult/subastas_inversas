@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using SICST.Application.Companies.Commands;
-using SICST.Application.Companies.Queries;
+using SICST.Application.Modules.Tenancy.Companies.Commands;
+using SICST.Application.Modules.Tenancy.Companies.Queries;
 using SICST.Persistence.Contexts;
 using Xunit;
 

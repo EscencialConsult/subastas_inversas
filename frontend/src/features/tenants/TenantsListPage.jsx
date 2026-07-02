@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listarTenants, cambiarEstadoTenant } from '../../api/tenantsApi'
+import { listarTenants, cambiarEstadoTenant } from '../../shared/api/tenantsApi'
 import { Building2 } from 'lucide-react'
-import { Alert } from '../../components/ui/Alert'
-import { Spinner } from '../../components/ui/Spinner.jsx'
-import { EmptyState } from '../../components/ui/EmptyState.jsx'
-import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input.jsx'
-import { Pagination, usePagination } from '../../components/ui/Pagination.jsx'
-import { Select } from '../../components/ui/Select.jsx'
+import { Alert } from '../../shared/ui/Alert'
+import { Spinner } from '../../shared/ui/Spinner.jsx'
+import { EmptyState } from '../../shared/ui/EmptyState.jsx'
+import { Badge } from '../../shared/ui/Badge'
+import { Button } from '../../shared/ui/Button'
+import { Input } from '../../shared/ui/Input.jsx'
+import { Pagination, usePagination } from '../../shared/ui/Pagination.jsx'
+import { Select } from '../../shared/ui/Select.jsx'
 
 export function TenantsListPage() {
   const navigate = useNavigate()

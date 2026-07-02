@@ -2,8 +2,8 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SICST.Application.Common.Security;
-using SICST.Application.Users.Commands;
-using SICST.Application.Users.Queries;
+using SICST.Application.Modules.Identity.Users.Commands;
+using SICST.Application.Modules.Identity.Users.Queries;
 
 namespace SICST.Api.Controllers;
 
