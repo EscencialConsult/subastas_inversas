@@ -12,14 +12,14 @@ export function EvaluacionCompletadaSection({
   onEdit: () => void
 }) {
   return (
-    <section className="form-pagina">
+    <section className="space-y-6">
       <div className="encabezado">
         <h1>Evaluacion Completada · <code>{proceso.codigo}</code></h1>
-        <button className="btn btn--texto" onClick={onBack}>Volver</button>
+        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onBack}>Volver</button>
       </div>
       <p className="proceso__descripcion">{proceso.titulo}</p>
       <Alert variant="success">Evaluacion registrada exitosamente.</Alert>
-      <button className="btn btn--texto" onClick={onEdit}>
+      <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onEdit}>
         Editar evaluacion
       </button>
     </section>
@@ -52,10 +52,10 @@ export function CriteriosEvaluacionSection({
   onSaveCriteria: () => void
 }) {
   return (
-    <div className="form">
+    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 className="form__titulo" style={{ margin: 0 }}>Criterios de Evaluacion</h2>
-        <button type="button" className="btn btn--texto" onClick={onToggleEdit}>
+        <h2 className="text-lg font-semibold text-text" style={{ margin: 0 }}>Criterios de Evaluacion</h2>
+        <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onToggleEdit}>
           {editandoCriterios ? 'Ver evaluacion' : 'Editar criterios'}
         </button>
       </div>
@@ -104,24 +104,24 @@ function EditorCriterios({
 
   return (
     <div style={{ marginTop: '16px' }}>
-      <h3 className="form__subtitulo">Criterios Excluyentes</h3>
-      {exclusionary.length === 0 && <p className="form__seccion-ayuda">No hay criterios excluyentes definidos.</p>}
+      <h3 className="text-base font-semibold text-text">Criterios Excluyentes</h3>
+      {exclusionary.length === 0 && <p className="text-sm text-text-muted">No hay criterios excluyentes definidos.</p>}
       {exclusionary.map((criterion, idx) => {
         const realIdx = criteriaForm.indexOf(criterion)
         return (
           <div key={idx} className="wizard-item-row" style={{ marginBottom: '8px' }}>
             <input value={criterion.name} onChange={e => onUpdateCriterion(realIdx, 'name', e.target.value)} placeholder="Nombre del criterio" style={{ flex: 2 }} />
             <input value={criterion.description || ''} onChange={e => onUpdateCriterion(realIdx, 'description', e.target.value)} placeholder="Descripcion (opcional)" style={{ flex: 3 }} />
-            <button type="button" className="btn btn--texto btn--texto-peligro" onClick={() => onRemoveCriterion(realIdx)}><X size={14} /></button>
+            <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-60" onClick={() => onRemoveCriterion(realIdx)}><X size={14} /></button>
           </div>
         )
       })}
-      <button type="button" className="btn btn--primario" onClick={() => onAddCriterion('Exclusionary')} style={{ marginBottom: '16px' }}>
+      <button type="button" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" onClick={() => onAddCriterion('Exclusionary')} style={{ marginBottom: '16px' }}>
         + Agregar criterio excluyente
       </button>
 
-      <h3 className="form__subtitulo">Criterios Ponderados</h3>
-      {weighted.length === 0 && <p className="form__seccion-ayuda">No hay criterios ponderados definidos.</p>}
+      <h3 className="text-base font-semibold text-text">Criterios Ponderados</h3>
+      {weighted.length === 0 && <p className="text-sm text-text-muted">No hay criterios ponderados definidos.</p>}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr 80px 40px', gap: '8px', padding: '0 8px 8px', borderBottom: '1px solid var(--color-borde)', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold' }}>
         <span>Nombre</span>
         <span>Descripcion</span>
@@ -135,17 +135,17 @@ function EditorCriterios({
             <input value={criterion.name} onChange={e => onUpdateCriterion(realIdx, 'name', e.target.value)} placeholder="Nombre del criterio" />
             <input value={criterion.description || ''} onChange={e => onUpdateCriterion(realIdx, 'description', e.target.value)} placeholder="Descripcion (opcional)" />
             <input type="number" min="0" max="100" value={criterion.weight} onChange={e => onUpdateCriterion(realIdx, 'weight', e.target.value)} />
-            <button type="button" className="btn btn--texto btn--texto-peligro" onClick={() => onRemoveCriterion(realIdx)}><X size={14} /></button>
+            <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-60" onClick={() => onRemoveCriterion(realIdx)}><X size={14} /></button>
           </div>
         )
       })}
       {weighted.length > 0 && weightSum !== 100 && (
         <Alert variant="warning">La suma de pesos debe ser 100% (actual: {weightSum}%)</Alert>
       )}
-      <button type="button" className="btn btn--primario" onClick={() => onAddCriterion('Weighted')} style={{ marginRight: '8px' }}>
+      <button type="button" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" onClick={() => onAddCriterion('Weighted')} style={{ marginRight: '8px' }}>
         + Agregar criterio ponderado
       </button>
-      <button type="button" className="btn btn--primario" onClick={onSaveCriteria} disabled={guardando}>
+      <button type="button" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" onClick={onSaveCriteria} disabled={guardando}>
         {guardando ? 'Guardando...' : 'Guardar criterios'}
       </button>
     </div>
@@ -211,14 +211,14 @@ export function EvaluacionProveedorFormSection({
   if (criteria.length === 0) return null
 
   return (
-    <form className="form" onSubmit={onSubmit} style={{ marginTop: '16px' }}>
-      <h2 className="form__titulo">Evaluacion por Proveedor</h2>
-      <p className="form__seccion-ayuda">
+    <form className="rounded-md border border-border bg-surface p-5 shadow-sm" onSubmit={onSubmit} style={{ marginTop: '16px' }}>
+      <h2 className="text-lg font-semibold text-text">Evaluacion por Proveedor</h2>
+      <p className="text-sm text-text-muted">
         Exclusionary: marcar <Check size={12} className="inline" /> o <X size={12} className="inline" />. Ponderados: asignar puntaje de 0 a 100.
       </p>
 
       <div style={{ overflowX: 'auto' }}>
-        <table className="tabla" style={{ minWidth: '800px' }}>
+        <table className="min-w-full divide-y divide-border text-sm" style={{ minWidth: '800px' }}>
           <thead>
             <tr>
               <th style={{ minWidth: '180px' }}>Proveedor</th>
@@ -275,8 +275,8 @@ export function EvaluacionProveedorFormSection({
         </table>
       </div>
 
-      <div className="form__acciones" style={{ marginTop: '16px' }}>
-        <button type="submit" className="btn btn--primario" disabled={guardando}>
+      <div className="flex flex-wrap justify-end gap-2" style={{ marginTop: '16px' }}>
+        <button type="submit" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" disabled={guardando}>
           {guardando ? 'Guardando...' : 'Guardar Evaluacion'}
         </button>
       </div>

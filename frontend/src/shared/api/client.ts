@@ -31,7 +31,7 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T = unknown>(endpoint: string, options: ApiFetchOptions = {}): Promise<T> {
-  const url = `${API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+  const url = `${API_URL}${normalizeEndpoint(endpoint)}`
   const isFormData = options.body instanceof FormData
   const body = normalizeBody(options.body)
 
@@ -66,6 +66,24 @@ export async function apiFetch<T = unknown>(endpoint: string, options: ApiFetchO
   }
 
   return cuerpo as T
+}
+
+function normalizeEndpoint(endpoint: string) {
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+
+  if (path.startsWith('/api/v1/')) {
+    return path
+  }
+
+  if (path === '/api') {
+    return '/api/v1'
+  }
+
+  if (path.startsWith('/api/')) {
+    return `/api/v1/${path.slice('/api/'.length)}`
+  }
+
+  return path
 }
 
 function normalizeBody(body: ApiFetchOptions['body']): BodyInit | undefined {

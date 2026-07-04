@@ -11,8 +11,8 @@
     "paths": {
       "@/*": ["src/*"],
       "components/ui/*": ["src/shared/ui/*"],
-      "components/SignaturePad": ["src/shared/ui/SignaturePad.jsx"],
-      "components/Layout": ["src/app/layout/Layout.jsx"],
+      "components/SignaturePad": ["src/shared/ui/SignaturePad.tsx"],
+      "components/Layout": ["src/app/layout/Layout.tsx"],
       "api/*": ["src/shared/api/*"]
     },
 
@@ -25,13 +25,14 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    "strict": false,
+    "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "allowJs": true,
+    "allowJs": false,
     "checkJs": false
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.stories.ts", "src/**/*.stories.tsx"]
 }

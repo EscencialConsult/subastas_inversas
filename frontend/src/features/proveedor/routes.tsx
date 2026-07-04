@@ -2,13 +2,13 @@ import { lazy } from 'react'
 import { esProveedor, puedeVerProveedores, puedeEvaluar } from '../../auth/permisos'
 import type { AppRouteDefinition } from '../../app/routes/types'
 
-const ProveedorHomePage = lazy(() => import('./ProveedorHomePage.jsx').then(m => ({ default: m.ProveedorHomePage })))
-const ProveedorOportunidadesPage = lazy(() => import('./ProveedorOportunidadesPage.jsx').then(m => ({ default: m.ProveedorOportunidadesPage })))
-const ProveedorSubastaLivePage = lazy(() => import('./ProveedorSubastaLivePage.jsx').then(m => ({ default: m.ProveedorSubastaLivePage })))
-const ProveedoresDirectorioPage = lazy(() => import('./ProveedoresDirectorioPage.jsx').then(m => ({ default: m.ProveedoresDirectorioPage })))
-const EvaluacionProveedoresPage = lazy(() => import('./EvaluacionProveedoresPage.jsx').then(m => ({ default: m.EvaluacionProveedoresPage })))
+const ProveedorHomePage = lazy(() => import('./ProveedorHomePage').then(m => ({ default: m.ProveedorHomePage })))
+const ProveedorOportunidadesPage = lazy(() => import('./ProveedorOportunidadesPage').then(m => ({ default: m.ProveedorOportunidadesPage })))
+const ProveedorSubastaLivePage = lazy(() => import('./pages/ProveedorSubastaLivePage').then(m => ({ default: m.ProveedorSubastaLivePage })))
+const ProveedoresDirectorioPage = lazy(() => import('./ProveedoresDirectorioPage').then(m => ({ default: m.ProveedoresDirectorioPage })))
+const EvaluacionProveedoresPage = lazy(() => import('./EvaluacionProveedoresPage').then(m => ({ default: m.EvaluacionProveedoresPage })))
 
-const RegistroProveedorPage = lazy(() => import('./RegistroProveedorPage.jsx').then(m => ({ default: m.RegistroProveedorPage })))
+const RegistroProveedorPage = lazy(() => import('./RegistroProveedorPage').then(m => ({ default: m.RegistroProveedorPage })))
 
 export const proveedorPublicRoutes: AppRouteDefinition[] = [
   { path: '/registro-proveedor', element: <RegistroProveedorPage /> }

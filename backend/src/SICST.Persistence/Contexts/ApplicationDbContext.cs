@@ -54,22 +54,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
-
-        // Configuracion de filtros globales multiempresa
-        modelBuilder.Entity<User>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<CompanySupplier>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<ContractingMode>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<ApprovalWorkflow>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<DocumentTemplate>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<CompanyConfiguration>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<PurchaseProcess>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<Auction>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<AuditEvent>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<Contract>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<ContractPayment>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-        modelBuilder.Entity<AccessLog>().HasQueryFilter(e => _currentTenant.CompanyId == null || e.CompanyId == _currentTenant.CompanyId);
-
+        modelBuilder.ApplyTenantQueryFilters(_currentTenant);
         base.OnModelCreating(modelBuilder);
     }
 }

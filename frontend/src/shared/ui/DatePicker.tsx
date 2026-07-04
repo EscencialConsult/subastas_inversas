@@ -1,5 +1,5 @@
 import { forwardRef, InputHTMLAttributes } from 'react'
-import { FormField } from './FormField.jsx'
+import { FormField } from './FormField'
 
 const base =
   'w-full px-3 py-2.5 border border-border rounded-md bg-surface text-text text-sm font-inherit transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-text-muted/60'

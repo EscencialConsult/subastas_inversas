@@ -7,12 +7,18 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 const legacyUiClassRestriction = {
-  selector: 'JSXAttribute[name.name="className"][value.value=/((^|\\s)(btn|form|tabla)(\\s|$))|((^|\\s)btn--)/]',
-  message: 'Usa componentes de shared/ui en lugar de clases legacy .btn, .form o .tabla.',
+  selector: 'JSXAttribute[name.name="className"][value.value=/((^|\\s)(btn|form|tabla)(\\s|$))|((^|\\s)(btn|form|tabla)(__|--))|((^|\\s)tabla-contenedor(\\s|$))/]',
+  message: 'Usa componentes de shared/ui en lugar de clases legacy .btn, .form, .tabla y variantes __/--.',
 }
 
 export default defineConfig([
   globalIgnores(['dist']),
+  {
+    files: ['playwright.config.js', 'e2e/**/*.{js,ts}'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -26,6 +32,7 @@ export default defineConfig([
     },
     rules: {
       'no-restricted-syntax': ['error', legacyUiClassRestriction],
+      'react-refresh/only-export-components': 'warn',
     },
   },
   ...tseslint.configs.recommended.map((config) => ({
@@ -34,12 +41,20 @@ export default defineConfig([
   })),
   {
     files: ['**/*.{ts,tsx}'],
+    extends: [
+      reactHooks.configs.flat.recommended,
+      reactRefresh.configs.vite,
+    ],
     languageOptions: {
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
       'no-restricted-syntax': ['error', legacyUiClassRestriction],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-refresh/only-export-components': 'warn',
     },
   },
   ...storybook.configs['flat/recommended'],

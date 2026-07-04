@@ -60,6 +60,7 @@ public class AuctionSchedulerService : BackgroundService
         var now = DateTime.UtcNow;
 
         var auctionsToOpen = await context.Auctions
+            .AsSplitQuery()
             .Include(a => a.PurchaseProcess).ThenInclude(p => p.Buyer)
             .Include(a => a.PurchaseProcess).ThenInclude(p => p.Company)
             .Include(a => a.Participants)
@@ -71,13 +72,7 @@ public class AuctionSchedulerService : BackgroundService
         foreach (var auction in auctionsToOpen)
         {
             auction.Status = AuctionStatus.Open;
-
-            var process = await context.PurchaseProcesses
-                .FirstOrDefaultAsync(p => p.Id == auction.PurchaseProcessId, cancellationToken);
-            if (process != null)
-            {
-                process.Status = PurchaseProcessStatus.InAuction;
-            }
+            auction.PurchaseProcess.Status = PurchaseProcessStatus.InAuction;
         }
 
         if (auctionsToOpen.Count > 0)
@@ -96,6 +91,7 @@ public class AuctionSchedulerService : BackgroundService
 
         now = DateTime.UtcNow;
         var auctionsToClose = await context.Auctions
+            .AsSplitQuery()
             .Include(a => a.PurchaseProcess).ThenInclude(p => p.Buyer)
             .Include(a => a.PurchaseProcess).ThenInclude(p => p.Company)
             .Include(a => a.Participants)
@@ -108,14 +104,8 @@ public class AuctionSchedulerService : BackgroundService
         {
             auction.Status = AuctionStatus.Closed;
             auction.ClosedAtUtc = now;
-
-            var process = await context.PurchaseProcesses
-                .FirstOrDefaultAsync(p => p.Id == auction.PurchaseProcessId, cancellationToken);
-            if (process != null)
-            {
-                process.Status = PurchaseProcessStatus.Evaluation;
-                process.ClosedAtUtc = auction.ClosedAtUtc;
-            }
+            auction.PurchaseProcess.Status = PurchaseProcessStatus.Evaluation;
+            auction.PurchaseProcess.ClosedAtUtc = auction.ClosedAtUtc;
 
             GenerateClosingAct(auction, pdfGenerator);
         }

@@ -1,4 +1,4 @@
-import { EmptyResults, LoadingState } from '../../../shared/ui/StateViews.jsx'
+import { EmptyResults, LoadingState } from '../../../shared/ui/StateViews'
 import type {
   ApprovalWorkflowDto,
   CircuitoDatos,
@@ -48,8 +48,8 @@ export function ModalidadesSection({
 }: ModalidadesSectionProps) {
   return (
     <>
-      <form className="form" onSubmit={onSubmit}>
-        <h2 className="form__titulo">
+      <form className="rounded-md border border-border bg-surface p-5 shadow-sm" onSubmit={onSubmit}>
+        <h2 className="text-lg font-semibold text-text">
           {editandoId ? 'Editar modalidad' : 'Nueva modalidad'}
         </h2>
 
@@ -113,26 +113,26 @@ export function ModalidadesSection({
           <span>Activa</span>
         </label>
 
-        <div className="form__acciones">
+        <div className="flex flex-wrap justify-end gap-2">
           {editandoId && (
-            <button type="button" className="btn btn--texto" onClick={onCancel}>
+            <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onCancel}>
               Cancelar
             </button>
           )}
-          <button type="submit" className="btn btn--primario" disabled={guardando}>
+          <button type="submit" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" disabled={guardando}>
             {guardando ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
       </form>
 
-      <div className="form">
-        <h2 className="form__titulo">Modalidades</h2>
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-text">Modalidades</h2>
         {cargando ? (
           <LoadingState label="Cargando modalidades..." />
         ) : modalidades.length === 0 ? (
           <EmptyResults title="Sin modalidades" description="No hay modalidades configuradas." />
         ) : (
-          <table className="tabla">
+          <table className="min-w-full divide-y divide-border text-sm">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -154,11 +154,11 @@ export function ModalidadesSection({
                     </span>
                   </td>
                   <td>
-                    <button type="button" className="btn btn--texto" onClick={() => onEdit(modalidad)}>
+                    <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => onEdit(modalidad)}>
                       Editar
                     </button>
                     {modalidad.id && (
-                      <button type="button" className="btn btn--texto" onClick={() => onDelete(modalidad.id!)}>
+                      <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => onDelete(modalidad.id!)}>
                         Eliminar
                       </button>
                     )}
@@ -206,8 +206,8 @@ export function CircuitosSection({
 }: CircuitosSectionProps) {
   return (
     <>
-      <form className="form" onSubmit={onSubmit}>
-        <h2 className="form__titulo">
+      <form className="rounded-md border border-border bg-surface p-5 shadow-sm" onSubmit={onSubmit}>
+        <h2 className="text-lg font-semibold text-text">
           {editandoId ? 'Editar circuito' : 'Nuevo circuito de aprobacion'}
         </h2>
 
@@ -252,7 +252,7 @@ export function CircuitosSection({
           <span>Activo</span>
         </label>
 
-        <h3 className="form__subtitulo">Niveles</h3>
+        <h3 className="text-base font-semibold text-text">Niveles</h3>
         {form.levels.map((level, index) => (
           <div className="perfil__solo-lectura" key={index}>
             <span>Nivel {index + 1}</span>
@@ -278,36 +278,36 @@ export function CircuitosSection({
               />
             </label>
             {form.levels.length > 1 && (
-              <button type="button" className="btn btn--texto" onClick={() => onRemoveLevel(index)}>
+              <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => onRemoveLevel(index)}>
                 Quitar
               </button>
             )}
           </div>
         ))}
 
-        <div className="form__acciones">
-          <button type="button" className="btn btn--texto" onClick={onAddLevel}>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onAddLevel}>
             Agregar nivel
           </button>
           {editandoId && (
-            <button type="button" className="btn btn--texto" onClick={onCancel}>
+            <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onCancel}>
               Cancelar
             </button>
           )}
-          <button type="submit" className="btn btn--primario" disabled={guardando}>
+          <button type="submit" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" disabled={guardando}>
             {guardando ? 'Guardando...' : 'Guardar circuito'}
           </button>
         </div>
       </form>
 
-      <div className="form">
-        <h2 className="form__titulo">Circuitos de aprobacion</h2>
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-text">Circuitos de aprobacion</h2>
         {cargando ? (
           <LoadingState label="Cargando circuitos..." />
         ) : circuitos.length === 0 ? (
           <EmptyResults title="Sin circuitos" description="No hay circuitos configurados." />
         ) : (
-          <table className="tabla">
+          <table className="min-w-full divide-y divide-border text-sm">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -329,11 +329,11 @@ export function CircuitosSection({
                     </span>
                   </td>
                   <td>
-                    <button type="button" className="btn btn--texto" onClick={() => onEdit(circuito)}>
+                    <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => onEdit(circuito)}>
                       Editar
                     </button>
                     {circuito.id && (
-                      <button type="button" className="btn btn--texto" onClick={() => onDelete(circuito.id!)}>
+                      <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => onDelete(circuito.id!)}>
                         Eliminar
                       </button>
                     )}
@@ -373,8 +373,8 @@ export function PlantillasSection({
 }: PlantillasSectionProps) {
   return (
     <>
-      <form className="form" onSubmit={onSubmit}>
-        <h2 className="form__titulo">Nueva version de plantilla</h2>
+      <form className="rounded-md border border-border bg-surface p-5 shadow-sm" onSubmit={onSubmit}>
+        <h2 className="text-lg font-semibold text-text">Nueva version de plantilla</h2>
 
         <label className="campo">
           <span>Tipo</span>
@@ -419,24 +419,24 @@ export function PlantillasSection({
           <span>Activar esta version</span>
         </label>
 
-        <div className="form__acciones">
-          <button type="button" className="btn btn--texto" onClick={() => onLoadActive(form.type)}>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => onLoadActive(form.type)}>
             Usar version activa
           </button>
-          <button type="submit" className="btn btn--primario" disabled={guardando}>
+          <button type="submit" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" disabled={guardando}>
             {guardando ? 'Guardando...' : 'Crear version'}
           </button>
         </div>
       </form>
 
-      <div className="form">
-        <h2 className="form__titulo">Plantillas de documentos</h2>
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-text">Plantillas de documentos</h2>
         {cargando ? (
           <LoadingState label="Cargando plantillas..." />
         ) : plantillas.length === 0 ? (
           <EmptyResults title="Sin plantillas" description="No hay plantillas configuradas." />
         ) : (
-          <table className="tabla">
+          <table className="min-w-full divide-y divide-border text-sm">
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -460,7 +460,7 @@ export function PlantillasSection({
                   <td>
                     <button
                       type="button"
-                      className="btn btn--texto"
+                      className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
                       onClick={() => onSetForm({
                         type: String(plantilla.type),
                         name: plantilla.name ?? '',
@@ -471,7 +471,7 @@ export function PlantillasSection({
                       Nueva version
                     </button>
                     {!plantilla.active && plantilla.id && (
-                      <button type="button" className="btn btn--texto" onClick={() => onActivate(plantilla.id!)}>
+                      <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => onActivate(plantilla.id!)}>
                         Activar
                       </button>
                     )}

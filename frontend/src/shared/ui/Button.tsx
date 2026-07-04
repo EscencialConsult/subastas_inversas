@@ -1,5 +1,5 @@
 import { ElementType, MouseEvent, ReactNode, HTMLAttributes } from 'react'
-import { Spinner } from './Spinner.jsx'
+import { Spinner } from './Spinner'
 
 const variants = {
   primary:
@@ -31,6 +31,11 @@ export interface ButtonProps extends HTMLAttributes<HTMLElement> {
   icon?: ReactNode
   disabled?: boolean
   type?: 'button' | 'submit' | 'reset'
+  href?: string
+  to?: string
+  target?: string
+  rel?: string
+  form?: string
 }
 
 export function Button({

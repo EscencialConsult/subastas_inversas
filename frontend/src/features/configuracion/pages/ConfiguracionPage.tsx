@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../../auth/AuthContext'
-import { useConfirm } from '../../../context/ConfirmContext.jsx'
-import { useToast } from '../../../context/ToastContext.jsx'
+import { useConfirm } from '../../../context/ConfirmContext'
+import { useToast } from '../../../context/ToastContext'
+import { getErrorMessage } from '../../../shared/query/queryClient'
 import { Alert } from '../../../shared/ui/Alert'
 import {
   CircuitosSection,
@@ -10,24 +12,22 @@ import {
   PlantillasSection,
 } from '../components/ConfiguracionSections'
 import {
-  actualizarCircuitoAprobacion,
-  actualizarModalidadContratacion,
-  activarPlantillaDocumento,
-  crearCircuitoAprobacion,
-  crearModalidadContratacion,
-  crearVersionPlantillaDocumento,
-  eliminarCircuitoAprobacion,
-  eliminarModalidadContratacion,
-  listarCircuitosAprobacion,
-  listarModalidadesContratacion,
-  listarPlantillasDocumento,
   type ApprovalWorkflowDto,
   type CircuitoDatos,
   type ContractingModeDto,
-  type DocumentTemplateDto,
   type ModalidadDatos,
   type PlantillaDatos,
 } from '../../../shared/api/configuracionApi'
+import {
+  activarPlantillaMutation,
+  configuracionKeys,
+  configuracionQuery,
+  crearPlantillaMutation,
+  eliminarCircuitoMutation,
+  eliminarModalidadMutation,
+  guardarCircuitoMutation,
+  guardarModalidadMutation,
+} from '../data/configuracionData'
 
 const FORM_INICIAL: ModalidadDatos = {
   name: '',
@@ -57,43 +57,41 @@ export function ConfiguracionPage() {
   const { tenantId } = useAuth()
   const confirm = useConfirm()
   const toast = useToast()
-  const [modalidades, setModalidades] = useState<ContractingModeDto[]>([])
-  const [circuitos, setCircuitos] = useState<ApprovalWorkflowDto[]>([])
-  const [plantillas, setPlantillas] = useState<DocumentTemplateDto[]>([])
+  const queryClient = useQueryClient()
   const [form, setForm] = useState<ModalidadDatos>(FORM_INICIAL)
   const [circuitoForm, setCircuitoForm] = useState<CircuitoDatos>(CIRCUITO_INICIAL)
   const [plantillaForm, setPlantillaForm] = useState<PlantillaDatos>(PLANTILLA_INICIAL)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editandoCircuitoId, setEditandoCircuitoId] = useState<string | null>(null)
-  const [cargando, setCargando] = useState(true)
-  const [guardando, setGuardando] = useState(false)
-  const [guardandoCircuito, setGuardandoCircuito] = useState(false)
-  const [guardandoPlantilla, setGuardandoPlantilla] = useState(false)
-  const [error, setError] = useState('')
 
-  const cargarConfiguracion = useCallback(async () => {
-    if (!tenantId) return
-    setCargando(true)
-    setError('')
-    try {
-      const [modalidadesData, circuitosData, plantillasData] = await Promise.all([
-        listarModalidadesContratacion({ tenantId }),
-        listarCircuitosAprobacion({ tenantId }),
-        listarPlantillasDocumento({ tenantId }),
-      ])
-      setModalidades(modalidadesData)
-      setCircuitos(circuitosData)
-      setPlantillas(plantillasData)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar la configuracion.')
-    } finally {
-      setCargando(false)
-    }
-  }, [tenantId])
+  const configQuery = useQuery({
+    queryKey: configuracionKeys.tenant(tenantId),
+    queryFn: () => configuracionQuery({ tenantId }),
+    enabled: Boolean(tenantId),
+  })
 
-  useEffect(() => {
-    cargarConfiguracion()
-  }, [cargarConfiguracion])
+  const invalidateConfig = () => queryClient.invalidateQueries({ queryKey: configuracionKeys.tenant(tenantId) })
+  const guardarModalidadMut = useMutation({ mutationFn: guardarModalidadMutation, onSuccess: invalidateConfig })
+  const eliminarModalidadMut = useMutation({ mutationFn: eliminarModalidadMutation, onSuccess: invalidateConfig })
+  const guardarCircuitoMut = useMutation({ mutationFn: guardarCircuitoMutation, onSuccess: invalidateConfig })
+  const eliminarCircuitoMut = useMutation({ mutationFn: eliminarCircuitoMutation, onSuccess: invalidateConfig })
+  const crearPlantillaMut = useMutation({ mutationFn: crearPlantillaMutation, onSuccess: invalidateConfig })
+  const activarPlantillaMut = useMutation({ mutationFn: activarPlantillaMutation, onSuccess: invalidateConfig })
+
+  const modalidades = configQuery.data?.modalidades ?? []
+  const circuitos = configQuery.data?.circuitos ?? []
+  const plantillas = configQuery.data?.plantillas ?? []
+  const cargando = configQuery.isLoading || configQuery.isFetching
+  const error = getErrorMessage(
+    configQuery.error ??
+      guardarModalidadMut.error ??
+      eliminarModalidadMut.error ??
+      guardarCircuitoMut.error ??
+      eliminarCircuitoMut.error ??
+      crearPlantillaMut.error ??
+      activarPlantillaMut.error,
+    '',
+  )
 
   function actualizarCampo(campo: keyof ModalidadDatos, valor: unknown) {
     setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -120,21 +118,12 @@ export function ConfiguracionPage() {
   async function guardar(e: React.FormEvent) {
     e.preventDefault()
     if (!tenantId) return
-    setError('')
-    setGuardando(true)
     try {
-      if (editandoId) {
-        await actualizarModalidadContratacion({ tenantId, id: editandoId, datos: form })
-      } else {
-        await crearModalidadContratacion({ tenantId, datos: form })
-      }
+      await guardarModalidadMut.mutateAsync({ tenantId, id: editandoId, datos: form })
       cancelarEdicion()
-      await cargarConfiguracion()
       toast.success(editandoId ? 'Modalidad actualizada.' : 'Modalidad creada.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la modalidad.')
-    } finally {
-      setGuardando(false)
+    } catch {
+      // El error se muestra desde la mutation.
     }
   }
 
@@ -148,14 +137,12 @@ export function ConfiguracionPage() {
     })
     if (!confirmado) return
 
-    setError('')
     try {
-      await eliminarModalidadContratacion({ tenantId, id })
-      await cargarConfiguracion()
+      await eliminarModalidadMut.mutateAsync({ tenantId, id })
       if (editandoId === id) cancelarEdicion()
       toast.success('Modalidad eliminada o inactivada.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo eliminar la modalidad.')
+    } catch {
+      // El error se muestra desde la mutation.
     }
   }
 
@@ -209,21 +196,12 @@ export function ConfiguracionPage() {
   async function guardarCircuito(e: React.FormEvent) {
     e.preventDefault()
     if (!tenantId) return
-    setError('')
-    setGuardandoCircuito(true)
     try {
-      if (editandoCircuitoId) {
-        await actualizarCircuitoAprobacion({ tenantId, id: editandoCircuitoId, datos: circuitoForm })
-      } else {
-        await crearCircuitoAprobacion({ tenantId, datos: circuitoForm })
-      }
+      await guardarCircuitoMut.mutateAsync({ tenantId, id: editandoCircuitoId, datos: circuitoForm })
       cancelarCircuito()
-      await cargarConfiguracion()
       toast.success(editandoCircuitoId ? 'Circuito actualizado.' : 'Circuito creado.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar el circuito.')
-    } finally {
-      setGuardandoCircuito(false)
+    } catch {
+      // El error se muestra desde la mutation.
     }
   }
 
@@ -237,14 +215,12 @@ export function ConfiguracionPage() {
     })
     if (!confirmado) return
 
-    setError('')
     try {
-      await eliminarCircuitoAprobacion({ tenantId, id })
-      await cargarConfiguracion()
+      await eliminarCircuitoMut.mutateAsync({ tenantId, id })
       if (editandoCircuitoId === id) cancelarCircuito()
       toast.success('Circuito eliminado o inactivada.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo eliminar el circuito.')
+    } catch {
+      // El error se muestra desde la mutation.
     }
   }
 
@@ -268,34 +244,27 @@ export function ConfiguracionPage() {
   async function guardarPlantilla(e: React.FormEvent) {
     e.preventDefault()
     if (!tenantId) return
-    setError('')
-    setGuardandoPlantilla(true)
     try {
-      await crearVersionPlantillaDocumento({ tenantId, datos: plantillaForm })
+      await crearPlantillaMut.mutateAsync({ tenantId, datos: plantillaForm })
       setPlantillaForm((prev) => ({ ...prev, content: '' }))
-      await cargarConfiguracion()
       toast.success('Version de plantilla creada.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la plantilla.')
-    } finally {
-      setGuardandoPlantilla(false)
+    } catch {
+      // El error se muestra desde la mutation.
     }
   }
 
   async function activarPlantilla(id: string) {
     if (!tenantId) return
-    setError('')
     try {
-      await activarPlantillaDocumento({ tenantId, id })
-      await cargarConfiguracion()
+      await activarPlantillaMut.mutateAsync({ tenantId, id })
       toast.success('Plantilla activada.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo activar la plantilla.')
+    } catch {
+      // El error se muestra desde la mutation.
     }
   }
 
   return (
-    <section className="form-pagina">
+    <section className="space-y-6">
       <div className="encabezado">
         <h1>Configuracion</h1>
       </div>
@@ -307,7 +276,7 @@ export function ConfiguracionPage() {
         form={form}
         editandoId={editandoId}
         cargando={cargando}
-        guardando={guardando}
+        guardando={guardarModalidadMut.isPending}
         onSubmit={guardar}
         onChange={actualizarCampo}
         onEdit={editar}
@@ -320,7 +289,7 @@ export function ConfiguracionPage() {
         form={circuitoForm}
         editandoId={editandoCircuitoId}
         cargando={cargando}
-        guardando={guardandoCircuito}
+        guardando={guardarCircuitoMut.isPending}
         onSubmit={guardarCircuito}
         onChange={actualizarCircuitoCampo}
         onLevelChange={actualizarNivel}
@@ -335,7 +304,7 @@ export function ConfiguracionPage() {
         plantillas={plantillas}
         form={plantillaForm}
         cargando={cargando}
-        guardando={guardandoPlantilla}
+        guardando={crearPlantillaMut.isPending}
         onSubmit={guardarPlantilla}
         onChange={actualizarPlantillaCampo}
         onLoadActive={cargarPlantillaActual}

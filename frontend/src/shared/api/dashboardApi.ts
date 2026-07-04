@@ -1,12 +1,49 @@
-import { listarProcesos, listarProcesosParaAprobacion, listarProcesosParaAuditoria } from './comprasApi'
+import { listarProcesos, listarProcesosParaAprobacion, listarProcesosParaAuditoria, type ProcesoMapped } from './comprasApi'
 import { listarProveedores } from './proveedoresApi'
-import { listarSubastasRealizadas, listarSubastasRealizadasParaAuditoria } from './subastasApi'
+import { listarSubastasRealizadas, listarSubastasRealizadasParaAuditoria, type SubastaFilaMapped } from './subastasApi'
 import { listarTenants } from './tenantsApi'
 import { listarUsuarios } from './usersApi'
 import { ESTADO_PROCESO, etiquetaEstado } from '../../domain/compras'
 import { ROLES, etiquetaRol } from '../../domain/roles'
 
-export async function obtenerPanel({ rol, tenantId }) {
+type PanelRole = typeof ROLES[keyof typeof ROLES] | string
+
+export interface PanelMetric {
+  label?: string
+  texto?: string
+  valor: string | number
+  clase?: string
+  ayuda?: string
+}
+
+export interface PanelChart {
+  titulo: string
+  descripcion?: string
+  tipo: 'barras' | 'ranking' | string
+  items: Array<{ label: string; detalle?: string; valor: number; display?: string | number }>
+}
+
+export interface PanelFeedItem {
+  id: string
+  fecha: string | null | undefined
+  titulo: string
+  detalle: string
+  tipo: string
+  to: string
+}
+
+export interface PanelData {
+  titulo: string
+  cards?: PanelMetric[]
+  kpis?: PanelMetric[]
+  graficos?: PanelChart[]
+  listas?: Array<{ titulo: string; items: PanelMetric[] }>
+  feed?: PanelFeedItem[]
+  acciones?: Array<{ texto: string; to: string }>
+  nota?: string
+}
+
+export async function obtenerPanel({ rol, tenantId }: { rol: PanelRole; tenantId?: string | null }): Promise<PanelData> {
   switch (rol) {
     case ROLES.SUPER_ADMIN:
       return panelSuperAdmin()
@@ -54,13 +91,13 @@ async function panelSuperAdmin() {
   }
 }
 
-async function panelAdministrador(tenantId) {
+async function panelAdministrador(tenantId?: string | null): Promise<PanelData> {
   const [usuarios, procesos, subastas] = await Promise.all([
     listarUsuarios({ tenantId }),
     listarProcesos({ tenantId }),
     listarSubastasRealizadas({ tenantId }),
   ])
-  const porRol = {}
+  const porRol: Record<string, number> = {}
   for (const u of usuarios) porRol[u.rol] = (porRol[u.rol] ?? 0) + 1
   const montoGestionado = procesos.reduce((acc, p) => acc + Number(p.presupuestoEstimado ?? 0), 0)
   const montoAdjudicado = procesos.reduce((acc, p) => acc + Number(p.adjudicacion?.monto ?? 0), 0)
@@ -94,7 +131,7 @@ async function panelAdministrador(tenantId) {
         tipo: 'barras',
         items: estadosConCuenta(procesos).map((item) => ({
           label: item.texto,
-          valor: item.valor,
+          valor: Number(item.valor) || 0,
           display: item.valor,
         })),
       },
@@ -136,7 +173,7 @@ async function panelAdministrador(tenantId) {
   }
 }
 
-async function panelComprador(tenantId) {
+async function panelComprador(tenantId?: string | null): Promise<PanelData> {
   const procesos = await listarProcesos({ tenantId })
   return {
     titulo: 'Panel de compras',
@@ -156,7 +193,7 @@ async function panelComprador(tenantId) {
   }
 }
 
-async function panelAutoridad(tenantId) {
+async function panelAutoridad(tenantId?: string | null): Promise<PanelData> {
   const procesos = await listarProcesosParaAprobacion({ tenantId })
   const aprobadas = procesos.filter((p) => p.estado === ESTADO_PROCESO.APROBADA)
   return {
@@ -179,7 +216,7 @@ async function panelAutoridad(tenantId) {
   }
 }
 
-async function panelAuditor(tenantId) {
+async function panelAuditor(tenantId?: string | null): Promise<PanelData> {
   const [procesos, subastas] = await Promise.all([
     listarProcesosParaAuditoria({ tenantId }),
     listarSubastasRealizadasParaAuditoria({ tenantId }),
@@ -200,12 +237,12 @@ async function panelAuditor(tenantId) {
   }
 }
 
-function cuenta(procesos, estado) {
+function cuenta(procesos: ProcesoMapped[], estado: string) {
   return procesos.filter((p) => p.estado === estado).length
 }
 
-function procesosActivos(procesos) {
-  const activos = [
+function procesosActivos(procesos: ProcesoMapped[]) {
+  const activos: string[] = [
     ESTADO_PROCESO.PUBLICADO,
     ESTADO_PROCESO.EN_SUBASTA,
     ESTADO_PROCESO.CERRADA,
@@ -214,26 +251,26 @@ function procesosActivos(procesos) {
   return procesos.filter((p) => activos.includes(p.estado)).length
 }
 
-function estadosConCuenta(procesos) {
-  const total = {}
+function estadosConCuenta(procesos: ProcesoMapped[]): PanelMetric[] {
+  const total: Record<string, number> = {}
   for (const p of procesos) total[p.estado] = (total[p.estado] ?? 0) + 1
   return Object.entries(total).map(([estado, n]) => ({ texto: etiquetaEstado(estado), valor: n }))
 }
 
-function montosPorEstado(procesos) {
-  const total = {}
+function montosPorEstado(procesos: ProcesoMapped[]): Array<{ label: string; valor: number; display: string }> {
+  const total: Record<string, number> = {}
   for (const p of procesos) {
     total[p.estado] = (total[p.estado] ?? 0) + Number(p.presupuestoEstimado ?? 0)
   }
 
   return Object.entries(total).map(([estado, monto]) => ({
     label: etiquetaEstado(estado),
-    valor: monto,
-    display: formatearPesosCompacto(monto),
+    valor: Number(monto) || 0,
+    display: formatearPesosCompacto(Number(monto) || 0),
   }))
 }
 
-function actividadReciente({ procesos, subastas }) {
+function actividadReciente({ procesos, subastas }: { procesos: ProcesoMapped[]; subastas: SubastaFilaMapped[] }): PanelFeedItem[] {
   const items = [
     ...procesos.map((p) => ({
       id: `proceso-${p.id}`,
@@ -258,12 +295,12 @@ function actividadReciente({ procesos, subastas }) {
     .slice(0, 8)
 }
 
-function porcentaje(valor, total) {
+function porcentaje(valor: number, total: number) {
   if (!total) return '0%'
   return `${((valor / total) * 100).toFixed(0)}%`
 }
 
-function formatearPesos(monto) {
+function formatearPesos(monto: number) {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
@@ -271,7 +308,7 @@ function formatearPesos(monto) {
   }).format(monto)
 }
 
-function formatearPesosCompacto(monto) {
+function formatearPesosCompacto(monto: number) {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',

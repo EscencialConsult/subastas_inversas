@@ -45,9 +45,9 @@ function AlertasRiesgoSection({ alertas }: { alertas: any[] }) {
   if (alertas.length === 0) return null
 
   return (
-    <div className="form">
-      <h2 className="form__titulo">Alertas automaticas de riesgo</h2>
-      <table className="tabla">
+    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-text">Alertas automaticas de riesgo</h2>
+      <table className="min-w-full divide-y divide-border text-sm">
         <thead>
           <tr>
             <th>Severidad</th>
@@ -81,8 +81,8 @@ function AlertasRiesgoSection({ alertas }: { alertas: any[] }) {
 
 function DatosProcesoSection({ proceso, nombre }: { proceso: any; nombre: (id: string) => string }) {
   return (
-    <div className="form">
-      <h2 className="form__titulo">Datos del proceso</h2>
+    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-text">Datos del proceso</h2>
       <div className="auditoria-datos">
         <div className="auditoria-dato auditoria-dato--full">
           <span className="auditoria-dato__label">Titulo</span>
@@ -125,9 +125,9 @@ function ItemsProcesoSection({ items }: { items: any[] }) {
   if (items.length === 0) return null
 
   return (
-    <div className="form">
-      <h2 className="form__titulo">Items ({items.length})</h2>
-      <table className="tabla">
+    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-text">Items ({items.length})</h2>
+      <table className="min-w-full divide-y divide-border text-sm">
         <thead>
           <tr>
             <th>Descripcion</th>
@@ -155,9 +155,9 @@ function InvitacionesSection({ invitaciones }: { invitaciones: any[] }) {
   if (invitaciones.length === 0) return null
 
   return (
-    <div className="form">
-      <h2 className="form__titulo">Invitaciones ({invitaciones.length})</h2>
-      <table className="tabla">
+    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-text">Invitaciones ({invitaciones.length})</h2>
+      <table className="min-w-full divide-y divide-border text-sm">
         <thead>
           <tr>
             <th>Proveedor</th>
@@ -197,8 +197,8 @@ function SubastaSection({ subasta }: { subasta: any }) {
   const a = analisisSubasta(subasta)
 
   return (
-    <div className="form">
-      <h2 className="form__titulo">Subasta</h2>
+    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-text">Subasta</h2>
       <div className="auditoria-datos">
         <Metric label="Proveedores que ofertaron" value={a.oferentes} />
         <Metric label="Lances totales" value={a.cantidadLances} />
@@ -211,8 +211,8 @@ function SubastaSection({ subasta }: { subasta: any }) {
       </div>
       {subasta.lances?.length > 0 && (
         <>
-          <h3 className="form__subtitulo">Lances ({subasta.lances.length})</h3>
-          <table className="tabla">
+          <h3 className="text-base font-semibold text-text">Lances ({subasta.lances.length})</h3>
+          <table className="min-w-full divide-y divide-border text-sm">
             <thead>
               <tr>
                 <th>Proveedor</th>
@@ -243,8 +243,8 @@ function EvaluacionSection({ evalResults }: { evalResults: any }) {
   const weightedCriteria = evalResults.criteria?.filter((c: any) => c.type === 'Weighted') ?? []
 
   return (
-    <div className="form">
-      <h2 className="form__titulo">Evaluacion con Criterios</h2>
+    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-text">Evaluacion con Criterios</h2>
       {evalResults.criteria?.length > 0 && (
         <div className="auditoria-datos" style={{ marginBottom: '12px' }}>
           <div className="auditoria-dato auditoria-dato--full">
@@ -262,7 +262,7 @@ function EvaluacionSection({ evalResults }: { evalResults: any }) {
           </div>
         </div>
       )}
-      <table className="tabla">
+      <table className="min-w-full divide-y divide-border text-sm">
         <thead>
           <tr>
             <th>Proveedor</th>
@@ -294,8 +294,8 @@ function AdjudicacionSection({ proceso, nombre, className }: { proceso: any; nom
   if (!proceso.adjudicacion) return null
 
   return (
-    <div className={`form ${className}`}>
-      <h2 className="form__titulo">Adjudicacion</h2>
+    <div className={`rounded-md border border-border bg-surface p-5 shadow-sm ${className}`}>
+      <h2 className="text-lg font-semibold text-text">Adjudicacion</h2>
       <div className="auditoria-datos">
         <Metric label="Adjudicado a" value={proceso.adjudicacion.proveedor} full />
         <Metric label="Monto" value={formatearPesos(proceso.adjudicacion.monto)} />
@@ -310,8 +310,8 @@ function AprobacionSection({ proceso, nombre, className }: { proceso: any; nombr
   if (!proceso.aprobacion) return null
 
   return (
-    <div className={`form ${className}`}>
-      <h2 className="form__titulo">Aprobacion de la Autoridad</h2>
+    <div className={`rounded-md border border-border bg-surface p-5 shadow-sm ${className}`}>
+      <h2 className="text-lg font-semibold text-text">Aprobacion de la Autoridad</h2>
       <div className="auditoria-datos">
         <Metric label="Resultado" value={proceso.aprobacion.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'} />
         <Metric label="Por" value={nombre(proceso.aprobacion.autoridadId)} />
@@ -379,8 +379,8 @@ function LineaDeTiempo({ proceso, subasta, invitaciones, evalResults }: any) {
   eventos.sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))
 
   return (
-    <div className="form">
-      <h2 className="form__titulo">Linea de tiempo</h2>
+    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-text">Linea de tiempo</h2>
       <ol className="timeline">
         {eventos.map((event, index) => (
           <li key={index} className={`timeline__item timeline__item--${event.tipo}`}>

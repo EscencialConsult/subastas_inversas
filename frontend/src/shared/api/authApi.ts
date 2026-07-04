@@ -164,8 +164,8 @@ function mapAuthResponse(data: BackendAuthResponse): AuthResult {
   }
 }
 
-export async function resetPassword({ userId, newPassword }: { userId: string; newPassword: string }) {
-  return apiFetch('/api/auth/reset-password', {
+export async function resetPassword({ userId, newPassword }: { userId: string; newPassword: string }): Promise<{ newPassword: string }> {
+  return apiFetch<{ newPassword: string }>('/api/auth/reset-password', {
     method: 'POST',
     body: { userId, newPassword },
   })

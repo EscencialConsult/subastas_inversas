@@ -1,82 +1,61 @@
 import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../../auth/AuthContext'
 import { Alert } from '../../../shared/ui/Alert'
 import { Spinner } from '../../../shared/ui/Spinner'
-import {
-  obtenerProcesoParaEvaluacion,
-  obtenerCriteriosEvaluacionParaEvaluador,
-  guardarCriteriosEvaluacionParaEvaluador,
-  evaluarProveedores,
-  obtenerResultadosEvaluacionParaEvaluador,
-} from '../../../shared/api/comprasApi'
-import { obtenerSubastaDeProcesoParaEvaluacion } from '../../../shared/api/subastasApi'
+import { getErrorMessage } from '../../../shared/query/queryClient'
 import {
   CriteriosEvaluacionSection,
   EvaluacionCompletadaSection,
   EvaluacionProveedorFormSection,
 } from '../components/EvaluacionProcesoSections'
+import {
+  evaluacionKeys,
+  evaluacionProcesoQuery,
+  evaluarProveedoresMutation,
+  guardarCriteriosEvaluacionMutation,
+} from '../data/evaluacionData'
 
 export function EvaluacionProcesoPage() {
   const { id } = useParams<{ id: string }>()
   const { tenantId, usuario } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  const [proceso, setProceso] = useState<any>(null)
-  const [subasta, setSubasta] = useState<any>(null)
   const [criteria, setCriteria] = useState<any[]>([])
   const [scores, setScores] = useState<Record<string, string>>({})
   const [pasaronExcluyentes, setPasaronExcluyentes] = useState<Record<string, boolean>>({})
   const [notas, setNotas] = useState<Record<string, string>>({})
   const [results, setResults] = useState<any>(null)
-  const [cargando, setCargando] = useState(true)
-  const [guardando, setGuardando] = useState(false)
-  const [error, setError] = useState('')
+  const [validationError, setValidationError] = useState('')
   const [editandoCriterios, setEditandoCriterios] = useState(false)
   const [criteriaForm, setCriteriaForm] = useState<any[]>([])
 
-  async function cargar() {
-    if (!tenantId || !id) return
-    try {
-      const p = await obtenerProcesoParaEvaluacion({ tenantId, id })
-      setProceso(p)
+  const evaluacionQuery = useQuery({
+    queryKey: evaluacionKeys.detail(tenantId, id),
+    queryFn: () => evaluacionProcesoQuery({ tenantId, procesoId: id }),
+    enabled: Boolean(tenantId && id),
+  })
 
-      try {
-        setSubasta(await obtenerSubastaDeProcesoParaEvaluacion({ tenantId, procesoId: id }))
-      } catch {
-        setSubasta(null)
-      }
+  const evaluarMutation = useMutation({
+    mutationFn: evaluarProveedoresMutation,
+    onSuccess: async (data) => {
+      setResults(data)
+      await queryClient.invalidateQueries({ queryKey: evaluacionKeys.detail(tenantId, id) })
+    },
+  })
 
-      let criteriaList: any[] = []
-
-      try {
-        const existingResults = await obtenerResultadosEvaluacionParaEvaluador({ tenantId, procesoId: id })
-        if (existingResults) {
-          setResults(existingResults)
-          criteriaList = existingResults.criteria ?? []
-          setCriteria(criteriaList)
-          initScores(existingResults)
-          return
-        }
-      } catch {
-        // No hay resultados todavia.
-      }
-
-      try {
-        criteriaList = await obtenerCriteriosEvaluacionParaEvaluador({ tenantId, procesoId: id })
-      } catch {
-        criteriaList = []
-      }
-
-      setCriteria(criteriaList)
-      setCriteriaForm(toCriteriaForm(criteriaList))
-      initEmptyScores(criteriaList)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar la evaluacion.')
-    } finally {
-      setCargando(false)
-    }
-  }
+  const guardarCriteriosMutation = useMutation({
+    mutationFn: guardarCriteriosEvaluacionMutation,
+    onSuccess: async (data) => {
+      setCriteria(data)
+      setCriteriaForm(toCriteriaForm(data))
+      initEmptyScores(data)
+      setEditandoCriterios(false)
+      await queryClient.invalidateQueries({ queryKey: evaluacionKeys.detail(tenantId, id) })
+    },
+  })
 
   function initEmptyScores(criteriaList: any[]) {
     const initialScores: Record<string, string> = {}
@@ -121,9 +100,17 @@ export function EvaluacionProcesoPage() {
   }
 
   useEffect(() => {
-    cargar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, id])
+    if (!evaluacionQuery.data) return
+    const criteriaList = evaluacionQuery.data.criteria ?? []
+    setResults(evaluacionQuery.data.results)
+    setCriteria(criteriaList)
+    setCriteriaForm(toCriteriaForm(criteriaList))
+    if (evaluacionQuery.data.results) initScores(evaluacionQuery.data.results)
+    else initEmptyScores(criteriaList)
+  }, [evaluacionQuery.data])
+
+  const proceso = evaluacionQuery.data?.proceso ?? null
+  const subasta = evaluacionQuery.data?.subasta ?? null
 
   const postores: Array<{ id: string; name: string; monto: number }> = subasta?.lances
     ? ([...new Map<string, { id: string; name: string; monto: number }>(
@@ -175,8 +162,7 @@ export function EvaluacionProcesoPage() {
   async function guardarEvaluacion(e: React.FormEvent) {
     e.preventDefault()
     if (!tenantId || !id || !usuario) return
-    setError('')
-    setGuardando(true)
+    setValidationError('')
 
     try {
       const supplierEvaluations = postores.map(supplier => ({
@@ -197,18 +183,14 @@ export function EvaluacionProcesoPage() {
         ],
       }))
 
-      const data = await evaluarProveedores({
+      await evaluarMutation.mutateAsync({
         tenantId,
         procesoId: id,
         evaluatorId: usuario.id,
         supplierEvaluations,
       })
-
-      setResults(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la evaluacion.')
-    } finally {
-      setGuardando(false)
+    } catch {
+      // El error se muestra desde la mutation.
     }
   }
 
@@ -238,10 +220,9 @@ export function EvaluacionProcesoPage() {
 
   async function guardarCriterios() {
     if (!tenantId || !id || !usuario) return
-    setError('')
-    setGuardando(true)
+    setValidationError('')
     try {
-      const data = await guardarCriteriosEvaluacionParaEvaluador({
+      await guardarCriteriosMutation.mutateAsync({
         tenantId,
         procesoId: id,
         userId: usuario.id,
@@ -254,18 +235,14 @@ export function EvaluacionProcesoPage() {
           sortOrder: index + 1,
         })),
       })
-      setCriteria(data)
-      setCriteriaForm(toCriteriaForm(data))
-      initEmptyScores(data)
-      setEditandoCriterios(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron guardar los criterios.')
-    } finally {
-      setGuardando(false)
+    } catch {
+      // El error se muestra desde la mutation.
     }
   }
 
-  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (evaluacionQuery.isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
+  const guardando = evaluarMutation.isPending || guardarCriteriosMutation.isPending
+  const error = validationError || getErrorMessage(evaluacionQuery.error ?? evaluarMutation.error ?? guardarCriteriosMutation.error, '')
   if (!proceso) return <Alert variant="error">{error}</Alert>
 
   if (results && !editandoCriterios) {
@@ -282,10 +259,10 @@ export function EvaluacionProcesoPage() {
   }
 
   return (
-    <section className="form-pagina">
+    <section className="space-y-6">
       <div className="encabezado">
         <h1>Evaluar Proveedores · <code>{proceso.codigo}</code></h1>
-        <button className="btn btn--texto" onClick={() => navigate('/evaluacion')}>Volver</button>
+        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => navigate('/evaluacion')}>Volver</button>
       </div>
 
       <p className="proceso__descripcion">{proceso.titulo}</p>

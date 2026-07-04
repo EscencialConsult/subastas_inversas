@@ -1,7 +1,9 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
+using SICST.Api.Security;
 using SICST.Application.Modules.Identity.Auth.Commands;
 using SICST.Application.Modules.Identity.Auth.DTOs;
 using SICST.Application.Common.Interfaces;
@@ -32,6 +34,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginCommand command)
     {
         try
@@ -54,6 +57,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
+    [EnableRateLimiting(RateLimitPolicies.RefreshToken)]
     public async Task<ActionResult<AuthResponseDto>> Refresh([FromBody] RefreshTokenCommand command)
     {
         try
@@ -70,6 +74,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("mfa/verify")]
+    [EnableRateLimiting(RateLimitPolicies.Mfa)]
     public async Task<ActionResult<AuthResponseDto>> VerifyMfa([FromBody] VerifyMfaCommand command)
     {
         try

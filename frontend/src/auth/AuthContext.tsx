@@ -8,6 +8,7 @@ import {
   type AuthSuccess,
   type LoginInput,
   type MfaInput,
+  type MfaRequired,
   type TenantSesion,
   type UsuarioSesion,
 } from '../shared/api/authApi'
@@ -31,8 +32,8 @@ interface AuthContextValue {
   rol: RolType | string | null
   estaAutenticado: boolean
   cargando: boolean
-  login: (credenciales: LoginInput) => Promise<{ usuario: UsuarioSesion } | Awaited<ReturnType<typeof loginApi>>>
-  verificarMfa: (datos: MfaInput) => Promise<UsuarioSesion | Awaited<ReturnType<typeof verificarMfaApi>>>
+  login: (credenciales: LoginInput) => Promise<AuthSuccess | MfaRequired>
+  verificarMfa: (datos: MfaInput) => Promise<AuthSuccess | MfaRequired>
   logout: () => Promise<void>
   actualizarUsuarioSesion: (usuario: UsuarioSesion) => void
 }
@@ -60,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       aplicarSesionAutenticada(respuesta)
-      return { usuario: respuesta.usuario }
+      return respuesta
     } finally {
       setCargando(false)
     }
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       aplicarSesionAutenticada(respuesta)
-      return respuesta.usuario
+      return respuesta
     } finally {
       setCargando(false)
     }

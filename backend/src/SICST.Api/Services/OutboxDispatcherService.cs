@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics.Metrics;
 using SICST.Domain.Entities;
 using SICST.Persistence.Contexts;
 
@@ -6,6 +7,11 @@ namespace SICST.Api.Services;
 
 public sealed class OutboxDispatcherService : BackgroundService
 {
+    private static readonly Meter Meter = new("SICST.Api.Outbox");
+    private static readonly Counter<long> ClaimedCounter = Meter.CreateCounter<long>("sicst.outbox.claimed");
+    private static readonly Counter<long> ProcessedCounter = Meter.CreateCounter<long>("sicst.outbox.processed");
+    private static readonly Counter<long> FailedCounter = Meter.CreateCounter<long>("sicst.outbox.failed");
+    private static readonly Histogram<double> DispatchDuration = Meter.CreateHistogram<double>("sicst.outbox.dispatch.duration.ms");
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(2);
     private const int BatchSize = 25;
@@ -73,9 +79,11 @@ public sealed class OutboxDispatcherService : BackgroundService
         }
 
         await context.SaveChangesAsync(cancellationToken);
+        ClaimedCounter.Add(messages.Count);
 
         foreach (var message in messages)
         {
+            var startedAt = DateTime.UtcNow;
             try
             {
                 await DispatchAsync(message, cancellationToken);
@@ -84,6 +92,8 @@ public sealed class OutboxDispatcherService : BackgroundService
                 message.LockId = null;
                 message.LockedUntilUtc = null;
                 message.LastError = null;
+                ProcessedCounter.Add(1, new KeyValuePair<string, object?>("event_type", message.EventType));
+                DispatchDuration.Record((DateTime.UtcNow - startedAt).TotalMilliseconds, new KeyValuePair<string, object?>("event_type", message.EventType));
             }
             catch (Exception ex)
             {
@@ -95,6 +105,7 @@ public sealed class OutboxDispatcherService : BackgroundService
                 message.LockId = null;
                 message.LockedUntilUtc = null;
                 message.LastError = ex.Message;
+                FailedCounter.Add(1, new KeyValuePair<string, object?>("event_type", message.EventType));
 
                 _logger.LogError(
                     ex,

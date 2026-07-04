@@ -2,7 +2,7 @@ import { lazy } from 'react'
 import { puedeSupervisar } from '../../auth/permisos'
 import type { AppRouteDefinition } from '../../app/routes/types'
 
-const AuditoriaListPage = lazy(() => import('./AuditoriaListPage.jsx').then(m => ({ default: m.AuditoriaListPage })))
+const AuditoriaListPage = lazy(() => import('./AuditoriaListPage').then(m => ({ default: m.AuditoriaListPage })))
 const AuditoriaDetailPage = lazy(() => import('./pages/AuditoriaDetailPage.tsx').then(m => ({ default: m.AuditoriaDetailPage })))
 
 export const auditoriaRoutes: AppRouteDefinition[] = [

@@ -290,8 +290,8 @@ export async function subirDocumentoProveedor({ proveedorId, tipo, archivo, venc
   return mapDocumentoProveedor(data)
 }
 
-export async function subsanarDocumentoProveedor({ documentoId, proveedorId, notes }: { documentoId: string; proveedorId: string; notes: string }): Promise<unknown> {
-  return apiFetch<unknown>(`/api/suppliers/documents/${documentoId}/remediations`, {
+export async function subsanarDocumentoProveedor({ documentoId, proveedorId, notes }: { documentoId: string; proveedorId: string; notes: string }): Promise<RevisionDocumentoMapped> {
+  const data = await apiFetch<SupplierDocumentReviewResponse>(`/api/suppliers/documents/${documentoId}/remediations`, {
     method: 'POST',
     body: {
       documentId: documentoId,
@@ -299,6 +299,7 @@ export async function subsanarDocumentoProveedor({ documentoId, proveedorId, not
       notes: notes,
     },
   })
+  return mapRevisionDocumento(data)
 }
 
 export async function observarDocumentoProveedor({ documentoId, evaluadorId, notas }: { documentoId: string; evaluadorId: string; notas: string }): Promise<RevisionDocumentoMapped> {

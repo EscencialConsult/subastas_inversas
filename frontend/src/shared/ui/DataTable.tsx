@@ -1,8 +1,8 @@
 import { ReactNode, useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, ChevronsUpDown, SearchX } from 'lucide-react'
 import { Button } from './Button'
-import { EmptyState } from './EmptyState.jsx'
-import { Spinner } from './Spinner.jsx'
+import { EmptyState } from './EmptyState'
+import { Spinner } from './Spinner'
 
 export interface DataTableColumn<T> {
   id?: string

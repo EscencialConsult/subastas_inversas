@@ -15,6 +15,7 @@ interface UseProcesosParams {
 export function useProcesos({ tenantId, busqueda = '', estado = '', auditoria = false, debounceMs = 250 }: UseProcesosParams) {
   const queryClient = useQueryClient()
   const [debouncedFilters, setDebouncedFilters] = useState({ busqueda, estado })
+  const [manualError, setManualError] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedFilters({ busqueda, estado }), debounceMs)
@@ -50,13 +51,13 @@ export function useProcesos({ tenantId, busqueda = '', estado = '', auditoria = 
     await publicarMutation.mutateAsync({ tenantId, id })
   }
 
-  const error = getErrorMessage(publicarMutation.error ?? query.error, '')
+  const error = manualError || getErrorMessage(publicarMutation.error ?? query.error, '')
 
   return {
     procesos: (query.data ?? []) as ProcesoMapped[],
     cargando: query.isLoading || query.isFetching,
     error,
-    setError: () => undefined,
+    setError: setManualError,
     recargar: query.refetch,
     publicar,
   }

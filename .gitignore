@@ -23,5 +23,8 @@ Thumbs.db
 
 # Runtime
 backend/backend.log
+*.db
+*.db-shm
+*.db-wal
 backend/src/SICST.Api/uploads/
 backend/src/SICST.Api/wwwroot/

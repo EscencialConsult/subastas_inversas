@@ -1,6 +1,6 @@
 import { forwardRef, useRef, useState, DragEvent, ChangeEvent, InputHTMLAttributes } from 'react'
 import { UploadCloud, File, Trash } from 'lucide-react'
-import { FormField } from './FormField.jsx'
+import { FormField } from './FormField'
 
 export interface FilePickerProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   label?: string

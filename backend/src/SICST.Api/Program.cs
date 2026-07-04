@@ -1,8 +1,10 @@
 using System.Text;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -12,6 +14,7 @@ using SICST.Api.Health;
 using SICST.Api.Hubs;
 using SICST.Api.Middlewares;
 using SICST.Api.Observability;
+using SICST.Api.Security;
 using SICST.Api.Services;
 using SICST.Api.Tenancy;
 using SICST.Application;
@@ -52,6 +55,31 @@ builder.Services.AddHealthChecks()
     .AddCheck<RedisHealthCheck>("redis", tags: ["ready", "cache"])
     .AddCheck<StorageHealthCheck>("storage", tags: ["ready", "uploads"])
     .AddCheck<AntivirusHealthCheck>("antivirus", tags: ["ready", "security"]);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(RateLimitPolicies.Login, context =>
+        RateLimitPartition.GetFixedWindowLimiter(GetClientPartitionKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+    options.AddPolicy(RateLimitPolicies.Mfa, context =>
+        RateLimitPartition.GetFixedWindowLimiter(GetClientPartitionKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(2),
+            QueueLimit = 0
+        }));
+    options.AddPolicy(RateLimitPolicies.RefreshToken, context =>
+        RateLimitPartition.GetFixedWindowLimiter(GetClientPartitionKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+});
 
 if (builder.Environment.IsDevelopment())
 {
@@ -206,7 +234,9 @@ else
     app.UseHsts();
 }
 
-app.UseCors("ConfiguredCors"); // Must be called before UseRouting/UseEndpoints/UseAuthentication/UseAuthorization
+app.UseRouting();
+app.UseCors("ConfiguredCors");
+app.UseRateLimiter();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -241,14 +271,7 @@ if (ShouldInitializeDatabase(app.Configuration, app.Environment))
         using (var scope = app.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            if (dbContext.Database.IsSqlite())
-            {
-                await dbContext.Database.EnsureCreatedAsync();
-            }
-            else
-            {
-                await dbContext.Database.MigrateAsync();
-            }
+            await dbContext.Database.MigrateAsync();
 
             var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
             var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
@@ -299,3 +322,14 @@ static Task WriteHealthReport(HttpContext context, HealthReport report)
     return context.Response.WriteAsync(JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
 }
 
+static string GetClientPartitionKey(HttpContext context)
+{
+    var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+    var clientIp = forwardedFor?.Split(',')[0].Trim();
+    if (string.IsNullOrWhiteSpace(clientIp))
+    {
+        clientIp = context.Connection.RemoteIpAddress?.ToString();
+    }
+
+    return string.IsNullOrWhiteSpace(clientIp) ? "unknown-client" : clientIp;
+}

@@ -1,80 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../../auth/AuthContext'
-import { obtenerProcesoParaAuditoria, listarInvitacionesProcesoAudit, obtenerResultadosEvaluacionParaAuditoria } from '../../../shared/api/comprasApi'
-import { obtenerSubastaDeProcesoParaAuditoria } from '../../../shared/api/subastasApi'
-import { listarAlertasRiesgo } from '../../../shared/api/auditoriaApi'
-import { nombresPorIds } from '../../../shared/api/usersApi'
 import { Alert } from '../../../shared/ui/Alert'
 import { Spinner } from '../../../shared/ui/Spinner'
+import { getErrorMessage } from '../../../shared/query/queryClient'
 import { AuditoriaDetailSections } from '../components/AuditoriaDetailSections'
+import { auditoriaDetailQuery, auditoriaKeys } from '../data/auditoriaData'
 
 export function AuditoriaDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { tenantId } = useAuth()
   const navigate = useNavigate()
 
-  const [proceso, setProceso] = useState<any>(null)
-  const [subasta, setSubasta] = useState<any>(null)
-  const [invitaciones, setInvitaciones] = useState<any[]>([])
-  const [evalResults, setEvalResults] = useState<any>(null)
-  const [alertasRiesgo, setAlertasRiesgo] = useState<any[]>([])
-  const [nombres, setNombres] = useState<Record<string, string>>({})
-  const [cargando, setCargando] = useState(true)
-  const [error, setError] = useState('')
+  const { data, isLoading, error } = useQuery({
+    queryKey: auditoriaKeys.detail(tenantId, id),
+    queryFn: () => auditoriaDetailQuery({ tenantId, id }),
+    enabled: Boolean(tenantId && id),
+  })
 
-  async function cargar() {
-    if (!tenantId || !id) return
-    try {
-      const p = await obtenerProcesoParaAuditoria({ tenantId, id })
-      setProceso(p)
+  if (isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (!data?.proceso) return <Alert variant="error">{getErrorMessage(error, 'No se pudo cargar el expediente.')}</Alert>
 
-      try {
-        setSubasta(await obtenerSubastaDeProcesoParaAuditoria({ tenantId, procesoId: id }))
-      } catch {
-        setSubasta(null)
-      }
-
-      try {
-        setInvitaciones(await listarInvitacionesProcesoAudit({ tenantId, procesoId: id }))
-      } catch {
-        setInvitaciones([])
-      }
-
-      try {
-        setEvalResults(await obtenerResultadosEvaluacionParaAuditoria({ tenantId, procesoId: id }))
-      } catch {
-        setEvalResults(null)
-      }
-
-      try {
-        setAlertasRiesgo(await listarAlertasRiesgo({ tenantId, procesoId: id }))
-      } catch {
-        setAlertasRiesgo([])
-      }
-
-      const adjudicacion = p.adjudicacion as any
-      const aprobacion = p.aprobacion as any
-      const ids = [
-        p.compradorId,
-        adjudicacion?.compradorId,
-        aprobacion?.autoridadId,
-      ].filter(Boolean)
-      setNombres(await nombresPorIds({ tenantId, ids }))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el expediente.')
-    } finally {
-      setCargando(false)
-    }
-  }
-
-  useEffect(() => {
-    cargar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, id])
-
-  if (cargando) return <div className="flex justify-center py-12"><Spinner /></div>
-  if (!proceso) return <Alert variant="error">{error}</Alert>
+  const { proceso, subasta, invitaciones, evalResults, alertasRiesgo, nombres } = data
 
   return (
     <section className="form-pagina auditoria-expediente">
@@ -82,7 +29,7 @@ export function AuditoriaDetailPage() {
         <h1>
           Expediente · <code>{proceso.codigo}</code>
         </h1>
-        <button className="btn btn--texto" onClick={() => navigate('/auditoria')}>
+        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => navigate('/auditoria')}>
           Volver
         </button>
       </div>

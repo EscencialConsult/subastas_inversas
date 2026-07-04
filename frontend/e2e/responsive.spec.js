@@ -1,7 +1,6 @@
 import { expect, test } from 'playwright/test'
 
 const compradorEmail = 'usuario1@prueba.com'
-const password = '123456'
 
 test.use({ viewport: { width: 375, height: 667 } }) // Mobile viewport size
 

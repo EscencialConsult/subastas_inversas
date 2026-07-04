@@ -2,8 +2,8 @@ import { lazy } from 'react'
 import { puedeAprobarAdjudicacion } from '../../auth/permisos'
 import type { AppRouteDefinition } from '../../app/routes/types'
 
-const AdjudicacionesListPage = lazy(() => import('./AdjudicacionesListPage.jsx').then(m => ({ default: m.AdjudicacionesListPage })))
-const AdjudicacionDetailPage = lazy(() => import('./AdjudicacionDetailPage.jsx').then(m => ({ default: m.AdjudicacionDetailPage })))
+const AdjudicacionesListPage = lazy(() => import('./AdjudicacionesListPage').then(m => ({ default: m.AdjudicacionesListPage })))
+const AdjudicacionDetailPage = lazy(() => import('./AdjudicacionDetailPage').then(m => ({ default: m.AdjudicacionDetailPage })))
 
 export const adjudicacionesRoutes: AppRouteDefinition[] = [
   { path: 'adjudicaciones', element: <AdjudicacionesListPage />, permiso: puedeAprobarAdjudicacion },
