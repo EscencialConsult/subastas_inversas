@@ -19,7 +19,6 @@ export function SubastaPublicaPage() {
   const navigate = useNavigate()
   const [snapshot, setSnapshot] = useState<PublicAuctionMapped | null>(null)
   const [liveError, setLiveError] = useState('')
-  const [restante, setRestante] = useState<number | null>(null)
   const [ahoraMs, setAhoraMs] = useState(() => Date.now())
 
   const subastaQuery = useQuery({
@@ -29,10 +28,11 @@ export function SubastaPublicaPage() {
     refetchInterval: REFRESCO_MS,
   })
 
-  useEffect(() => {
-    if (!subastaQuery.data) return
+  const [snapshotInited, setSnapshotInited] = useState(false)
+  if (subastaQuery.data && !snapshotInited) {
+    setSnapshotInited(true)
     setSnapshot(subastaQuery.data)
-  }, [subastaQuery.data])
+  }
 
   const subasta = snapshot
 
@@ -49,18 +49,16 @@ export function SubastaPublicaPage() {
   }, [subasta?.eventsUrl])
 
   useEffect(() => {
-    if (!subasta?.cierreEn || !subasta.inicioEn) return undefined
+    const intervalo = setInterval(() => setAhoraMs(Date.now()), 1000)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  const restante = useMemo(() => {
+    if (!subasta?.cierreEn || !subasta.inicioEn) return null
     const inicio = new Date(subasta.inicioEn).getTime()
     const cierre = new Date(subasta.cierreEn).getTime()
-    const tick = () => {
-      const ahora = Date.now()
-      setAhoraMs(ahora)
-      setRestante(ahora < inicio ? inicio - ahora : cierre - ahora)
-    }
-    tick()
-    const intervalo = setInterval(tick, 1000)
-    return () => clearInterval(intervalo)
-  }, [subasta])
+    return ahoraMs < inicio ? inicio - ahoraMs : cierre - ahoraMs
+  }, [subasta, ahoraMs])
 
   const ahorro = useMemo(() => {
     if (!subasta) return 0

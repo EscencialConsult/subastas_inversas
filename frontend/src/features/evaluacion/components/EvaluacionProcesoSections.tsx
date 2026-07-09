@@ -1,29 +1,59 @@
-import { Check, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Alert } from '../../../shared/ui/Alert'
 import { Badge } from '../../../shared/ui/Badge'
+import { Button } from '../../../shared/ui/Button'
+import { DataTable, type DataTableColumn } from '../../../shared/ui/DataTable'
+import { FormSection } from '../../../shared/ui/FormSection'
+import { Input } from '../../../shared/ui/Input'
+import { Select } from '../../../shared/ui/Select'
 
-export function EvaluacionCompletadaSection({
-  proceso,
-  onBack,
-  onEdit,
-}: {
-  proceso: any
+interface Criterion {
+  id: string
+  name: string
+  description?: string
+  type: string
+  weight?: number
+  sortOrder?: number
+}
+
+interface Postor {
+  id: string
+  name: string
+  monto: number
+}
+
+interface EvaluacionCompletadaSectionProps {
   onBack: () => void
   onEdit: () => void
-}) {
+}
+
+export function EvaluacionCompletadaSection({
+  onBack,
+  onEdit,
+}: EvaluacionCompletadaSectionProps) {
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <h1>Evaluacion Completada · <code>{proceso.codigo}</code></h1>
-        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onBack}>Volver</button>
+    <div className="space-y-4">
+      <Alert variant="success">Evaluación registrada exitosamente.</Alert>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={onBack}>Volver al listado</Button>
+        <Button variant="secondary" onClick={onEdit}>Editar evaluación</Button>
       </div>
-      <p className="proceso__descripcion">{proceso.titulo}</p>
-      <Alert variant="success">Evaluacion registrada exitosamente.</Alert>
-      <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onEdit}>
-        Editar evaluacion
-      </button>
-    </section>
+    </div>
   )
+}
+
+interface CriteriosEvaluacionSectionProps {
+  criteria: Criterion[]
+  criteriaForm: Criterion[]
+  exclusionaryCriteria: Criterion[]
+  weightedCriteria: Criterion[]
+  editandoCriterios: boolean
+  guardando: boolean
+  onToggleEdit: () => void
+  onAddCriterion: (tipo: string) => void
+  onUpdateCriterion: (idx: number, field: string, value: unknown) => void
+  onRemoveCriterion: (idx: number) => void
+  onSaveCriteria: () => void
 }
 
 export function CriteriosEvaluacionSection({
@@ -38,28 +68,16 @@ export function CriteriosEvaluacionSection({
   onUpdateCriterion,
   onRemoveCriterion,
   onSaveCriteria,
-}: {
-  criteria: any[]
-  criteriaForm: any[]
-  exclusionaryCriteria: any[]
-  weightedCriteria: any[]
-  editandoCriterios: boolean
-  guardando: boolean
-  onToggleEdit: () => void
-  onAddCriterion: (tipo: string) => void
-  onUpdateCriterion: (idx: number, field: string, value: unknown) => void
-  onRemoveCriterion: (idx: number) => void
-  onSaveCriteria: () => void
-}) {
+}: CriteriosEvaluacionSectionProps) {
   return (
-    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 className="text-lg font-semibold text-text" style={{ margin: 0 }}>Criterios de Evaluacion</h2>
-        <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={onToggleEdit}>
-          {editandoCriterios ? 'Ver evaluacion' : 'Editar criterios'}
-        </button>
-      </div>
-
+    <FormSection
+      title="Criterios de evaluación"
+      actions={
+        <Button type="button" variant="secondary" size="sm" onClick={onToggleEdit}>
+          {editandoCriterios ? 'Ver evaluación' : 'Editar criterios'}
+        </Button>
+      }
+    >
       {editandoCriterios ? (
         <EditorCriterios
           criteriaForm={criteriaForm}
@@ -76,8 +94,17 @@ export function CriteriosEvaluacionSection({
           weightedCriteria={weightedCriteria}
         />
       )}
-    </div>
+    </FormSection>
   )
+}
+
+interface EditorCriteriosProps {
+  criteriaForm: Criterion[]
+  guardando: boolean
+  onAddCriterion: (tipo: string) => void
+  onUpdateCriterion: (idx: number, field: string, value: unknown) => void
+  onRemoveCriterion: (idx: number) => void
+  onSaveCriteria: () => void
 }
 
 function EditorCriterios({
@@ -87,102 +114,171 @@ function EditorCriterios({
   onUpdateCriterion,
   onRemoveCriterion,
   onSaveCriteria,
-}: {
-  criteriaForm: any[]
-  guardando: boolean
-  onAddCriterion: (tipo: string) => void
-  onUpdateCriterion: (idx: number, field: string, value: unknown) => void
-  onRemoveCriterion: (idx: number) => void
-  onSaveCriteria: () => void
-}) {
-  const exclusionary = criteriaForm.filter(c => c.type === 'Exclusionary')
-  const weighted = criteriaForm.filter(c => c.type === 'Weighted')
-  const weightSum = weighted.reduce((sum, c) => {
-    const parsed = Number(c.weight)
+}: EditorCriteriosProps) {
+  const exclusionary = criteriaForm.filter((criterion) => criterion.type === 'Exclusionary')
+  const weighted = criteriaForm.filter((criterion) => criterion.type === 'Weighted')
+  const weightSum = weighted.reduce((sum, criterion) => {
+    const parsed = Number(criterion.weight)
     return sum + (Number.isNaN(parsed) ? 0 : parsed)
   }, 0)
 
   return (
-    <div style={{ marginTop: '16px' }}>
-      <h3 className="text-base font-semibold text-text">Criterios Excluyentes</h3>
-      {exclusionary.length === 0 && <p className="text-sm text-text-muted">No hay criterios excluyentes definidos.</p>}
-      {exclusionary.map((criterion, idx) => {
-        const realIdx = criteriaForm.indexOf(criterion)
-        return (
-          <div key={idx} className="wizard-item-row" style={{ marginBottom: '8px' }}>
-            <input value={criterion.name} onChange={e => onUpdateCriterion(realIdx, 'name', e.target.value)} placeholder="Nombre del criterio" style={{ flex: 2 }} />
-            <input value={criterion.description || ''} onChange={e => onUpdateCriterion(realIdx, 'description', e.target.value)} placeholder="Descripcion (opcional)" style={{ flex: 3 }} />
-            <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-60" onClick={() => onRemoveCriterion(realIdx)}><X size={14} /></button>
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="m-0 text-base font-semibold text-text">Criterios excluyentes</h3>
+          <Button type="button" size="sm" onClick={() => onAddCriterion('Exclusionary')}>
+            Agregar criterio
+          </Button>
+        </div>
+        {exclusionary.length === 0 ? (
+          <p className="rounded-md border border-border bg-background px-3 py-2 text-sm text-text-muted">
+            No hay criterios excluyentes definidos.
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {exclusionary.map((criterion, idx) => {
+              const realIdx = criteriaForm.indexOf(criterion)
+              return (
+                <div key={idx} className="grid gap-3 md:grid-cols-[2fr_3fr_40px]">
+                  <Input
+                    value={criterion.name}
+                    onChange={(event) => onUpdateCriterion(realIdx, 'name', event.target.value)}
+                    placeholder="Nombre del criterio"
+                  />
+                  <Input
+                    value={criterion.description || ''}
+                    onChange={(event) => onUpdateCriterion(realIdx, 'description', event.target.value)}
+                    placeholder="Descripción opcional"
+                  />
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => onRemoveCriterion(realIdx)}
+                    aria-label="Quitar criterio"
+                    icon={<X size={14} />}
+                  />
+                </div>
+              )
+            })}
           </div>
-        )
-      })}
-      <button type="button" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" onClick={() => onAddCriterion('Exclusionary')} style={{ marginBottom: '16px' }}>
-        + Agregar criterio excluyente
-      </button>
+        )}
+      </section>
 
-      <h3 className="text-base font-semibold text-text">Criterios Ponderados</h3>
-      {weighted.length === 0 && <p className="text-sm text-text-muted">No hay criterios ponderados definidos.</p>}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr 80px 40px', gap: '8px', padding: '0 8px 8px', borderBottom: '1px solid var(--color-borde)', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold' }}>
-        <span>Nombre</span>
-        <span>Descripcion</span>
-        <span>Peso %</span>
-        <span></span>
-      </div>
-      {weighted.map((criterion, idx) => {
-        const realIdx = criteriaForm.indexOf(criterion)
-        return (
-          <div key={idx} className="wizard-item-row" style={{ marginBottom: '8px' }}>
-            <input value={criterion.name} onChange={e => onUpdateCriterion(realIdx, 'name', e.target.value)} placeholder="Nombre del criterio" />
-            <input value={criterion.description || ''} onChange={e => onUpdateCriterion(realIdx, 'description', e.target.value)} placeholder="Descripcion (opcional)" />
-            <input type="number" min="0" max="100" value={criterion.weight} onChange={e => onUpdateCriterion(realIdx, 'weight', e.target.value)} />
-            <button type="button" className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-60" onClick={() => onRemoveCriterion(realIdx)}><X size={14} /></button>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="m-0 text-base font-semibold text-text">Criterios ponderados</h3>
+          <Button type="button" size="sm" onClick={() => onAddCriterion('Weighted')}>
+            Agregar criterio
+          </Button>
+        </div>
+        {weighted.length === 0 ? (
+          <p className="rounded-md border border-border bg-background px-3 py-2 text-sm text-text-muted">
+            No hay criterios ponderados definidos.
+          </p>
+        ) : (
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-[620px]">
+              <div className="mb-2 grid grid-cols-[2fr_3fr_80px_40px] gap-3 border-b border-border px-2 pb-2 text-xs font-semibold text-text-muted">
+                <span>Nombre</span>
+                <span>Descripción</span>
+                <span>Peso %</span>
+                <span />
+              </div>
+              <div className="grid gap-2">
+                {weighted.map((criterion, idx) => {
+                  const realIdx = criteriaForm.indexOf(criterion)
+                  return (
+                    <div key={idx} className="grid grid-cols-[2fr_3fr_80px_40px] gap-3">
+                      <Input
+                        value={criterion.name}
+                        onChange={(event) => onUpdateCriterion(realIdx, 'name', event.target.value)}
+                        placeholder="Nombre del criterio"
+                      />
+                      <Input
+                        value={criterion.description || ''}
+                        onChange={(event) => onUpdateCriterion(realIdx, 'description', event.target.value)}
+                        placeholder="Descripción opcional"
+                      />
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={criterion.weight}
+                        onChange={(event) => onUpdateCriterion(realIdx, 'weight', event.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        onClick={() => onRemoveCriterion(realIdx)}
+                        aria-label="Quitar criterio"
+                        icon={<X size={14} />}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
-        )
-      })}
-      {weighted.length > 0 && weightSum !== 100 && (
-        <Alert variant="warning">La suma de pesos debe ser 100% (actual: {weightSum}%)</Alert>
-      )}
-      <button type="button" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" onClick={() => onAddCriterion('Weighted')} style={{ marginRight: '8px' }}>
-        + Agregar criterio ponderado
-      </button>
-      <button type="button" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" onClick={onSaveCriteria} disabled={guardando}>
-        {guardando ? 'Guardando...' : 'Guardar criterios'}
-      </button>
+        )}
+        {weighted.length > 0 && weightSum !== 100 && (
+          <Alert variant="warning">La suma de pesos debe ser 100% (actual: {weightSum}%).</Alert>
+        )}
+      </section>
+
+      <div className="flex justify-end">
+        <Button type="button" onClick={onSaveCriteria} disabled={guardando} loading={guardando}>
+          Guardar criterios
+        </Button>
+      </div>
     </div>
   )
+}
+
+interface ResumenCriteriosProps {
+  criteria: Criterion[]
+  exclusionaryCriteria: Criterion[]
+  weightedCriteria: Criterion[]
 }
 
 function ResumenCriterios({
   criteria,
   exclusionaryCriteria,
   weightedCriteria,
-}: {
-  criteria: any[]
-  exclusionaryCriteria: any[]
-  weightedCriteria: any[]
-}) {
-  return (
-    <>
-      {criteria.length > 0 && (
-        <div style={{ marginTop: '16px', marginBottom: '8px' }}>
-          {exclusionaryCriteria.length > 0 && (
-            <div style={{ marginBottom: '4px' }}>
-              <strong>Excluyentes:</strong> {exclusionaryCriteria.map(c => c.name).join(', ')}
-            </div>
-          )}
-          {weightedCriteria.length > 0 && (
-            <div>
-              <strong>Ponderados:</strong> {weightedCriteria.map(c => `${c.name} (${c.weight}%)`).join(', ')}
-            </div>
-          )}
-        </div>
-      )}
+}: ResumenCriteriosProps) {
+  if (criteria.length === 0) {
+    return <Alert variant="info">No hay criterios definidos. Haz clic en "Editar criterios" para crearlos.</Alert>
+  }
 
-      {criteria.length === 0 && (
-        <Alert variant="info" className="mt-4">No hay criterios definidos. Haz clic en "Editar criterios" para crearlos.</Alert>
+  return (
+    <div className="space-y-2 text-sm text-text">
+      {exclusionaryCriteria.length > 0 && (
+        <p className="m-0">
+          <strong>Excluyentes:</strong> {exclusionaryCriteria.map((c) => c.name).join(', ')}
+        </p>
       )}
-    </>
+      {weightedCriteria.length > 0 && (
+        <p className="m-0">
+          <strong>Ponderados:</strong> {weightedCriteria.map((c) => `${c.name} (${c.weight}%)`).join(', ')}
+        </p>
+      )}
+    </div>
   )
+}
+
+interface EvaluacionProveedorFormSectionProps {
+  criteria: Criterion[]
+  postores: Postor[]
+  guardando: boolean
+  onSubmit: (event: React.FormEvent) => void
+  getPassed: (criterionId: string, supplierId: string) => boolean
+  getScore: (criterionId: string, supplierId: string) => string
+  getSupplierWeightedScore: (supplierId: string) => number | null
+  isSupplierExcluded: (supplierId: string) => boolean
+  onPassedChange: (criterionId: string, supplierId: string, passed: boolean) => void
+  onScoreChange: (criterionId: string, supplierId: string, value: string) => void
 }
 
 export function EvaluacionProveedorFormSection({
@@ -196,91 +292,85 @@ export function EvaluacionProveedorFormSection({
   isSupplierExcluded,
   onPassedChange,
   onScoreChange,
-}: {
-  criteria: any[]
-  postores: Array<{ id: string; name: string; monto: number }>
-  guardando: boolean
-  onSubmit: (event: React.FormEvent) => void
-  getPassed: (criterionId: string, supplierId: string) => boolean
-  getScore: (criterionId: string, supplierId: string) => string
-  getSupplierWeightedScore: (supplierId: string) => number | null
-  isSupplierExcluded: (supplierId: string) => boolean
-  onPassedChange: (criterionId: string, supplierId: string, passed: boolean) => void
-  onScoreChange: (criterionId: string, supplierId: string, value: string) => void
-}) {
+}: EvaluacionProveedorFormSectionProps) {
   if (criteria.length === 0) return null
 
+  const columns: Array<DataTableColumn<Postor & Record<string, unknown>>> = [
+    { header: 'Proveedor', accessor: 'name' },
+    {
+      header: 'Oferta',
+      cell: (row) => formatearPesos(row.monto),
+    },
+    ...criteria.map((criterion) => ({
+      header: (
+        <span>
+          {criterion.name}
+          {criterion.type === 'Weighted' && <span className="text-text-muted"> ({criterion.weight}%)</span>}
+        </span>
+      ) as unknown as string,
+      cell: (row: Postor & Record<string, unknown>) => {
+        if (criterion.type === 'Exclusionary') {
+          return (
+            <Select
+              value={getPassed(criterion.id, row.id) ? 'true' : 'false'}
+              onChange={(event) => onPassedChange(criterion.id, row.id, event.target.value === 'true')}
+              fieldClassName="mb-0 min-w-[90px]"
+              aria-label={`${criterion.name} para ${row.name as string}`}
+            >
+              <option value="true">Sí</option>
+              <option value="false">No</option>
+            </Select>
+          )
+        }
+        return (
+          <Input
+            type="number"
+            min="0"
+            max="100"
+            value={getScore(criterion.id, row.id)}
+            onChange={(event) => onScoreChange(criterion.id, row.id, event.target.value)}
+            placeholder="0-100"
+            fieldClassName="mb-0 min-w-[100px]"
+            aria-label={`${criterion.name} para ${row.name as string}`}
+          />
+        )
+      },
+    })),
+    {
+      header: 'Score',
+      cell: (row) => {
+        const score = getSupplierWeightedScore(row.id)
+        return score !== null ? `${score}%` : '---'
+      },
+    },
+    {
+      header: 'Estado',
+      cell: (row) => (
+        isSupplierExcluded(row.id)
+          ? <Badge variant="error">Excluido</Badge>
+          : <Badge variant="success">Apto</Badge>
+      ),
+    },
+  ]
+
   return (
-    <form className="rounded-md border border-border bg-surface p-5 shadow-sm" onSubmit={onSubmit} style={{ marginTop: '16px' }}>
-      <h2 className="text-lg font-semibold text-text">Evaluacion por Proveedor</h2>
-      <p className="text-sm text-text-muted">
-        Exclusionary: marcar <Check size={12} className="inline" /> o <X size={12} className="inline" />. Ponderados: asignar puntaje de 0 a 100.
-      </p>
-
-      <div style={{ overflowX: 'auto' }}>
-        <table className="min-w-full divide-y divide-border text-sm" style={{ minWidth: '800px' }}>
-          <thead>
-            <tr>
-              <th style={{ minWidth: '180px' }}>Proveedor</th>
-              <th style={{ minWidth: '100px' }}>Oferta</th>
-              {criteria.map(criterion => (
-                <th key={criterion.id} style={{ minWidth: '120px' }}>
-                  {criterion.name}
-                  {criterion.type === 'Weighted' && <span className="campo__ayuda"> ({criterion.weight}%)</span>}
-                </th>
-              ))}
-              <th style={{ minWidth: '80px' }}>Score</th>
-              <th style={{ minWidth: '80px' }}>Excluido</th>
-            </tr>
-          </thead>
-          <tbody>
-            {postores.map(supplier => {
-              const excluded = isSupplierExcluded(supplier.id)
-              const score = getSupplierWeightedScore(supplier.id)
-              return (
-                <tr key={supplier.id} style={excluded ? { opacity: 0.5 } : {}}>
-                  <td>{supplier.name}</td>
-                  <td>{formatearPesos(supplier.monto)}</td>
-                  {criteria.map(criterion => (
-                    <td key={criterion.id}>
-                      {criterion.type === 'Exclusionary' ? (
-                        <select
-                          value={getPassed(criterion.id, supplier.id) ? 'true' : 'false'}
-                          onChange={e => onPassedChange(criterion.id, supplier.id, e.target.value === 'true')}
-                        >
-                          <option value="true">Si</option>
-                          <option value="false">No</option>
-                        </select>
-                      ) : (
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={getScore(criterion.id, supplier.id)}
-                          onChange={e => onScoreChange(criterion.id, supplier.id, e.target.value)}
-                          style={{ width: '80px' }}
-                          placeholder="0-100"
-                        />
-                      )}
-                    </td>
-                  ))}
-                  <td>{score !== null ? `${score}%` : '---'}</td>
-                  <td>
-                    {excluded ? <Badge variant="error">Excluido</Badge> : <Badge variant="success">Apto</Badge>}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex flex-wrap justify-end gap-2" style={{ marginTop: '16px' }}>
-        <button type="submit" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" disabled={guardando}>
-          {guardando ? 'Guardando...' : 'Guardar Evaluacion'}
-        </button>
-      </div>
-    </form>
+    <FormSection
+      title="Evaluación por proveedor"
+      description="Excluyentes: marcar Sí/No. Ponderados: asignar puntaje de 0 a 100."
+    >
+      <form onSubmit={onSubmit} className="space-y-4">
+        <DataTable
+          columns={columns}
+          rows={postores as unknown as (Postor & Record<string, unknown>)[]}
+          getRowId={(row) => row.id}
+        />
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="submit" disabled={guardando} loading={guardando}>
+            Guardar evaluación
+          </Button>
+        </div>
+      </form>
+    </FormSection>
   )
 }
 

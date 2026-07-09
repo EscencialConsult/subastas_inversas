@@ -2,7 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../../auth/AuthContext'
 import { Alert } from '../../../shared/ui/Alert'
-import { Spinner } from '../../../shared/ui/Spinner'
+import { Button } from '../../../shared/ui/Button'
+import { LoadingState } from '../../../shared/ui/StateViews'
+import { PageHeader } from '../../../shared/ui/PageHeader'
+import { PageShell } from '../../../shared/ui/PageShell'
 import { getErrorMessage } from '../../../shared/query/queryClient'
 import { AuditoriaDetailSections } from '../components/AuditoriaDetailSections'
 import { auditoriaDetailQuery, auditoriaKeys } from '../data/auditoriaData'
@@ -18,21 +21,21 @@ export function AuditoriaDetailPage() {
     enabled: Boolean(tenantId && id),
   })
 
-  if (isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (isLoading) return <LoadingState label="Cargando expediente..." />
   if (!data?.proceso) return <Alert variant="error">{getErrorMessage(error, 'No se pudo cargar el expediente.')}</Alert>
 
   const { proceso, subasta, invitaciones, evalResults, alertasRiesgo, nombres } = data
 
   return (
-    <section className="form-pagina auditoria-expediente">
-      <div className="encabezado">
-        <h1>
-          Expediente · <code>{proceso.codigo}</code>
-        </h1>
-        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => navigate('/auditoria')}>
-          Volver
-        </button>
-      </div>
+    <PageShell width="wide">
+      <PageHeader
+        title={<>Expediente · <code>{proceso.codigo}</code></>}
+        actions={
+          <Button variant="ghost" onClick={() => navigate('/auditoria')}>
+            Volver
+          </Button>
+        }
+      />
 
       <AuditoriaDetailSections
         proceso={proceso}
@@ -42,6 +45,6 @@ export function AuditoriaDetailPage() {
         alertasRiesgo={alertasRiesgo}
         nombres={nombres}
       />
-    </section>
+    </PageShell>
   )
 }

@@ -106,6 +106,8 @@ Guía completa del flujo de trabajo, rol por rol, paso a paso.
 
 **Pantallas que ve:**
 - `/proveedor` — Home con datos de su empresa
+- `/proveedor/arca` — Datos fiscales y vinculación ARCA
+- `/proveedor/documentacion` — Subir y gestionar documentación
 - `/proveedor/oportunidades` — Oportunidades de compra
 - `/proveedor/subastas/:auctionId` — Subasta en vivo
 - `/registro-proveedor` — Registro (público, sin autenticación)
@@ -113,10 +115,11 @@ Guía completa del flujo de trabajo, rol por rol, paso a paso.
 
 **Lo que hace:**
 1. Registrarse como proveedor (público)
-2. Subir documentación (PDF con fecha de vencimiento)
-3. Aceptar o rechazar invitaciones a procesos
-4. Participar en subastas inversas en vivo (lances)
-5. Ver resultados de subastas ganadas
+2. Completar datos fiscales en `/proveedor/arca`
+3. Subir documentación en `/proveedor/documentacion` (PDF con fecha de vencimiento)
+4. Aceptar o rechazar invitaciones a procesos
+5. Participar en subastas inversas en vivo (lances)
+6. Ver resultados de subastas ganadas
 
 ### 2.5 Evaluador
 
@@ -271,10 +274,24 @@ Guía completa del flujo de trabajo, rol por rol, paso a paso.
 
 ---
 
+#### Paso 4b — Proveedor completa datos fiscales
+
+**Quién:** Proveedor
+**Pantalla:** `/proveedor/arca`
+**Qué hace:**
+
+1. Ingresa los datos de vinculación con ARCA (AFIP)
+2. Completa CUIT, datos fiscales y configuración impositiva
+3. Guarda los cambios
+
+**Resultado:** Los datos fiscales quedan registrados para validación.
+
+---
+
 #### Paso 5 — Proveedor sube documentación
 
 **Quién:** Proveedor
-**Pantalla:** `/proveedor`
+**Pantalla:** `/proveedor/documentacion`
 **Qué hace:**
 
 1. Inicia sesión con las credenciales recibidas
@@ -625,15 +642,19 @@ Completa el **asistente de 8 pasos**:
 2. COMPLETAR formulario
 3. ESPERAR verificación
 
+─ DATOS FISCALES ─
+4. IR A /proveedor/arca
+5. COMPLETAR datos de vinculación ARCA
+
 ─ DOCUMENTACIÓN ─
-4. IR A /proveedor
-5. SUBIR documentos PDF
+6. IR A /proveedor/documentacion
+7. SUBIR documentos PDF
 
 ─ PARTICIPAR ─
-6. IR A /proveedor/oportunidades
-7. ACEPTAR invitación a proceso
-8. IR A /proveedor/subastas/:auctionId
-9. OFERTAR en la subasta en vivo
+8. IR A /proveedor/oportunidades
+9. ACEPTAR invitación a proceso
+10. IR A /proveedor/subastas/:auctionId
+11. OFERTAR en la subasta en vivo
 ```
 
 ### Evaluador
@@ -664,90 +685,107 @@ Completa el **asistente de 8 pasos**:
 1. IR A /auditoria
 2. FILTRAR por fechas, entidad, acción
 3. REVISAR cadena de auditoría
-4. IR A /audit/events/access-logs para logs de acceso
+4. VER detalle de cada evento en /auditoria/:id
 ```
 
 ---
 
 ## 5. Estados del proceso de compra
 
+Los estados se muestran al usuario con labels en español. Entre paréntesis se indica el valor interno del backend.
+
 ```
                     ┌──────────┐
-                    │  Draft   │  Creado por Comprador (borrador)
+                    │ Borrador │  Creado por Comprador (borrador)
+                    │ (Draft)  │
                     └────┬─────┘
                          │ Publicar
-                    ┌────▼──────┐
-                    │ Pending   │  Pendiente de aprobación (circuito)
-                    │ Approval  │
-                    └────┬──────┘
+                    ┌────▼──────────┐
+                    │   Pendiente   │  Pendiente de aprobación (circuito)
+                    │   de aprob.   │  (PendingApproval)
+                    └────┬──────────┘
                          │ Aprobar
               ┌──────────┼──────────┐
               │          │          │
          ┌────▼───┐ ┌───▼────┐     │
-         │Approved│ │Rejected│     │  Rechazado con motivo
+         │Aprobado│ │Rechaz. │     │  Rechazado con motivo
+         │(Approv)│ │(Reject)│     │
          └────┬───┘ └────────┘     │
               │                    │
     ┌─────────┼─────────┐          │
     │         │         │          │
-┌───▼────┐ ┌──▼─────┐   │          │
-│InAuction│ │(direct │   │          │  Si no requiere subasta
-└───┬────┘ │to Eval)│   │          │
-    │      └────────┘   │          │
+┌───▼────┐ ┌──▼─────┐   │          │  Si no requiere subasta
+│En      │ │(direct │   │          │
+│subasta │ │to Eval)│   │          │
+│(InAuct)│ └────────┘   │          │
+└───┬────┘              │          │
     │ Cerrar            │          │
     │         ┌─────────┘          │
     │         │                    │
 ┌───▼────────▼──┐                 │
-│  Evaluation   │  Evaluación de ofertas
+│ Evaluación    │  Evaluación de ofertas
+│ (Evaluation)  │
 └───────┬───────┘
         │ Adjudicar
    ┌────▼──────┐
-   │Adjudicated│  Ganador seleccionado
+   │Adjudicada │  Ganador seleccionado
+   │(Adjudic.) │
    └────┬──────┘
         │ Contrato
    ┌────▼──────┐
-   │ Contracted│  Contrato firmado
+   │Contratado │  Contrato firmado
+   │(Contract) │
    └────┬──────┘
         │ Orden de compra
    ┌────▼─────────┐
-   │PurchaseOrder │  Orden de compra emitida
-   │   Issued     │
+   │ Orden de     │  Orden de compra emitida
+   │ compra (POI) │
    └────┬─────────┘
         │ Recepción
    ┌────▼──────┐
-   │ Received  │  Bienes/servicios recibidos
+   │ Recibido  │  Bienes/servicios recibidos
+   │ (Received)│
    └───────────┘
 
 OTROS ESTADOS TERMINALES:
   ┌───────────┐
-  │  Deserted │  Sin ofertas en la subasta
+  │ Desierta  │  Sin ofertas en la subasta
+  │(Deserted) │
   └───────────┘
 
   ┌────────────────────┐
-  │SuspendedByChallenge│  Suspendido por impugnación
+  │ Suspendida         │  Suspendido por impugnación
+  │(SuspendedByChall.) │
   └────────────────────┘
 
   ┌──────────┐
-  │  Closed  │  Proceso cerrado manualmente
+  │ Cerrado  │  Proceso cerrado manualmente
+  │ (Closed) │
+  └──────────┘
+
+  ┌──────────┐
+  │Cancelado │  Proceso cancelado
   └──────────┘
 ```
 
 ### Resumen de estados
 
-| Estado | Significado | ¿Siguiente paso? |
-|--------|-------------|------------------|
-| `Draft` | Borrador, en edición | Publicar |
-| `PendingApproval` | Esperando aprobación del circuito | Aprobar o rechazar |
-| `Approved` | Aprobado | Iniciar subasta o evaluar |
-| `Rejected` | Rechazado por el circuito | — (terminal) |
-| `InAuction` | Subasta en curso | Cerrar subasta |
-| `Evaluation` | Evaluando ofertas | Adjudicar |
-| `Adjudicated` | Ganador seleccionado | Generar contrato |
-| `Deserted` | Sin ofertas | — (terminal) |
-| `SuspendedByChallenge` | Suspendido | — (terminal) |
-| `Contracted` | Contrato firmado | Emitir orden de compra |
-| `PurchaseOrderIssued` | Orden emitida | Recibir bienes |
-| `Received` | Bienes recibidos | — (terminal exitoso) |
-| `Closed` | Cerrado manualmente | — (terminal) |
+| Estado | Valor backend | Significado | ¿Siguiente paso? |
+|--------|--------------|-------------|------------------|
+| Borrador | `Draft` | Borrador, en edición | Publicar |
+| Pendiente de aprobación | `PendingApproval` | Esperando aprobación del circuito | Aprobar o rechazar |
+| Aprobado | `Approved` | Aprobado | Iniciar subasta o evaluar |
+| Rechazado | `Rejected` | Rechazado por el circuito | — (terminal) |
+| En subasta | `InAuction` | Subasta en curso | Cerrar subasta |
+| Evaluación | `Evaluation` | Evaluando ofertas | Adjudicar |
+| Adjudicada | `Adjudicated` | Ganador seleccionado | Generar contrato |
+| Desierta | `Deserted` | Sin ofertas | — (terminal) |
+| Suspendida | `SuspendedByChallenge` | Suspendido | — (terminal) |
+| Contratado | `Contracted` | Contrato firmado | Emitir orden de compra |
+| Orden de compra | `PurchaseOrderIssued` | Orden emitida | Recibir bienes |
+| Recibido | `Received` | Bienes recibidos | — (terminal exitoso) |
+| Cerrado | `Closed` | Cerrado manualmente | — (terminal) |
+| Cancelada | — | Proceso cancelado | — (terminal) |
 
 ---
 

@@ -1,60 +1,69 @@
+import { Badge } from '../../../shared/ui/Badge'
+import { Card } from '../../../shared/ui/Card'
+import { Table } from '../../../shared/ui/Table'
+
 export function ProcesoResumen({ proceso, datos, modalidadActual, formatearPesos }) {
+  const itemRows = datos.items.map((item, index) => ({ ...item, id: index }))
+
   return (
-    <>
+    <div className="space-y-4">
       {proceso && (
-        <div className="perfil__solo-lectura" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span>Codigo del Proceso: <strong>{proceso.codigo}</strong></span>
-          <span>Fecha de Creacion: {proceso.creadoEn}</span>
-          <span>Estado: <strong style={{ color: 'var(--color-primario)' }}>{proceso.estado}</strong></span>
-          {proceso.specificationsHash && (
-            <span>Hash de Especificaciones: <code>{proceso.specificationsHash}</code></span>
-          )}
-        </div>
+        <Card hover={false} padding="sm">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <ResumenDato label="Codigo del proceso" value={<strong>{proceso.codigo}</strong>} />
+            <ResumenDato label="Fecha de creacion" value={proceso.creadoEn} />
+            <ResumenDato label="Estado" value={<Badge variant="info">{proceso.estado}</Badge>} />
+            {proceso.specificationsHash && (
+              <ResumenDato label="Hash de especificaciones" value={<code>{proceso.specificationsHash}</code>} />
+            )}
+          </dl>
+        </Card>
       )}
 
-      <div className="wizard-summary-section">
-        <h3 className="wizard-summary-section__title">Informacion General</h3>
-        <div className="wizard-summary-section__content">
-          <p><strong>Titulo:</strong> {datos.titulo}</p>
-          <p style={{ whiteSpace: 'pre-wrap' }}><strong>Descripcion:</strong> {datos.descripcion}</p>
-        </div>
-      </div>
+      <ResumenSeccion title="Informacion general">
+        <p><strong>Titulo:</strong> {datos.titulo}</p>
+        <p className="whitespace-pre-wrap"><strong>Descripcion:</strong> {datos.descripcion}</p>
+      </ResumenSeccion>
 
-      <div className="wizard-summary-section">
-        <h3 className="wizard-summary-section__title">Presupuesto y Modalidad</h3>
-        <div className="wizard-summary-section__content">
-          <p><strong>Presupuesto Estimado:</strong> {formatearPesos(Number(datos.presupuestoEstimado))}</p>
-          <p><strong>Modalidad:</strong> {modalidadActual?.name ?? 'No especificada'}</p>
-        </div>
-      </div>
+      <ResumenSeccion title="Presupuesto y modalidad">
+        <p><strong>Presupuesto estimado:</strong> {formatearPesos(Number(datos.presupuestoEstimado))}</p>
+        <p><strong>Modalidad:</strong> {modalidadActual?.name ?? 'No especificada'}</p>
+      </ResumenSeccion>
 
-      <div className="wizard-summary-section">
-        <h3 className="wizard-summary-section__title">Items Adquiridos ({datos.items.length})</h3>
-        <div className="wizard-summary-section__content">
-          <div className="overflow-x-auto w-full border border-border rounded-lg shadow-sm">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead>
-                <tr>
-                  <th>Descripcion</th>
-                  <th>Cantidad</th>
-                  <th>Unidad</th>
-                  <th>Precio Unitario Est.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {datos.items.map((item, idx) => (
-                  <tr key={`${item.description}:${idx}`}>
-                    <td>{item.description}</td>
-                    <td>{item.quantity}</td>
-                    <td>{item.unit}</td>
-                    <td>{item.estimatedUnitPrice ? formatearPesos(Number(item.estimatedUnitPrice)) : '---'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </>
+      <ResumenSeccion title={`Items adquiridos (${datos.items.length})`}>
+        <Table
+          data={itemRows}
+          sortable={false}
+          columns={[
+            { header: 'Descripcion', accessor: 'description' },
+            { header: 'Cantidad', accessor: 'quantity' },
+            { header: 'Unidad', accessor: 'unit' },
+            {
+              header: 'Precio unitario est.',
+              accessor: 'estimatedUnitPrice',
+              render: (value) => value ? formatearPesos(Number(value)) : '---',
+            },
+          ]}
+        />
+      </ResumenSeccion>
+    </div>
+  )
+}
+
+function ResumenSeccion({ title, children }) {
+  return (
+    <section className="rounded-md border border-border bg-surface p-4 shadow-sm">
+      <h3 className="m-0 mb-3 border-b border-border pb-3 text-base font-semibold text-text">{title}</h3>
+      <div className="space-y-2 text-sm text-text">{children}</div>
+    </section>
+  )
+}
+
+function ResumenDato({ label, value }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</dt>
+      <dd className="m-0 mt-1 text-sm text-text">{value}</dd>
+    </div>
   )
 }

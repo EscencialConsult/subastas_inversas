@@ -1,8 +1,11 @@
 import type { FormEvent } from 'react'
-import { Activity, Clock, Radio, TrendingDown } from 'lucide-react'
+import { Activity, Clock, TrendingDown } from 'lucide-react'
 import { Button } from '../../../shared/ui/Button'
+import { ConnectionStatus } from '../../../shared/ui/ConnectionStatus'
 import { DataTable, type DataTableColumn } from '../../../shared/ui/DataTable'
 import { FormSection } from '../../../shared/ui/FormSection'
+import { Input } from '../../../shared/ui/Input'
+import { Pagination, usePagination } from '../../../shared/ui/Pagination'
 import { StatusBadge } from '../../../shared/ui/StatusBadge'
 import type { LanceMapped } from '../../../shared/api/proveedoresApi'
 
@@ -12,6 +15,7 @@ interface SubastaLiveMetricsProps {
   estado: string
   mejorOferta: number
   minimoPermitido: number
+  precioAnterior: number
 }
 
 interface LanceFormProps {
@@ -31,12 +35,15 @@ export function SubastaLiveMetrics({
   estado,
   mejorOferta,
   minimoPermitido,
+  precioAnterior,
 }: SubastaLiveMetricsProps) {
+  const precioBajo = mejorOferta < precioAnterior
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <MetricCard icon={Radio} label="Conexion" value={conexion} />
+      <ConnectionStatus status={conexion} />
       <MetricCard icon={Activity} label="Estado" value={abierta ? 'Abierta' : etiquetaEstado(estado)} />
-      <MetricCard icon={TrendingDown} label="Mejor oferta" value={formatearPesos(mejorOferta)} featured />
+      <MetricCard icon={TrendingDown} label="Mejor oferta" value={formatearPesos(mejorOferta)} featured={precioBajo} />
       <MetricCard icon={Clock} label="Minimo valido" value={formatearPesos(minimoPermitido)} />
     </div>
   )
@@ -63,16 +70,16 @@ export function LanceForm({
       )}
     >
       <form className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]" onSubmit={onSubmit}>
-        <input
+        <Input
           type="number"
           min="0"
           step="0.01"
-          aria-label="Monto"
+          label="Monto"
           value={monto}
           onChange={(event) => onMontoChange(event.target.value)}
           disabled={!abierta || ofertando}
           placeholder="Monto ofertado"
-          className="w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-[border-color,box-shadow] placeholder:text-text-muted/60 focus:border-primary focus:shadow-focus disabled:cursor-default disabled:bg-background disabled:text-text-muted"
+          fieldClassName="mb-0"
         />
         <div className="flex items-end">
           <Button type="submit" loading={ofertando} disabled={!abierta || ofertando}>
@@ -85,6 +92,8 @@ export function LanceForm({
 }
 
 export function LancesTable({ lances }: { lances: LanceMapped[] }) {
+  const { paginatedItems, setPage, setPageSize, ...paginacion } = usePagination(lances as LanceRow[])
+
   const columns: Array<DataTableColumn<LanceRow>> = [
     {
       header: '#',
@@ -104,6 +113,7 @@ export function LancesTable({ lances }: { lances: LanceMapped[] }) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{formatearPesos(row.monto)}</span>
           {row.isPab && <StatusBadge status="pab" label="PAB" variant="error" />}
+          {row.subastaExtendida && <StatusBadge status="extendida" label="Extendida" variant="warning" />}
         </div>
       ),
     },
@@ -123,11 +133,12 @@ export function LancesTable({ lances }: { lances: LanceMapped[] }) {
     <FormSection title="Lances" description="Historial ordenado por secuencia de servidor.">
       <DataTable
         columns={columns}
-        rows={lances as LanceRow[]}
+        rows={paginatedItems}
         getRowId={(row) => row.id}
         emptyTitle="Sin lances"
         emptyDescription="Todavia no hay lances registrados."
       />
+      <Pagination {...paginacion} onPageChange={setPage} onPageSizeChange={setPageSize} />
     </FormSection>
   )
 }
@@ -144,12 +155,12 @@ function MetricCard({
   featured?: boolean
 }) {
   return (
-    <article className="rounded-md border border-border bg-surface px-4 py-4 shadow-sm">
+    <article className={`rounded-md border px-4 py-4 shadow-sm transition-colors duration-300 ${featured ? 'animate-pulse border-warning bg-warning-bg' : 'border-border bg-surface'}`}>
       <div className="flex items-center gap-2 text-sm font-medium text-text-muted">
         <Icon size={16} />
         <span>{label}</span>
       </div>
-      <p className={['mt-2 text-xl font-semibold', featured ? 'text-primary' : 'text-text'].join(' ')}>
+      <p className={`mt-2 text-xl font-semibold ${featured ? 'text-error' : 'text-text'}`}>
         {value}
       </p>
     </article>

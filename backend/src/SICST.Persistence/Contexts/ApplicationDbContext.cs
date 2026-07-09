@@ -50,6 +50,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<EvaluationCriterion> EvaluationCriteria => Set<EvaluationCriterion>();
     public DbSet<SupplierEvaluation> SupplierEvaluations => Set<SupplierEvaluation>();
     public DbSet<SupplierCriterionResult> SupplierCriterionResults => Set<SupplierCriterionResult>();
+    public DbSet<ArcaVerificationAudit> ArcaVerificationAudits => Set<ArcaVerificationAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

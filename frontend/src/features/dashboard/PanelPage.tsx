@@ -1,73 +1,151 @@
-// Panel de inicio (dashboard). Es generico: pide al backend el resumen
-// que corresponde al rol del usuario y lo dibuja. Asi, agregar/ajustar un panel
-// es cambiar datos en dashboardApi, no esta pantalla.
-
+import { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { getErrorMessage } from '../../shared/query/queryClient'
-import { Spinner } from '../../shared/ui/Spinner'
 import { Alert } from '../../shared/ui/Alert'
+import { Button } from '../../shared/ui/Button'
+import { Spinner } from '../../shared/ui/Spinner'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
 import { dashboardKeys, obtenerPanelQuery } from './data/dashboardData'
 
+interface PanelCard {
+  label: string
+  valor: unknown
+}
+
+interface PanelKpi {
+  label: string
+  valor: unknown
+  ayuda?: string
+}
+
+interface GraficoItem {
+  label: string
+  valor: unknown
+  display?: unknown
+  detalle?: string
+}
+
+interface PanelGrafico {
+  titulo: string
+  descripcion?: string
+  tipo: 'ranking' | 'bar'
+  items: GraficoItem[]
+}
+
+interface ListaItem {
+  texto: string
+  valor: unknown
+}
+
+interface PanelLista {
+  titulo: string
+  items: ListaItem[]
+}
+
+interface FeedItem {
+  id: string
+  to: string
+  tipo: string
+  titulo: string
+  detalle?: string
+  fecha: string
+}
+
+interface AccionItem {
+  to: string
+  texto: string
+}
+
+interface PanelData {
+  titulo: string
+  nota?: string
+  cards?: PanelCard[]
+  kpis?: PanelKpi[]
+  graficos?: PanelGrafico[]
+  listas?: PanelLista[]
+  feed?: FeedItem[]
+  acciones?: AccionItem[]
+}
+
 export function PanelPage() {
-  const { usuario, tenant, rol } = useAuth()
+  const { usuario: usuarioData, tenant, rol } = useAuth()
+
   const panelQuery = useQuery({
-    queryKey: dashboardKeys.panel(rol, usuario.tenantId),
-    queryFn: () => obtenerPanelQuery({ rol, tenantId: usuario.tenantId }),
+    queryKey: dashboardKeys.panel(rol, usuarioData?.tenantId),
+    queryFn: () => obtenerPanelQuery({ rol, tenantId: usuarioData?.tenantId ?? '' }),
+    enabled: Boolean(usuarioData),
   })
 
-  const panel = panelQuery.data
+  if (!usuarioData) return <PageShell><Alert variant="error">Sesión no disponible.</Alert></PageShell>
+  const usuario = usuarioData
+
+  const panel = panelQuery.data as PanelData | undefined
   const error = getErrorMessage(panelQuery.error, '')
 
-  if (panelQuery.isLoading) return <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-  if (!panel) return <Alert variant="error">{error}</Alert>
+  if (panelQuery.isLoading) {
+    return (
+      <PageShell>
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
+      </PageShell>
+    )
+  }
+
+  if (!panel) return <PageShell><Alert variant="error">{error}</Alert></PageShell>
 
   return (
-    <section>
-      <div className="panel-saludo">
-        <h1>Hola, {usuario.nombre}</h1>
-        <p>
-          {panel.titulo}
-          {tenant && ` · ${tenant.nombre}`}
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={`Hola, ${usuario.nombre}`}
+        description={
+          <>
+            {panel.titulo}
+            {tenant && <> &middot; {tenant.nombre}</>}
+          </>
+        }
+      />
 
       {panel.nota && <Alert variant="info">{panel.nota}</Alert>}
 
-      {panel.cards?.length > 0 && (
-        <div className="panel-cards">
+      {panel.cards && panel.cards.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {panel.cards.map((c) => (
-            <div key={c.label} className={`panel-card ${c.clase ?? ''}`}>
-              <span className="panel-card__valor">{c.valor}</span>
-              <span className="panel-card__label">{c.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {panel.kpis?.length > 0 && (
-        <div className="executive-kpis">
-          {panel.kpis.map((kpi) => (
-            <article className="executive-kpi" key={kpi.label}>
-              <span className="executive-kpi__label">{kpi.label}</span>
-              <strong className="executive-kpi__value">{kpi.valor}</strong>
-              <span className="executive-kpi__help">{kpi.ayuda}</span>
+            <article key={c.label} className="rounded-md border border-border bg-surface p-4 shadow-sm">
+              <span className="block text-2xl font-bold text-text">{c.valor as ReactNode}</span>
+              <span className="block text-sm text-text-muted">{c.label}</span>
             </article>
           ))}
         </div>
       )}
 
-      {panel.graficos?.length > 0 && (
-        <div className="executive-grid">
+      {panel.kpis && panel.kpis.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {panel.kpis.map((kpi) => (
+            <article key={kpi.label} className="rounded-md border border-border bg-surface p-4 shadow-sm">
+              <span className="block text-sm text-text-muted">{kpi.label}</span>
+              <strong className="mt-1 block text-xl font-semibold text-text">{kpi.valor as ReactNode}</strong>
+              {kpi.ayuda && <span className="mt-0.5 block text-xs text-text-muted">{kpi.ayuda}</span>}
+            </article>
+          ))}
+        </div>
+      )}
+
+      {panel.graficos && panel.graficos.length > 0 && (
+        <div className="grid gap-6 md:grid-cols-2">
           {panel.graficos.map((grafico) => (
-            <section className="executive-chart" key={grafico.titulo}>
-              <div className="executive-chart__header">
-                <h2>{grafico.titulo}</h2>
-                {grafico.descripcion && <p>{grafico.descripcion}</p>}
+            <section key={grafico.titulo} className="rounded-md border border-border bg-surface p-5 shadow-sm">
+              <div className="mb-4">
+                <h2 className="text-base font-semibold text-text">{grafico.titulo}</h2>
+                {grafico.descripcion && (
+                  <p className="mt-0.5 text-sm text-text-muted">{grafico.descripcion}</p>
+                )}
               </div>
               {grafico.items.length === 0 ? (
-                <p className="panel-lista__vacio">Sin datos.</p>
+                <p className="text-sm text-text-muted">Sin datos.</p>
               ) : grafico.tipo === 'ranking' ? (
                 <RankingChart items={grafico.items} />
               ) : (
@@ -78,78 +156,89 @@ export function PanelPage() {
         </div>
       )}
 
-      {panel.listas?.length > 0 && (
-        <div className="panel-listas-grid">
+      {panel.listas && panel.listas.length > 0 && (
+        <div className="grid gap-6 md:grid-cols-2">
           {panel.listas.map((lista) => (
-            <div key={lista.titulo} className="panel-lista">
-              <h2 className="text-lg font-semibold text-text">{lista.titulo}</h2>
+            <section key={lista.titulo} className="rounded-md border border-border bg-surface p-5 shadow-sm">
+              <h2 className="mb-3 text-base font-semibold text-text">{lista.titulo}</h2>
               {lista.items.length === 0 ? (
-                <p className="panel-lista__vacio">Sin datos.</p>
+                <p className="text-sm text-text-muted">Sin datos.</p>
               ) : (
-                <ul className="panel-lista__items">
+                <ul className="space-y-2">
                   {lista.items.map((it) => (
-                    <li key={it.texto}>
-                      <span>{it.texto}</span>
-                      <span className="panel-lista__valor">{it.valor}</span>
+                    <li key={it.texto} className="flex items-center justify-between text-sm">
+                      <span className="text-text">{it.texto}</span>
+                      <span className="font-semibold text-text-muted">{it.valor as ReactNode}</span>
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
+            </section>
           ))}
         </div>
       )}
 
-      {panel.feed?.length > 0 && (
-        <section className="activity-feed">
-          <div className="executive-chart__header">
-            <h2>Actividad reciente</h2>
-            <p>Ultimos movimientos relevantes de compras y subastas.</p>
+      {panel.feed && panel.feed.length > 0 && (
+        <section className="rounded-md border border-border bg-surface p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-text">Actividad reciente</h2>
+            <p className="mt-0.5 text-sm text-text-muted">Últimos movimientos relevantes de compras y subastas.</p>
           </div>
-          <div className="activity-feed__items">
+          <div className="divide-y divide-border">
             {panel.feed.map((item) => (
-              <Link className="activity-feed__item" key={item.id} to={item.to}>
-                <span className="activity-feed__type">{item.tipo}</span>
-                <span className="activity-feed__body">
-                  <strong>{item.titulo}</strong>
-                  <small>{item.detalle}</small>
+              <Link
+                key={item.id}
+                to={item.to}
+                className="flex flex-wrap items-center gap-3 py-3 text-sm transition-colors hover:bg-background/50 first:pt-0 last:pb-0"
+              >
+                <span className="rounded-md bg-muted/50 px-2 py-0.5 text-xs font-medium text-text-muted">
+                  {item.tipo}
                 </span>
-                <span className="activity-feed__date">{formatearFecha(item.fecha)}</span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block text-text">{item.titulo}</strong>
+                  {item.detalle && <small className="block text-text-muted">{item.detalle}</small>}
+                </span>
+                <span className="shrink-0 text-xs text-text-muted">
+                  {formatearFecha(item.fecha)}
+                </span>
               </Link>
             ))}
           </div>
         </section>
       )}
 
-      {panel.acciones?.length > 0 && (
-        <div className="panel-acciones">
+      {panel.acciones && panel.acciones.length > 0 && (
+        <div className="flex flex-wrap gap-3">
           {panel.acciones.map((a) => (
-            <Link key={a.to} to={a.to} className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60">
+            <Button key={a.to} as={Link} to={a.to}>
               {a.texto}
-            </Link>
+            </Button>
           ))}
         </div>
       )}
-    </section>
+    </PageShell>
   )
 }
 
-function BarChart({ items }) {
+function BarChart({ items }: { items: GraficoItem[] }) {
   const max = Math.max(...items.map((item) => Number(item.valor) || 0), 1)
 
   return (
-    <div className="bar-chart">
+    <div className="space-y-3">
       {items.map((item) => {
         const valor = Number(item.valor) || 0
         const width = `${Math.max(4, (valor / max) * 100)}%`
         return (
-          <div className="bar-chart__row" key={item.label}>
-            <div className="bar-chart__meta">
-              <span>{item.label}</span>
-              <strong>{item.display ?? valor}</strong>
+          <div key={item.label}>
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span className="text-text">{item.label}</span>
+              <strong className="text-text-muted">{(item.display ?? valor) as ReactNode}</strong>
             </div>
-            <div className="bar-chart__track" aria-hidden="true">
-              <span className="bar-chart__bar" style={{ width }} />
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted/50" aria-hidden="true">
+              <span
+                className="block h-full rounded-full bg-primary transition-all"
+                style={{ width }}
+              />
             </div>
           </div>
         )
@@ -158,24 +247,28 @@ function BarChart({ items }) {
   )
 }
 
-function RankingChart({ items }) {
+function RankingChart({ items }: { items: GraficoItem[] }) {
   const max = Math.max(...items.map((item) => Number(item.valor) || 0), 1)
 
   return (
-    <div className="ranking-chart">
+    <div className="space-y-3">
       {items.map((item, index) => {
         const valor = Number(item.valor) || 0
         const width = `${Math.max(5, (valor / max) * 100)}%`
         return (
-          <article className="ranking-chart__item" key={`${item.label}-${index}`}>
-            <div>
-              <span className="ranking-chart__position">#{index + 1}</span>
-              <strong>{item.label}</strong>
-              {item.detalle && <small>{item.detalle}</small>}
+          <article key={`${item.label}-${index}`} className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded bg-muted/50 text-xs font-bold text-text-muted">
+                #{index + 1}
+              </span>
+              <strong className="text-sm text-text">{item.label}</strong>
+              {item.detalle && <small className="ml-1 text-text-muted">{item.detalle}</small>}
             </div>
-            <span className="ranking-chart__value">{item.display ?? valor}</span>
-            <div className="bar-chart__track ranking-chart__track" aria-hidden="true">
-              <span className="bar-chart__bar" style={{ width }} />
+            <span className="shrink-0 text-sm font-semibold text-text-muted">
+              {(item.display ?? valor) as ReactNode}
+            </span>
+            <div className="h-1.5 w-full flex-1 overflow-hidden rounded-full bg-muted/50 md:w-32" aria-hidden="true">
+              <span className="block h-full rounded-full bg-primary" style={{ width }} />
             </div>
           </article>
         )
@@ -184,7 +277,7 @@ function RankingChart({ items }) {
   )
 }
 
-function formatearFecha(fecha) {
+function formatearFecha(fecha: string) {
   if (!fecha) return 'Sin fecha'
   return new Intl.DateTimeFormat('es-AR', {
     day: '2-digit',

@@ -54,7 +54,7 @@ export function Pagination({
   const to = Math.min((page + 1) * pageSize, totalItems)
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border border-border border-t-0 rounded-b-md bg-background text-sm">
+    <nav aria-label="Paginacion" className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border border-border border-t-0 rounded-b-md bg-background text-sm">
       <span className="text-text-muted">
         {from}-{to} de {totalItems}
       </span>
@@ -78,10 +78,11 @@ export function Pagination({
           size="sm"
           disabled={page === 0}
           onClick={() => onPageChange(page - 1)}
+          aria-label="Pagina anterior"
         >
           Anterior
         </Button>
-        <span className="text-text-muted min-w-16 text-center">
+        <span className="text-text-muted min-w-16 text-center" aria-current="page">
           {page + 1} / {totalPages}
         </span>
         <Button
@@ -89,10 +90,11 @@ export function Pagination({
           size="sm"
           disabled={page >= totalPages - 1}
           onClick={() => onPageChange(page + 1)}
+          aria-label="Pagina siguiente"
         >
           Siguiente
         </Button>
       </div>
-    </div>
+    </nav>
   )
 }

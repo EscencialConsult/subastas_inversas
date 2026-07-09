@@ -33,6 +33,7 @@ public interface IApplicationDbContext
     DbSet<PurchaseOrder> PurchaseOrders { get; }
     DbSet<ReceptionConfirmation> ReceptionConfirmations { get; }
     DbSet<ReceptionConfirmationItem> ReceptionConfirmationItems { get; }
+    DbSet<ArcaVerificationAudit> ArcaVerificationAudits { get; }
     DbSet<AuditEvent> AuditEvents { get; }
     DbSet<AccessLog> AccessLogs { get; }
     DbSet<OutboxMessage> OutboxMessages { get; }

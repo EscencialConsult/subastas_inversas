@@ -71,6 +71,11 @@ export const RevisionListaParaPublicar = {
     await expect(args.formState.irAlPaso).toHaveBeenCalledWith(1)
 
     await userEvent.click(canvas.getByRole('button', { name: /Publicar Proceso/i }))
+
+    const dialog = canvas.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /Publicar/i }))
     await expect(args.formState.publicar).toHaveBeenCalled()
   },
 }

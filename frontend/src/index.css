@@ -4,12 +4,13 @@
 @theme {
   --color-primary: #1d4ed8;
   --color-primary-hover: #1e40af;
-  --color-primary-light: #dbeafe;
+  --color-primary-soft: #dbeafe;
+  --color-primary-light: var(--color-primary-soft);
   --color-secondary: #64748b;
   --color-surface: #ffffff;
   --color-background: #f8fafc;
-  --color-border: #e2e8f0;
-  --color-text: #1e293b;
+  --color-border: #cbd5e1;
+  --color-text: #0f172a;
   --color-text-muted: #64748b;
   --color-success: #166534;
   --color-success-bg: #dcfce7;
@@ -18,8 +19,8 @@
   --color-error: #991b1b;
   --color-error-hover: #7f1d1d;
   --color-error-bg: #fee2e2;
-  --color-info: #1e40af;
-  --color-info-bg: #dbeafe;
+  --color-info: #0369a1;
+  --color-info-bg: #e0f2fe;
   --color-off-bg: #f1f5f9;
   --color-focus-ring: rgb(29 78 216 / 0.16);
   --color-error-ring: rgb(153 27 27 / 0.14);
@@ -30,9 +31,26 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
-  --spacing-page: 32px;
-  --spacing-section: 24px;
-  --spacing-field: 16px;
+  --spacing-ui-1: 4px;
+  --spacing-ui-2: 8px;
+  --spacing-ui-3: 12px;
+  --spacing-ui-4: 16px;
+  --spacing-ui-5: 20px;
+  --spacing-ui-6: 24px;
+  --spacing-ui-8: 32px;
+  --spacing-ui-10: 40px;
+  --spacing-ui-12: 48px;
+  --spacing-page: var(--spacing-ui-8);
+  --spacing-section: var(--spacing-ui-6);
+  --spacing-field: var(--spacing-ui-4);
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
 
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
@@ -44,38 +62,32 @@
 }
 
 :root {
-  --color-fondo: #f8fafc;
-  --color-superficie: #ffffff;
-  --color-borde: #e2e8f0;
-  --color-texto: #1e293b;
-  --color-texto-suave: #64748b;
-  --color-primario: #1d4ed8;
-  --color-primario-hover: #1e40af;
-  --color-primario-claro: #dbeafe;
-  --color-ok-bg: #dcfce7;
-  --color-ok-tx: #166534;
-  --color-off-bg: #f1f5f9;
-  --color-off-tx: #64748b;
-  --color-error-bg: #fee2e2;
-  --color-error-tx: #991b1b;
-  --color-error-hover: #7f1d1d;
-  --color-warn-bg: #fef3c7;
-  --color-warn-tx: #92400e;
-  --color-info-bg: #dbeafe;
-  --color-info-tx: #1e40af;
-  --color-focus-ring: rgb(29 78 216 / 0.16);
-  --color-error-ring: rgb(153 27 27 / 0.14);
-  --radio: 8px;
-  --radio-lg: 12px;
-  --space-page: 32px;
-  --space-section: 24px;
-  --space-field: 16px;
-  --sombra: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-  --sombra-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
-  --sombra-lg: 0 10px 25px -5px rgb(0 0 0 / 0.1);
+  /* Legacy aliases kept temporarily while feature screens migrate to English tokens. */
+  --color-fondo: var(--color-background);
+  --color-superficie: var(--color-surface);
+  --color-borde: var(--color-border);
+  --color-texto: var(--color-text);
+  --color-texto-suave: var(--color-text-muted);
+  --color-primario: var(--color-primary);
+  --color-primario-hover: var(--color-primary-hover);
+  --color-primario-claro: var(--color-primary-soft);
+  --color-ok-bg: var(--color-success-bg);
+  --color-ok-tx: var(--color-success);
+  --color-off-tx: var(--color-text-muted);
+  --color-error-tx: var(--color-error);
+  --color-warn-bg: var(--color-warning-bg);
+  --color-warn-tx: var(--color-warning);
+  --color-info-tx: var(--color-info);
+  --radio: var(--radius-md);
+  --radio-lg: var(--radius-lg);
+  --space-page: var(--spacing-page);
+  --space-section: var(--spacing-section);
+  --space-field: var(--spacing-field);
+  --sombra: var(--shadow-sm);
+  --sombra-md: var(--shadow-md);
+  --sombra-lg: var(--shadow-lg);
   --sombra-focus: 0 0 0 3px var(--color-focus-ring);
   --sombra-error-focus: 0 0 0 3px var(--color-error-ring);
-  --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
 
   font-family: 'Source Sans 3', system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--color-texto);
@@ -122,6 +134,28 @@ h1 {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(80px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@utility animate-fadeIn {
+  animation: fadeIn 0.22s ease-out;
+}
+
+@utility animate-slideIn {
+  animation: slideInRight 0.25s ease-out;
+}
+
+@utility animate-slideInLeft {
+  animation: slideInLeft 0.25s ease-out;
 }
 
 /* ===========================================================
@@ -228,6 +262,16 @@ h1 {
 @utility badge--error {
   background: var(--color-error-bg);
   color: var(--color-error-tx);
+}
+
+@utility badge--info {
+  background: var(--color-info-bg);
+  color: var(--color-info-tx);
+}
+
+@utility badge--off {
+  background: var(--color-off-bg);
+  color: var(--color-off-tx);
 }
 
 @utility badge--neutral {
@@ -871,38 +915,6 @@ h1 {
   flex: 1;
   min-width: 220px;
   max-width: 320px;
-}
-
-/* ===========================================================
-   8. Badges de estado
-   =========================================================== */
-.badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-.badge--ok {
-  background: var(--color-ok-bg);
-  color: var(--color-ok-tx);
-}
-.badge--off {
-  background: var(--color-off-bg);
-  color: var(--color-off-tx);
-}
-.badge--warn {
-  background: var(--color-warn-bg);
-  color: var(--color-warn-tx);
-}
-.badge--info {
-  background: var(--color-info-bg);
-  color: var(--color-info-tx);
-}
-.badge--error {
-  background: var(--color-error-bg);
-  color: var(--color-error-tx);
 }
 
 /* ===========================================================

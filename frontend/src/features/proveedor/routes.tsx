@@ -3,6 +3,8 @@ import { esProveedor, puedeVerProveedores, puedeEvaluar } from '../../auth/permi
 import type { AppRouteDefinition } from '../../app/routes/types'
 
 const ProveedorHomePage = lazy(() => import('./ProveedorHomePage').then(m => ({ default: m.ProveedorHomePage })))
+const ProveedorDocumentacionPage = lazy(() => import('./ProveedorDocumentacionPage').then(m => ({ default: m.ProveedorDocumentacionPage })))
+const ProveedorArcaPage = lazy(() => import('./ProveedorArcaPage').then(m => ({ default: m.ProveedorArcaPage })))
 const ProveedorOportunidadesPage = lazy(() => import('./ProveedorOportunidadesPage').then(m => ({ default: m.ProveedorOportunidadesPage })))
 const ProveedorSubastaLivePage = lazy(() => import('./pages/ProveedorSubastaLivePage').then(m => ({ default: m.ProveedorSubastaLivePage })))
 const ProveedoresDirectorioPage = lazy(() => import('./ProveedoresDirectorioPage').then(m => ({ default: m.ProveedoresDirectorioPage })))
@@ -16,6 +18,8 @@ export const proveedorPublicRoutes: AppRouteDefinition[] = [
 
 export const proveedorRoutes: AppRouteDefinition[] = [
   { path: 'proveedor', element: <ProveedorHomePage />, permiso: esProveedor },
+  { path: 'proveedor/arca', element: <ProveedorArcaPage />, permiso: esProveedor },
+  { path: 'proveedor/documentacion', element: <ProveedorDocumentacionPage />, permiso: esProveedor },
   { path: 'proveedor/oportunidades', element: <ProveedorOportunidadesPage />, permiso: esProveedor },
   { path: 'proveedor/subastas/:auctionId', element: <ProveedorSubastaLivePage />, permiso: esProveedor },
   { path: 'proveedores', element: <ProveedoresDirectorioPage />, permiso: puedeVerProveedores },

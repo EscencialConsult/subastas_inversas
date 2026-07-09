@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -9,10 +9,13 @@ import {
 import { ESTADO_INFO, etiquetaEstado } from '../../../domain/compras'
 import { getErrorMessage } from '../../../shared/query/queryClient'
 import { Alert } from '../../../shared/ui/Alert'
+import { Badge } from '../../../shared/ui/Badge'
 import { Button } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
 import { LoadingState } from '../../../shared/ui/StateViews'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { PageShell } from '../../../shared/ui/PageShell'
+import { Pagination, usePagination } from '../../../shared/ui/Pagination'
 import { StatusBadge } from '../../../shared/ui/StatusBadge'
 import { portalPublicoQuery, publicoKeys } from '../data/publicoData'
 
@@ -34,10 +37,18 @@ export function PortalPublicoPage() {
   const [busqueda, setBusqueda] = useState('')
   const [estado, setEstado] = useState('')
   const [tabActiva, setTabActiva] = useState<TabId>('procesos')
+  const [busquedaDebounced, setBusquedaDebounced] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setBusquedaDebounced(busqueda), 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [busqueda])
 
   const portalQuery = useQuery({
-    queryKey: publicoKeys.portal({ busqueda, estado }),
-    queryFn: () => portalPublicoQuery({ busqueda, estado }),
+    queryKey: publicoKeys.portal({ busqueda: busquedaDebounced, estado }),
+    queryFn: () => portalPublicoQuery({ busqueda: busquedaDebounced, estado }),
     placeholderData: (previousData) => previousData,
   })
 
@@ -55,6 +66,10 @@ export function PortalPublicoPage() {
     ],
     [adjudicaciones.length, procesos.length, subastas.length],
   )
+
+  const pagProcesos = usePagination(procesos, { initialPageSize: 10 })
+  const pagSubastas = usePagination(subastas, { initialPageSize: 10 })
+  const pagAdjudicaciones = usePagination(adjudicaciones, { initialPageSize: 10 })
 
   const tabs = useMemo(
     () => [
@@ -83,11 +98,11 @@ export function PortalPublicoPage() {
 
       <section className="grid gap-3 md:grid-cols-3">
         {metricas.map((metrica) => (
-          <article className="rounded-md border border-border bg-surface px-5 py-4 shadow-sm" key={metrica.label}>
+          <Card key={metrica.label} padding="lg" hover={false}>
             <span className="text-sm font-medium text-text-muted">{metrica.label}</span>
             <strong className="mt-2 block text-3xl font-semibold text-text">{metrica.value}</strong>
             <p className="mt-1 text-sm text-text-muted">{metrica.help}</p>
-          </article>
+          </Card>
         ))}
       </section>
 
@@ -144,74 +159,109 @@ export function PortalPublicoPage() {
             >
               {cargando ? (
                 <LoadingState label="Cargando procesos..." />
-              ) : procesos.length === 0 ? (
+              ) : pagProcesos.totalItems === 0 ? (
                 <EmptyMessage title="Todavia no hay procesos publicados" text="Cuando existan procesos abiertos, en subasta o adjudicados van a aparecer en esta seccion." />
               ) : (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {procesos.map((proceso) => (
-                    <article className="rounded-md border border-border bg-background p-4" key={proceso.id}>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <code className="text-xs font-semibold text-primary">{proceso.codigo}</code>
-                        <StatusBadge status={proceso.estado} label={etiquetaEstado(proceso.estado)} variant={ESTADO_BADGE[proceso.estado] ?? 'neutral'} />
-                      </div>
-                      <h3 className="mt-3 text-base font-semibold text-text">{proceso.titulo}</h3>
-                      <p className="mt-2 line-clamp-3 text-sm text-text-muted">{proceso.descripcion || 'Sin descripcion publica cargada.'}</p>
-                      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                        <Dato label="Organismo" value={proceso.empresa} />
-                        <Dato label="Presupuesto" value={formatearPesos(proceso.presupuestoEstimado)} />
-                        <Dato label="Publicado" value={formatearFecha(proceso.publicadoEn ?? proceso.creadoEn)} />
-                      </dl>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button variant="secondary" onClick={() => navigate(`/portal/procesos/${proceso.id}`)}>Ver ficha</Button>
-                        {proceso.tieneSubasta && <Button onClick={() => navigate(`/portal/subasta/${proceso.id}`)}>Ver subasta</Button>}
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                <>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {pagProcesos.paginatedItems.map((proceso) => (
+                      <Card key={proceso.id} hover padding="md" className="flex flex-col">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <code className="text-xs font-semibold text-primary">{proceso.codigo}</code>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {proceso.tieneSubasta && (
+                              <Badge variant="warning">Subasta activa</Badge>
+                            )}
+                            <StatusBadge status={proceso.estado} label={etiquetaEstado(proceso.estado)} variant={ESTADO_BADGE[proceso.estado] ?? 'neutral'} />
+                          </div>
+                        </div>
+                        <h3 className="mt-3 text-base font-semibold text-text">{proceso.titulo}</h3>
+                        <p className="mt-2 line-clamp-3 text-sm text-text-muted">{proceso.descripcion || 'Sin descripcion publica cargada.'}</p>
+                        <dl className="mt-auto grid gap-3 pt-4 text-sm sm:grid-cols-3">
+                          <Dato label="Organismo" value={proceso.empresa} />
+                          <Dato label="Presupuesto" value={formatearPesos(proceso.presupuestoEstimado)} />
+                          <Dato label="Publicado" value={formatearFecha(proceso.publicadoEn ?? proceso.creadoEn)} />
+                        </dl>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Button variant="secondary" onClick={() => navigate(`/portal/procesos/${proceso.id}`)}>Ver ficha</Button>
+                          {proceso.tieneSubasta && <Button onClick={() => navigate(`/portal/subasta/${proceso.id}`)}>Ver subasta</Button>}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                  <Pagination
+                    page={pagProcesos.page}
+                    pageSize={pagProcesos.pageSize}
+                    totalItems={pagProcesos.totalItems}
+                    totalPages={pagProcesos.totalPages}
+                    onPageChange={pagProcesos.setPage}
+                    onPageSizeChange={pagProcesos.setPageSize}
+                  />
+                </>
               )}
             </PanelTab>
           )}
 
           {tabActiva === 'subastas' && (
             <PanelTab title="Subastas publicadas" description="Seguimiento anonimo de precios, lances y cierres de subastas activas o finalizadas.">
-              {cargando ? <LoadingState label="Buscando subastas..." /> : subastas.length === 0 ? (
+              {cargando ? <LoadingState label="Buscando subastas..." /> : pagSubastas.totalItems === 0 ? (
                 <EmptyMessage title="No hay subastas publicadas" text="Cuando existan procesos con subasta, van a aparecer aca para seguimiento de precio y lances." />
               ) : (
-                <div className="space-y-3">
-                  {subastas.map((subasta) => (
-                    <PublicRow
-                      key={subasta.id}
-                      code={subasta.codigo}
-                      title={subasta.titulo}
-                      description={subasta.empresa}
-                      value={formatearPesos(subasta.precioActual)}
-                      detail={`${subasta.finalizada ? 'Finalizada' : 'Activa'} - ${subasta.cantidadLances} lances`}
-                      action="Ver detalle"
-                      onClick={() => navigate(`/portal/procesos/${subasta.procesoId}`)}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-3">
+                    {pagSubastas.paginatedItems.map((subasta) => (
+                      <PublicRow
+                        key={subasta.id}
+                        code={subasta.codigo}
+                        title={subasta.titulo}
+                        description={subasta.empresa}
+                        value={formatearPesos(subasta.precioActual)}
+                        detail={`${subasta.finalizada ? 'Finalizada' : 'Activa'} - ${subasta.cantidadLances} lances`}
+                        action="Ver detalle"
+                        onClick={() => navigate(`/portal/procesos/${subasta.procesoId}`)}
+                      />
+                    ))}
+                  </div>
+                  <Pagination
+                    page={pagSubastas.page}
+                    pageSize={pagSubastas.pageSize}
+                    totalItems={pagSubastas.totalItems}
+                    totalPages={pagSubastas.totalPages}
+                    onPageChange={pagSubastas.setPage}
+                    onPageSizeChange={pagSubastas.setPageSize}
+                  />
+                </>
               )}
             </PanelTab>
           )}
 
           {tabActiva === 'adjudicaciones' && (
             <PanelTab title="Resultados adjudicados" description="Adjudicaciones publicadas para consulta de proveedores, montos y fechas.">
-              {cargando ? <LoadingState label="Cargando adjudicaciones..." /> : adjudicaciones.length === 0 ? (
+              {cargando ? <LoadingState label="Cargando adjudicaciones..." /> : pagAdjudicaciones.totalItems === 0 ? (
                 <EmptyMessage title="Todavia no hay adjudicaciones publicadas" text="Cuando se registren adjudicaciones, el resultado del proceso va a quedar visible aca." />
               ) : (
-                <div className="space-y-3">
-                  {adjudicaciones.map((adjudicacion) => (
-                    <PublicRow
-                      key={adjudicacion.id}
-                      code={adjudicacion.codigo}
-                      title={adjudicacion.titulo}
-                      description={`${adjudicacion.empresa} - ${adjudicacion.proveedor}`}
-                      value={formatearPesos(adjudicacion.monto)}
-                      detail={formatearFecha(adjudicacion.adjudicadoEn)}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-3">
+                    {pagAdjudicaciones.paginatedItems.map((adjudicacion) => (
+                      <PublicRow
+                        key={adjudicacion.id}
+                        code={adjudicacion.codigo}
+                        title={adjudicacion.titulo}
+                        description={`${adjudicacion.empresa} - ${adjudicacion.proveedor}`}
+                        value={formatearPesos(adjudicacion.monto)}
+                        detail={formatearFecha(adjudicacion.adjudicadoEn)}
+                      />
+                    ))}
+                  </div>
+                  <Pagination
+                    page={pagAdjudicaciones.page}
+                    pageSize={pagAdjudicaciones.pageSize}
+                    totalItems={pagAdjudicaciones.totalItems}
+                    totalPages={pagAdjudicaciones.totalPages}
+                    onPageChange={pagAdjudicaciones.setPage}
+                    onPageSizeChange={pagAdjudicaciones.setPageSize}
+                  />
+                </>
               )}
             </PanelTab>
           )}
@@ -273,7 +323,7 @@ function PublicRow({
   onClick?: () => void
 }) {
   return (
-    <article className="grid gap-3 rounded-md border border-border bg-background p-4 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+    <Card hover padding="md" className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
       <div>
         <code className="text-xs font-semibold text-primary">{code}</code>
         <h3 className="mt-1 text-base font-semibold text-text">{title}</h3>
@@ -284,7 +334,7 @@ function PublicRow({
         <small className="text-text-muted">{detail}</small>
       </div>
       {action && <Button variant="link" onClick={onClick}>{action}</Button>}
-    </article>
+    </Card>
   )
 }
 

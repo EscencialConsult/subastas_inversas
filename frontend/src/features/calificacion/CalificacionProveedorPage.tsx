@@ -1,40 +1,66 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SearchX } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
+import { puedeCalificarProveedores } from '../../auth/permisos'
 import { getErrorMessage } from '../../shared/query/queryClient'
-import { Badge } from '../../shared/ui/Badge'
 import { Alert } from '../../shared/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
+import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
-import { Spinner } from '../../shared/ui/Spinner'
+import { FormActions } from '../../shared/ui/FormActions'
+import { FormSection } from '../../shared/ui/FormSection'
+import { LoadingState } from '../../shared/ui/StateViews'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
+import { Textarea } from '../../shared/ui/Textarea'
 import { calificacionKeys, calificacionProveedorQuery, calificarProveedorMutation } from './data/calificacionData'
 
-const CLASE_CALIFICACION = {
-  pendiente: 'info',
-  aprobado: 'success',
-  observado: 'warning',
-  rechazado: 'error',
+interface Calificacion {
+  estado: string
+  evaluador?: string
+  notas?: string
+  fecha?: string
 }
 
-const ETIQUETA_CALIFICACION = {
+interface Proveedor {
+  businessName: string
+  cuit: string
+  calificacion?: Calificacion | null
+}
+
+interface Proceso {
+  titulo: string
+  codigo: string
+}
+
+const CLASE_CALIFICACION = {
+  pendiente: 'info' as const,
+  aprobado: 'success' as const,
+  observado: 'warning' as const,
+  rechazado: 'error' as const,
+}
+
+const ETIQUETA_CALIFICACION: Record<string, string> = {
   pendiente: 'Pendiente',
   aprobado: 'Aprobado',
   observado: 'Observado',
   rechazado: 'Rechazado',
 }
 
-const ESTADOS_REVERSE = {
-  aprobado: 'Approved',
-  observado: 'Observed',
-  rechazado: 'Rejected',
-}
+const OPCIONES_CALIFICACION = [
+  { value: 'Approved', label: 'Aprobado', desc: 'Podrá participar en la subasta' },
+  { value: 'Observed', label: 'Observado', desc: 'No podrá participar (subsanable)' },
+  { value: 'Rejected', label: 'Rechazado', desc: 'No podrá participar' },
+] as const
 
 export function CalificacionProveedorPage() {
-  const { tenantId, usuario } = useAuth()
+  const { tenantId, usuario, rol } = useAuth()
   const { id: procesoId, invitationId } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const puedeCalificar = puedeCalificarProveedores(rol)
 
   const [estadoSeleccionado, setEstadoSeleccionado] = useState('')
   const [fundamento, setFundamento] = useState('')
@@ -49,32 +75,44 @@ export function CalificacionProveedorPage() {
 
   const calificarMutation = useMutation({
     mutationFn: calificarProveedorMutation,
-    onSuccess: async (result) => {
+    onSuccess: async (result: { calificacion: { estado: string } }) => {
       setExito(`Proveedor calificado como "${ETIQUETA_CALIFICACION[result.calificacion.estado]}".`)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: calificacionKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: calificacionKeys.detail(tenantId, procesoId) }),
-        queryClient.invalidateQueries({ queryKey: [...calificacionKeys.detail(tenantId, procesoId), 'proveedor', invitationId] }),
+        queryClient.invalidateQueries({
+          queryKey: [...calificacionKeys.detail(tenantId, procesoId), 'proveedor', invitationId],
+        }),
       ])
     },
   })
 
-  const proceso = proveedorQuery.data?.proceso
-  const proveedor = proveedorQuery.data?.proveedor
+  const data = proveedorQuery.data as { proceso?: Proceso; proveedor?: Proveedor } | undefined
+  const proceso = data?.proceso
+  const proveedor = data?.proveedor
+  const [califInit, setCalifInit] = useState(false)
 
-  useEffect(() => {
-    if (!proveedor?.calificacion || proveedor.calificacion.estado === 'pendiente') return
-    setEstadoSeleccionado(ESTADOS_REVERSE[proveedor.calificacion.estado] ?? '')
+  if (proveedor?.calificacion && proveedor.calificacion.estado !== 'pendiente' && !califInit) {
+    setCalifInit(true)
+    setEstadoSeleccionado(
+      proveedor.calificacion.estado === 'aprobado'
+        ? 'Approved'
+        : proveedor.calificacion.estado === 'observado'
+          ? 'Observed'
+          : 'Rejected',
+    )
     setFundamento(proveedor.calificacion.notas ?? '')
-  }, [proveedor])
+  }
 
   function irAtras() {
     navigate(`/calificacion/${procesoId}`)
   }
 
   async function handleGuardar() {
+    if (!puedeCalificar) return
+
     if (!estadoSeleccionado) {
-      setValidacion('Debe seleccionar un estado de calificacion.')
+      setValidacion('Debe seleccionar un estado de calificación.')
       return
     }
 
@@ -94,9 +132,9 @@ export function CalificacionProveedorPage() {
     }
   }
 
-  if (proveedorQuery.isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (proveedorQuery.isLoading) return <LoadingState label="Cargando proveedor..." />
 
-  const error = validacion || getErrorMessage(calificarMutation.error ?? proveedorQuery.error, !proveedor ? 'Proveedor no encontrado en este proceso.' : '')
+  const error = validacion || getErrorMessage(calificarMutation.error ?? proveedorQuery.error, '')
   if (error && !proveedor) return <Alert variant="error">{error}</Alert>
   if (!proceso || !proveedor) return <EmptyState icon={SearchX} title="Sin datos" description="Datos no disponibles." />
 
@@ -104,112 +142,110 @@ export function CalificacionProveedorPage() {
   const yaCalificado = cal && cal.estado !== 'pendiente'
 
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={irAtras}>
-          &larr; Volver al proceso
-        </button>
-        <h1>{proveedor.businessName}</h1>
-        <p className="proceso__descripcion">
-          <code>{proveedor.cuit}</code> &middot; {proceso.titulo} (<code>{proceso.codigo}</code>)
-          {cal && (
-            <span>
-              &middot; Calificacion actual:{' '}
-              <Badge variant={CLASE_CALIFICACION[cal.estado] ?? 'info'}>
-                {ETIQUETA_CALIFICACION[cal.estado]}
-              </Badge>
-            </span>
-          )}
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={proveedor.businessName}
+        description={
+          <>
+            <code>{proveedor.cuit}</code> &middot; {proceso.titulo} (<code>{proceso.codigo}</code>)
+            {cal && (
+              <span>
+                &middot; Calificación actual:{' '}
+                <Badge variant={CLASE_CALIFICACION[cal.estado] ?? 'info'}>
+                  {ETIQUETA_CALIFICACION[cal.estado]}
+                </Badge>
+              </span>
+            )}
+          </>
+        }
+        actions={
+          <Button variant="ghost" onClick={irAtras}>
+            &larr; Volver al proceso
+          </Button>
+        }
+      />
 
       {error && <Alert variant="error">{error}</Alert>}
       {exito && <Alert variant="success">{exito}</Alert>}
+      {!puedeCalificar && (
+        <Alert variant="info">
+          Vista de solo lectura. La calificación de proveedores corresponde al evaluador.
+        </Alert>
+      )}
 
       {yaCalificado && (
         <Alert variant="info">
           {cal.estado === 'aprobado'
-            ? 'Este proveedor ya fue aprobado y no se puede modificar su calificacion.'
+            ? 'Este proveedor ya fue aprobado y no se puede modificar su calificación.'
             : cal.estado === 'observado'
-              ? 'Este proveedor fue observado. Puede cambiarlo a Aprobado si subsano las observaciones.'
+              ? 'Este proveedor fue observado. Puede cambiarlo a Aprobado si subsanó las observaciones.'
               : 'Este proveedor fue rechazado.'}
           {cal.evaluador && <span> Evaluado por: {cal.evaluador}.</span>}
           {cal.fecha && <span> Fecha: {new Date(cal.fecha).toLocaleDateString()}.</span>}
         </Alert>
       )}
 
-      {(!yaCalificado || (yaCalificado && cal.estado === 'observado')) && (
-        <div className="rounded-md border border-border bg-surface p-5 shadow-sm" style={{ maxWidth: 600 }}>
-          <h2 className="text-lg font-semibold text-text">Calificacion</h2>
+      {puedeCalificar && (!yaCalificado || (yaCalificado && cal.estado === 'observado')) && (
+        <FormSection title="Calificación">
+          <div className="space-y-4">
+            <fieldset>
+              <legend className="mb-2 text-sm font-semibold text-text">
+                Estado <span className="text-error">*</span>
+              </legend>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {OPCIONES_CALIFICACION.map((op) => (
+                  <button
+                    key={op.value}
+                    type="button"
+                    className={[
+                      'rounded-md border px-4 py-3 text-center text-sm font-medium transition-colors',
+                      estadoSeleccionado === op.value
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-border bg-surface text-text hover:bg-background',
+                    ].join(' ')}
+                    onClick={() => setEstadoSeleccionado(op.value)}
+                  >
+                    <div className="font-semibold">{op.label}</div>
+                    <div className="mt-0.5 text-xs opacity-70">{op.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
 
-          <div className="campo">
-            <label className="campo__etiqueta">Estado *</label>
-            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-              {[
-                { value: 'Approved', label: 'Aprobado', desc: 'Podra participar en la subasta' },
-                { value: 'Observed', label: 'Observado', desc: 'No podra participar (subsanable)' },
-                { value: 'Rejected', label: 'Rechazado', desc: 'No podra participar' },
-              ].map((op) => (
-                <label
-                  key={op.value}
-                  className={[
-                    'flex-1 cursor-pointer rounded-md border px-3 py-3 text-center text-sm font-medium transition-colors',
-                    estadoSeleccionado === op.value
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-border bg-surface text-text hover:bg-background',
-                  ].join(' ')}
-                >
-                  <input
-                    type="radio"
-                    name="estado"
-                    value={op.value}
-                    checked={estadoSeleccionado === op.value}
-                    onChange={(event) => setEstadoSeleccionado(event.target.value)}
-                    style={{ display: 'none' }}
-                  />
-                  <div><strong>{op.label}</strong></div>
-                  <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{op.desc}</div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="campo">
-            <label className="campo__etiqueta" htmlFor="fundamento">
-              Fundamento {estadoSeleccionado === 'Rejected' ? '*' : '(opcional)'}
-            </label>
-            <textarea
-              id="fundamento"
-              className="campo__input"
-              rows={4}
-              placeholder="Explique el motivo de la calificacion..."
+            <Textarea
+              label={
+                <>
+                  Fundamento{' '}
+                  {estadoSeleccionado === 'Rejected' ? (
+                    <span className="text-error">*</span>
+                  ) : (
+                    <span className="text-text-muted">(opcional)</span>
+                  )}
+                </>
+              }
+              placeholder="Explique el motivo de la calificación..."
               value={fundamento}
-              onChange={(event) => setFundamento(event.target.value)}
+              onChange={(e) => setFundamento(e.target.value)}
+              rows={4}
             />
           </div>
 
-          <div className="flex flex-wrap justify-end gap-2">
-            <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={irAtras}>
+          <FormActions>
+            <Button variant="ghost" onClick={irAtras}>
               Cancelar
-            </button>
-            <button
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60"
-              onClick={handleGuardar}
-              disabled={calificarMutation.isPending}
-            >
-              {calificarMutation.isPending ? 'Guardando...' : 'Guardar calificacion'}
-            </button>
-          </div>
-        </div>
+            </Button>
+            <Button onClick={handleGuardar} loading={calificarMutation.isPending}>
+              Guardar calificación
+            </Button>
+          </FormActions>
+        </FormSection>
       )}
 
-      {yaCalificado && cal.estado !== 'observado' && (
-        <div className="flex flex-wrap justify-end gap-2">
-          <button className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" onClick={irAtras}>
-            Volver
-          </button>
-        </div>
+      {(!puedeCalificar || (yaCalificado && cal.estado !== 'observado')) && (
+        <FormActions>
+          <Button onClick={irAtras}>Volver</Button>
+        </FormActions>
       )}
-    </section>
+    </PageShell>
   )
 }

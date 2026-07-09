@@ -1,10 +1,6 @@
-// Adjudicación por el COMPRADOR: tras cerrar la subasta, elige el proveedor
-// ganador (propone). Queda pendiente de la aprobación de la Autoridad.
-//
-// En subasta inversa la mejor oferta es la más baja; viene preseleccionada,
-// pero el comprador puede elegir otra si la más baja no corresponde.
+// Adjudicacion por el comprador: tras cerrar la subasta, elige el proveedor ganador.
 
-import { FormEvent, ReactNode, useEffect, useState } from 'react'
+import { FormEvent, ReactNode, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
@@ -15,9 +11,16 @@ import {
   procesosKeys,
   suspenderProcesoPorImpugnacionMutation,
 } from './data/procesosData'
-import { Badge } from '../../shared/ui/Badge'
 import { Alert } from '../../shared/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
+import { Button } from '../../shared/ui/Button'
+import { Card } from '../../shared/ui/Card'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
+import { Select } from '../../shared/ui/Select'
 import { Spinner } from '../../shared/ui/Spinner'
+import { Table } from '../../shared/ui/Table'
+import { Textarea } from '../../shared/ui/Textarea'
 import { getErrorMessage } from '../../shared/query/queryClient'
 
 interface SupplierEvaluationSummary {
@@ -43,15 +46,16 @@ export function AdjudicarPage() {
     enabled: Boolean(tenantId && id),
   })
 
-  useEffect(() => {
-    if (!data || elegido) return
+  const [elegidoInited, setElegidoInited] = useState(false)
+  if (data && !elegidoInited) {
+    setElegidoInited(true)
     const recommended = data.evalResults?.supplierEvaluations
       ?.filter((evaluacion: SupplierEvaluationSummary) => !evaluacion.isExcluded)
       ?.sort((a: SupplierEvaluationSummary, b: SupplierEvaluationSummary) => (b.totalWeightedScore ?? 0) - (a.totalWeightedScore ?? 0))[0]
     setElegido(data.dictamen?.tieneRecomendacion
       ? data.dictamen.proveedor ?? ''
       : recommended?.supplierName ?? data.ofertas[0]?.proveedor ?? '')
-  }, [data, elegido])
+  }
 
   const invalidate = async () => {
     await Promise.all([
@@ -83,8 +87,8 @@ export function AdjudicarPage() {
 
   const guardando = adjudicar.isPending || excepcion.isPending
 
-  async function adjudicarSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function adjudicarSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     setErrorAccion('')
     adjudicar.mutate({
       tenantId: tenantId ?? '',
@@ -106,168 +110,178 @@ export function AdjudicarPage() {
     })
   }
 
-  if (isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
-  if (!data?.proceso) return <Alert variant="error">{getErrorMessage(error, 'No se pudo cargar la adjudicacion.')}</Alert>
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (!data?.proceso) {
+    return <Alert variant="error">{getErrorMessage(error, 'No se pudo cargar la adjudicacion.')}</Alert>
+  }
 
   const { proceso, ofertas, evalResults, dictamen } = data
 
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <h1>
-          Adjudicar · <code>{proceso.codigo}</code>
-        </h1>
-        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => navigate('/compras')}>
-          Volver
-        </button>
-      </div>
+    <PageShell as="section" width="wide" className="px-0 py-0">
+      <PageHeader
+        title={<>Adjudicar <code>{proceso.codigo}</code></>}
+        description={proceso.titulo}
+        actions={(
+          <Button type="button" variant="secondary" onClick={() => navigate('/compras')}>
+            Volver
+          </Button>
+        )}
+      />
 
       {errorAccion && <Alert variant="error">{errorAccion}</Alert>}
 
-      <p className="proceso__descripcion">{proceso.titulo}</p>
-
       {dictamen && (
-        <div className="rounded-md border border-border bg-surface p-5 shadow-sm" style={{ marginBottom: 20 }}>
-          <h2 className="text-lg font-semibold text-text">Dictamen asistido</h2>
+        <Card hover={false} padding="md" className="space-y-4">
+          <h2 className="m-0 text-lg font-semibold text-text">Dictamen asistido</h2>
           <Alert variant="info">{dictamen.resumen}</Alert>
           {dictamen.tieneRecomendacion && (
-            <div className="subasta__panel" style={{ marginBottom: 16 }}>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <MetricCard etiqueta="Ganador sugerido" valor={dictamen.proveedor} />
               <MetricCard etiqueta="Oferta sugerida" valor={formatearPesos(dictamen.monto)} destacado />
               <MetricCard etiqueta="Ahorro" valor={`${formatearPesos(dictamen.ahorroMonto)} (${Number(dictamen.ahorroPorcentaje ?? 0).toFixed(2)}%)`} />
               <MetricCard etiqueta="Puntaje tecnico" valor={dictamen.puntajeTecnico == null ? 'Sin puntaje' : `${dictamen.puntajeTecnico}%`} />
             </div>
           )}
-          <h3 className="text-base font-semibold text-text">Riesgos detectados</h3>
-          {dictamen.riesgos.length > 0 ? (
-            <div className="flex flex-col gap-8">
-              {dictamen.riesgos.map((riesgo) => (
-                <div className={`alerta ${riesgo.severidad === 'high' ? 'alerta--error' : 'alerta--info'}`} key={riesgo.codigo}>
-                  {riesgo.mensaje}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Alert variant="info">No se detectaron riesgos relevantes para la recomendacion.</Alert>
-          )}
-        </div>
+          <section className="space-y-2">
+            <h3 className="m-0 text-base font-semibold text-text">Riesgos detectados</h3>
+            {dictamen.riesgos.length > 0 ? (
+              <div className="grid gap-2">
+                {dictamen.riesgos.map((riesgo) => (
+                  <Alert variant={riesgo.severidad === 'high' ? 'error' : 'info'} key={riesgo.codigo}>
+                    {riesgo.mensaje}
+                  </Alert>
+                ))}
+              </div>
+            ) : (
+              <Alert variant="info">No se detectaron riesgos relevantes para la recomendacion.</Alert>
+            )}
+          </section>
+        </Card>
       )}
 
-      {/* Panel de resultados de evaluación */}
       {evalResults && (
-        <div className="rounded-md border border-border bg-surface p-5 shadow-sm" style={{ marginBottom: 20 }}>
-          <h2 className="text-lg font-semibold text-text">Resultados de la Evaluación</h2>
-          <table className="min-w-full divide-y divide-border text-sm">
-            <thead>
-              <tr>
-                <th>Proveedor</th>
-                <th>Oferta</th>
-                <th>Score</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {evalResults.supplierEvaluations.map(e => {
-                const oferta = ofertas.find(o => o.proveedor === e.supplierName)
-                return (
-                  <tr key={e.id} style={e.isExcluded ? { opacity: 0.5, textDecoration: 'line-through' } : { fontWeight: e.isExcluded ? 'normal' : 'bold' }}>
-                    <td>{e.supplierName}</td>
-                    <td>{oferta ? formatearPesos(oferta.monto) : '—'}</td>
-                    <td>{e.isExcluded ? '—' : `${e.totalWeightedScore ?? 0}%`}</td>
-                    <td>
-                      {e.isExcluded ? (
-                        <Badge variant="error" className="cursor-help" title={e.excludedReason || ''}>Excluido</Badge>
-                      ) : (
-                        <Badge variant="success">Apto</Badge>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Card hover={false} padding="md" className="space-y-4">
+          <h2 className="m-0 text-lg font-semibold text-text">Resultados de la evaluacion</h2>
+          <Table
+            data={evalResults.supplierEvaluations}
+            sortable={false}
+            columns={[
+              { header: 'Proveedor', accessor: 'supplierName' },
+              {
+                header: 'Oferta',
+                accessor: 'supplierName',
+                render: (value) => {
+                  const oferta = ofertas.find((item) => item.proveedor === value)
+                  return oferta ? formatearPesos(oferta.monto) : '---'
+                },
+              },
+              {
+                header: 'Score',
+                accessor: 'totalWeightedScore',
+                render: (value, evaluacion) => evaluacion.isExcluded ? '---' : `${Number(value ?? 0)}%`,
+              },
+              {
+                header: 'Estado',
+                accessor: 'isExcluded',
+                render: (_value, evaluacion) => evaluacion.isExcluded
+                  ? <Badge variant="error" className="cursor-help" title={String(evaluacion.excludedReason || '')}>Excluido</Badge>
+                  : <Badge variant="success">Apto</Badge>,
+              },
+            ]}
+          />
+        </Card>
       )}
 
-      <h2 className="text-lg font-semibold text-text">Ofertas recibidas</h2>
-      <table className="min-w-full divide-y divide-border text-sm">
-        <thead>
-          <tr>
-            <th>Proveedor</th>
-            <th>Monto</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {ofertas.map((o, i) => (
-            <tr key={o.id}>
-              <td>{o.proveedor}</td>
-              <td>{formatearPesos(o.monto)}</td>
-              <td>{i === 0 && <Badge variant="success">Más baja</Badge>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Card hover={false} padding="md" className="space-y-4">
+        <h2 className="m-0 text-lg font-semibold text-text">Ofertas recibidas</h2>
+        <Table
+          data={ofertas}
+          sortable={false}
+          columns={[
+            { header: 'Proveedor', accessor: 'proveedor' },
+            {
+              header: 'Monto',
+              accessor: 'monto',
+              render: (value) => formatearPesos(Number(value) || 0),
+            },
+            {
+              header: '',
+              accessor: 'id',
+              render: (_value, oferta) => ofertas[0]?.id === oferta.id ? <Badge variant="success">Mas baja</Badge> : null,
+              sortKey: false,
+            },
+          ]}
+        />
+      </Card>
 
-      <form className="rounded-md border border-border bg-surface p-5 shadow-sm" onSubmit={adjudicarSubmit} style={{ marginTop: 20 }}>
-        <h2 className="text-lg font-semibold text-text">Adjudicar al proveedor</h2>
-        <label className="campo">
-          <span>Proveedor ganador</span>
-          <select value={elegido} onChange={(e) => setElegido(e.target.value)}>
-            <option value="">Elegí un proveedor…</option>
-            {ofertas.map((o) => (
-              <option key={o.id} value={o.proveedor}>
-                {o.proveedor} — {formatearPesos(o.monto)}
+      <Card hover={false} padding="md">
+        <form className="space-y-4" onSubmit={adjudicarSubmit}>
+          <h2 className="m-0 text-lg font-semibold text-text">Adjudicar al proveedor</h2>
+          <Select
+            label="Proveedor ganador"
+            value={elegido}
+            onChange={(event) => setElegido(event.target.value)}
+          >
+            <option value="">Elegi un proveedor...</option>
+            {ofertas.map((oferta) => (
+              <option key={oferta.id} value={oferta.proveedor}>
+                {oferta.proveedor} - {formatearPesos(oferta.monto)}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
 
-        <Alert variant="info">La adjudicación queda pendiente de aprobación de la Autoridad.</Alert>
+          <Alert variant="info">La adjudicacion queda pendiente de aprobacion de la Autoridad.</Alert>
 
-        <div className="flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
-            disabled={guardando}
-            onClick={() => setAccionExcepcion('impugnacion')}
-          >
-            Suspender por impugnacion
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-md bg-error px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-error/90 disabled:opacity-60"
-            disabled={guardando}
-            onClick={() => setAccionExcepcion('desierto')}
-          >
-            Declarar desierto
-          </button>
-          <button type="submit" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" disabled={guardando}>
-            {guardando ? 'Adjudicando…' : 'Adjudicar'}
-          </button>
-        </div>
-      </form>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={guardando}
+              onClick={() => setAccionExcepcion('impugnacion')}
+            >
+              Suspender por impugnacion
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={guardando}
+              onClick={() => setAccionExcepcion('desierto')}
+            >
+              Declarar desierto
+            </Button>
+            <Button type="submit" disabled={guardando} loading={guardando}>
+              Adjudicar
+            </Button>
+          </div>
+        </form>
+      </Card>
 
       {accionExcepcion && (
-        <div className="rounded-md border border-border bg-surface p-5 shadow-sm" style={{ marginTop: 20 }}>
-          <h2 className="text-lg font-semibold text-text">
+        <Card hover={false} padding="md" className="space-y-4">
+          <h2 className="m-0 text-lg font-semibold text-text">
             {accionExcepcion === 'desierto' ? 'Declarar desierto' : 'Suspender por impugnacion'}
           </h2>
-          <label className="campo">
-            <span>Fundamento</span>
-            <textarea
-              rows={4}
-              value={fundamento}
-              onChange={(e) => setFundamento(e.target.value)}
-              placeholder={accionExcepcion === 'desierto'
-                ? 'Detalla por que corresponde declarar desierto el proceso...'
-                : 'Detalla la impugnacion y el motivo de suspension...'}
-            />
-          </label>
+          <Textarea
+            label="Fundamento"
+            rows={4}
+            value={fundamento}
+            onChange={(event) => setFundamento(event.target.value)}
+            placeholder={accionExcepcion === 'desierto'
+              ? 'Detalla por que corresponde declarar desierto el proceso...'
+              : 'Detalla la impugnacion y el motivo de suspension...'}
+          />
           <div className="flex flex-wrap justify-end gap-2">
-            <button
+            <Button
               type="button"
-              className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
+              variant="secondary"
               disabled={guardando}
               onClick={() => {
                 setAccionExcepcion(null)
@@ -275,19 +289,20 @@ export function AdjudicarPage() {
               }}
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="inline-flex items-center justify-center rounded-md bg-error px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-error/90 disabled:opacity-60"
+              variant="danger"
               disabled={guardando}
+              loading={guardando}
               onClick={confirmarExcepcion}
             >
-              {guardando ? 'Procesando...' : 'Confirmar'}
-            </button>
+              Confirmar
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
-    </section>
+    </PageShell>
   )
 }
 
@@ -301,9 +316,11 @@ function formatearPesos(monto: number) {
 
 function MetricCard({ etiqueta, valor, destacado = false }: { etiqueta: string; valor: ReactNode; destacado?: boolean }) {
   return (
-    <article className="subasta__card">
-      <span className="subasta__label">{etiqueta}</span>
-      <span className={`subasta__valor ${destacado ? 'subasta__valor--destacado' : ''}`}>{valor}</span>
+    <article className="rounded-md border border-border bg-background p-3">
+      <span className="block text-xs font-semibold uppercase tracking-wider text-text-muted">{etiqueta}</span>
+      <span className={['mt-1 block text-base font-semibold', destacado ? 'text-primary' : 'text-text'].join(' ')}>
+        {valor}
+      </span>
     </article>
   )
 }

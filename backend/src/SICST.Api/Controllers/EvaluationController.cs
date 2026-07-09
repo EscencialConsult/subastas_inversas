@@ -35,7 +35,7 @@ public class EvaluationController : ControllerBase
     }
 
     [HttpGet("{id:guid}/evaluate")]
-    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    [Authorize(Policy = PermissionCodes.PurchasesManageOrEvaluate)]
     public async Task<ActionResult<PurchaseProcessDto>> GetEvaluationById(Guid companyId, Guid id)
     {
         var process = await _sender.Send(new GetPurchaseProcessByIdQuery(companyId, id));
@@ -43,7 +43,7 @@ public class EvaluationController : ControllerBase
     }
 
     [HttpGet("{id:guid}/suppliers")]
-    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    [Authorize(Policy = PermissionCodes.PurchasesManageOrEvaluate)]
     public async Task<ActionResult<List<QualificationSupplierDto>>> GetSuppliers(Guid companyId, Guid id)
     {
         return Ok(await _sender.Send(new GetProcessSuppliersQuery(companyId, id)));
@@ -192,7 +192,7 @@ public class EvaluationController : ControllerBase
     }
 
     [HttpPost("{id:guid}/evaluation-act/sign")]
-    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    [Authorize(Policy = PermissionCodes.PurchasesManage)]
     public async Task<ActionResult<PurchaseProcessDto>> SignEvaluationAct(Guid companyId, Guid id, [FromBody] SignEvaluationActRequest request)
     {
         var process = await _sender.Send(new SignEvaluationActCommand(companyId, id, request.EvaluatorId, request.SignatureImageBase64));

@@ -11,6 +11,11 @@ const legacyUiClassRestriction = {
   message: 'Usa componentes de shared/ui en lugar de clases legacy .btn, .form, .tabla y variantes __/--.',
 }
 
+const arbitraryColorClassRestriction = {
+  selector: 'JSXAttribute[name.name="className"][value.value=/(^|\\s)(bg|text|border|ring|shadow)-\\[#[0-9a-fA-F]{3,8}\\]/]',
+  message: 'Usa tokens del Design System en lugar de colores hardcodeados en className.',
+}
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -31,7 +36,7 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
-      'no-restricted-syntax': ['error', legacyUiClassRestriction],
+      'no-restricted-syntax': ['error', legacyUiClassRestriction, arbitraryColorClassRestriction],
       'react-refresh/only-export-components': 'warn',
     },
   },
@@ -50,7 +55,7 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
-      'no-restricted-syntax': ['error', legacyUiClassRestriction],
+      'no-restricted-syntax': ['error', legacyUiClassRestriction, arbitraryColorClassRestriction],
       '@typescript-eslint/no-explicit-any': 'warn',
       'react-hooks/preserve-manual-memoization': 'warn',
       'react-hooks/set-state-in-effect': 'warn',

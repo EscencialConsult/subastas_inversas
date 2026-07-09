@@ -20,7 +20,7 @@ export function FormSection({
       <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 className="m-0 text-base font-semibold text-text">{title}</h2>
-          {description && <p className="m-0 mt-1 text-sm leading-6 text-text-muted">{description}</p>}
+          {description && <div className="m-0 mt-1 text-sm leading-6 text-text-muted">{description}</div>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>

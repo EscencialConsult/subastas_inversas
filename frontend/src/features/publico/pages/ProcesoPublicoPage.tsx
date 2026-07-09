@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import {
   suscribirSubastaPublica,
   type PublicAuctionMapped,
@@ -11,6 +12,7 @@ import { etiquetaEstado } from '../../../domain/compras'
 import { getErrorMessage } from '../../../shared/query/queryClient'
 import { Alert } from '../../../shared/ui/Alert'
 import { Button } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
 import { DataTable, type DataTableColumn } from '../../../shared/ui/DataTable'
 import { FormSection } from '../../../shared/ui/FormSection'
 import { LoadingState } from '../../../shared/ui/StateViews'
@@ -49,11 +51,12 @@ export function ProcesoPublicoPage() {
     enabled: Boolean(procesoId),
   })
 
-  useEffect(() => {
-    if (!procesoQuery.data) return
+  const [subastaInited, setSubastaInited] = useState(false)
+  if (procesoQuery.data && !subastaInited) {
+    setSubastaInited(true)
     setSubasta(procesoQuery.data.subasta)
     setActualizadoEn(new Date().toISOString())
-  }, [procesoQuery.data])
+  }
 
   useEffect(() => {
     if (!subasta?.eventsUrl) return undefined
@@ -108,9 +111,18 @@ export function ProcesoPublicoPage() {
       {error && <Alert variant="error">{error}</Alert>}
 
       <section className="grid gap-3 md:grid-cols-3">
-        <MetricCard label="Organismo" value={proceso.empresa} />
-        <MetricCard label="Presupuesto estimado" value={formatearPesos(proceso.presupuestoEstimado)} featured />
-        <MetricCard label="Publicado" value={formatearFecha(proceso.publicadoEn ?? proceso.creadoEn)} />
+        <Card hover={false} padding="lg">
+          <span className="text-sm font-medium text-text-muted">Organismo</span>
+          <strong className="mt-2 block text-xl font-semibold text-text">{proceso.empresa}</strong>
+        </Card>
+        <Card hover={false} padding="lg">
+          <span className="text-sm font-medium text-text-muted">Presupuesto estimado</span>
+          <strong className="mt-2 block text-xl font-semibold text-primary">{formatearPesos(proceso.presupuestoEstimado)}</strong>
+        </Card>
+        <Card hover={false} padding="lg">
+          <span className="text-sm font-medium text-text-muted">Publicado</span>
+          <strong className="mt-2 block text-xl font-semibold text-text">{formatearFecha(proceso.publicadoEn ?? proceso.creadoEn)}</strong>
+        </Card>
       </section>
 
       <FormSection title="Datos del expediente" description="Informacion visible para seguimiento ciudadano.">
@@ -133,10 +145,22 @@ export function ProcesoPublicoPage() {
         {subasta ? (
           <div className="space-y-4">
             <section className="grid gap-3 md:grid-cols-4">
-              <MetricCard label="Precio actual" value={formatearPesos(subasta.precioActual)} featured />
-              <MetricCard label="Ahorro estimado" value={formatearPesos(ahorro)} />
-              <MetricCard label="Lances" value={String(subasta.cantidadLances)} />
-              <MetricCard label="Ultima actualizacion" value={formatearFechaHora(actualizadoEn)} />
+              <Card hover={false} padding="lg">
+                <span className="text-sm font-medium text-text-muted">Precio actual</span>
+                <strong className="mt-2 block text-xl font-semibold text-primary">{formatearPesos(subasta.precioActual)}</strong>
+              </Card>
+              <Card hover={false} padding="lg">
+                <span className="text-sm font-medium text-text-muted">Ahorro estimado</span>
+                <strong className="mt-2 block text-xl font-semibold text-text">{formatearPesos(ahorro)}</strong>
+              </Card>
+              <Card hover={false} padding="lg">
+                <span className="text-sm font-medium text-text-muted">Lances</span>
+                <strong className="mt-2 block text-xl font-semibold text-text">{String(subasta.cantidadLances)}</strong>
+              </Card>
+              <Card hover={false} padding="lg">
+                <span className="text-sm font-medium text-text-muted">Ultima actualizacion</span>
+                <strong className="mt-2 block text-xl font-semibold text-text">{formatearFechaHora(actualizadoEn)}</strong>
+              </Card>
             </section>
             <Ranking ranking={subasta.ranking ?? []} />
           </div>
@@ -192,14 +216,22 @@ function Resultados({ adjudicaciones }: { adjudicaciones: PublicAwardMapped[] })
       ) : (
         <div className="space-y-3">
           {adjudicaciones.map((adjudicacion) => (
-            <PublicRow
-              key={adjudicacion.id}
-              code={formatearFecha(adjudicacion.adjudicadoEn)}
-              title={adjudicacion.proveedor}
-              description={adjudicacion.observaciones || 'Sin observaciones publicadas.'}
-              value={formatearPesos(adjudicacion.monto)}
-              detail="Monto adjudicado"
-            />
+            <Card key={adjudicacion.id} hover padding="md" className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+              <div>
+                <code className="text-xs font-semibold text-primary">{formatearFecha(adjudicacion.adjudicadoEn)}</code>
+                <h3 className="mt-1 text-base font-semibold text-text">{adjudicacion.proveedor}</h3>
+                <p className="mt-1 text-sm text-text-muted">{adjudicacion.observaciones || 'Sin observaciones publicadas.'}</p>
+              </div>
+              <div className="md:text-right">
+                <span className="block text-base font-semibold text-text">{formatearPesos(adjudicacion.monto)}</span>
+                <small className="text-text-muted">Monto adjudicado</small>
+              </div>
+              {adjudicacion.actaUrl && (
+                <Button variant="link" as="a" href={adjudicacion.actaUrl} target="_blank" rel="noopener noreferrer" icon={<Download size={14} />}>
+                  Acta
+                </Button>
+              )}
+            </Card>
           ))}
         </div>
       )}
@@ -207,27 +239,9 @@ function Resultados({ adjudicaciones }: { adjudicaciones: PublicAwardMapped[] })
   )
 }
 
-function MetricCard({ label, value, featured = false }: { label: string; value: string; featured?: boolean }) {
-  return (
-    <article className="rounded-md border border-border bg-surface px-5 py-4 shadow-sm">
-      <span className="text-sm font-medium text-text-muted">{label}</span>
-      <strong className={['mt-2 block text-xl font-semibold', featured ? 'text-primary' : 'text-text'].join(' ')}>{value}</strong>
-    </article>
-  )
-}
-
-function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <dt className="font-medium text-text-muted">{label}</dt>
-      <dd className={['mt-1 font-semibold text-text', mono ? 'font-mono break-all' : ''].join(' ')}>{value}</dd>
-    </div>
-  )
-}
-
 function PublicRow({ code, title, description, value, detail }: { code: string; title: string; description: string; value: string; detail: string }) {
   return (
-    <article className="grid gap-3 rounded-md border border-border bg-background p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+    <Card hover padding="md" className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div>
         <code className="text-xs font-semibold text-primary">{code}</code>
         <h3 className="mt-1 text-base font-semibold text-text">{title}</h3>
@@ -237,7 +251,16 @@ function PublicRow({ code, title, description, value, detail }: { code: string; 
         <span className="block text-base font-semibold text-text">{value}</span>
         <small className="text-text-muted">{detail}</small>
       </div>
-    </article>
+    </Card>
+  )
+}
+
+function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <dt className="font-medium text-text-muted">{label}</dt>
+      <dd className={['mt-1 font-semibold text-text', mono ? 'font-mono break-all' : ''].join(' ')}>{value}</dd>
+    </div>
   )
 }
 

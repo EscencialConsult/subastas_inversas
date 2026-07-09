@@ -1,22 +1,28 @@
-// Listado para la Autoridad: permite revisar adjudicaciones pendientes y consultar las resueltas.
-
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import { ESTADO_PROCESO, claseEstado, etiquetaEstado } from '../../domain/compras'
 import { getErrorMessage } from '../../shared/query/queryClient'
-import { Badge } from '../../shared/ui/Badge'
 import { Alert } from '../../shared/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
 import { Button } from '../../shared/ui/Button'
-import { EmptyState } from '../../shared/ui/EmptyState'
-import { Pagination, usePagination } from '../../shared/ui/Pagination'
+import { DataTable, type DataTableColumn } from '../../shared/ui/DataTable'
+import { FormSection } from '../../shared/ui/FormSection'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
 import { Select } from '../../shared/ui/Select'
-import { Spinner } from '../../shared/ui/Spinner'
 import { adjudicacionesKeys, listarAdjudicacionesQuery } from './data/adjudicacionesData'
 
-const FILTROS = {
+type ProcesoRow = {
+  id: string
+  codigo: string
+  titulo: string
+  estado: string
+  adjudicacion?: { proveedor?: string } | null
+}
+
+const FILTROS: Record<string, string> = {
   pendientes: ESTADO_PROCESO.ADJUDICADA,
   aprobadas: ESTADO_PROCESO.APROBADA,
   todas: '',
@@ -34,72 +40,57 @@ export function AdjudicacionesListPage() {
     enabled: Boolean(tenantId),
     placeholderData: (previousData) => previousData,
   })
-  const procesos = procesosQuery.data ?? []
-  const procesosPagination = usePagination(procesos, { initialPageSize: 10 })
+  const procesos = (procesosQuery.data ?? []) as ProcesoRow[]
   const error = getErrorMessage(procesosQuery.error, '')
 
-  return (
-    <section>
-      <div className="encabezado">
-        <h1>Adjudicaciones</h1>
-      </div>
+  const columns: Array<DataTableColumn<ProcesoRow & Record<string, unknown>>> = [
+    {
+      header: 'Código',
+      cell: (row) => <code>{row.codigo}</code>,
+    },
+    { header: 'Título', accessor: 'titulo', sortable: true },
+    {
+      header: 'Proveedor adjudicado',
+      cell: (row) => <>{row.adjudicacion?.proveedor ?? '-'}</>,
+    },
+    {
+      header: 'Estado',
+      cell: (row) => <Badge variant={claseEstado(row.estado)}>{etiquetaEstado(row.estado)}</Badge>,
+    },
+    {
+      header: '',
+      align: 'right',
+      cell: (row) => (
+        <Button variant="ghost" onClick={() => navigate(`/adjudicaciones/${row.id}`)}>
+          {row.estado === ESTADO_PROCESO.ADJUDICADA ? 'Revisar' : 'Ver'}
+        </Button>
+      ),
+    },
+  ]
 
-      <div className="filtros">
+  return (
+    <PageShell width="wide">
+      <PageHeader title="Adjudicaciones" />
+
+      <FormSection title="Filtros">
         <Select value={filtro} onChange={(e) => setFiltro(e.target.value)}>
           <option value="pendientes">Pendientes</option>
           <option value="aprobadas">Aprobadas</option>
           <option value="todas">Todas</option>
         </Select>
-      </div>
+      </FormSection>
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      {procesosQuery.isLoading || procesosQuery.isFetching ? (
-        <div className="flex justify-center py-12"><Spinner /></div>
-      ) : procesos.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="Sin adjudicaciones" description="No hay adjudicaciones para el filtro seleccionado." />
-      ) : (
-        <>
-        <table className="min-w-full divide-y divide-border text-sm">
-          <thead>
-            <tr>
-              <th>Codigo</th>
-              <th>Titulo</th>
-              <th>Proveedor adjudicado</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {procesosPagination.paginatedItems.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  <code>{p.codigo}</code>
-                </td>
-                <td>{p.titulo}</td>
-                <td>{p.adjudicacion?.proveedor ?? '-'}</td>
-                <td>
-                  <Badge variant={claseEstado(p.estado)}>{etiquetaEstado(p.estado)}</Badge>
-                </td>
-                <td className="flex flex-wrap justify-end gap-2">
-                  <Button variant="ghost" onClick={() => navigate(`/adjudicaciones/${p.id}`)}>
-                    {p.estado === ESTADO_PROCESO.ADJUDICADA ? 'Revisar' : 'Ver'}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Pagination
-          page={procesosPagination.page}
-          pageSize={procesosPagination.pageSize}
-          totalItems={procesosPagination.totalItems}
-          totalPages={procesosPagination.totalPages}
-          onPageChange={procesosPagination.setPage}
-          onPageSizeChange={procesosPagination.setPageSize}
-        />
-        </>
-      )}
-    </section>
+      <DataTable
+        columns={columns}
+        rows={procesos as (ProcesoRow & Record<string, unknown>)[]}
+        loading={procesosQuery.isLoading || procesosQuery.isFetching}
+        getRowId={(row) => row.id}
+        pageSize={10}
+        emptyTitle="Sin adjudicaciones"
+        emptyDescription="No hay adjudicaciones para el filtro seleccionado."
+      />
+    </PageShell>
   )
 }

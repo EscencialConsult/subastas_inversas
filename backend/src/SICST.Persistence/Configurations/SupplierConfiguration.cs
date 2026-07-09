@@ -25,6 +25,17 @@ public class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
             entity.Property(e => e.ArcaVerified).IsRequired();
             entity.Property(e => e.ArcaVerificationStatus).IsRequired();
             entity.Property(e => e.ArcaVerificationNotes).HasMaxLength(1000);
+            entity.Property(e => e.ArcaBusinessName).HasMaxLength(200);
+            entity.Property(e => e.ArcaPersonType).HasMaxLength(20);
+            entity.Property(e => e.ArcaIvaCondition).HasMaxLength(100);
+            entity.Property(e => e.ArcaMonotributoCategory).HasMaxLength(50);
+            entity.Property(e => e.ArcaFiscalAddress).HasMaxLength(300);
+            entity.Property(e => e.ArcaFiscalCity).HasMaxLength(100);
+            entity.Property(e => e.ArcaFiscalProvince).HasMaxLength(100);
+            entity.Property(e => e.ArcaRawData);
+            entity.Property(e => e.ArcaBusinessNameMatchScore);
+            entity.Property(e => e.ArcaVerificationExpiresAtUtc);
+            entity.Property(e => e.ArcaLastRenewalAttemptAtUtc);
             entity.Property(e => e.CreatedAtUtc).IsRequired();
 
             entity.HasOne(e => e.User)

@@ -110,7 +110,7 @@ public class GetPublicPurchaseProcessDetailQueryHandler
             StartsAtUtc = snapshot.StartsAtUtc,
             EndsAtUtc = snapshot.EndsAtUtc,
             BidCount = snapshot.BidCount,
-            EventsUrl = $"/api/public/auctions/{snapshot.Id}/events",
+            EventsUrl = $"/api/v1/public/auctions/{snapshot.Id}/events",
             IdentitiesRevealed = snapshot.IdentitiesRevealed,
             Ranking = snapshot.Ranking
         };

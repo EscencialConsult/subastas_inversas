@@ -1,3 +1,9 @@
+import { Button } from '../../../shared/ui/Button'
+import { Card } from '../../../shared/ui/Card'
+import { Input } from '../../../shared/ui/Input'
+import { Select } from '../../../shared/ui/Select'
+import { Table } from '../../../shared/ui/Table'
+import { Textarea } from '../../../shared/ui/Textarea'
 import { PagosPanel } from './PagosPanel'
 
 export function ContratoPanel({
@@ -23,159 +29,178 @@ export function ContratoPanel({
   const contrato = (proceso.contratos ?? []).find((c) => c.id === ordenCompra.contratoId)
   const contratoCompletado = contrato?.estado === 'Completed' || contrato?.estado === 2
   const puedeRegistrarPago = contrato && ordenCompra.estado === 'recibida' && !contratoCompletado
+  const pendientesRows = pendientes.map((item) => ({
+    ...item,
+    id: item.purchaseItemId,
+    inputKey: `${ordenCompra.id}:${item.purchaseItemId}`,
+  }))
 
   return (
-    <div className="wizard-summary-section">
-      <h3 className="wizard-summary-section__title">Recepcion, pagos y penalidades</h3>
-      <div className="wizard-summary-section__content">
-        <div className="perfil__solo-lectura" style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span>Orden: <strong>{ordenCompra.numero}</strong></span>
-          <span>Proveedor: <strong>{ordenCompra.proveedor}</strong></span>
-          <span>Monto: <strong>{formatearPesos(Number(ordenCompra.monto) || 0)}</strong></span>
-          <span>Estado: <strong>{etiquetaEstadoOrdenCompra(ordenCompra.estado)}</strong></span>
-          {contrato && (
-            <>
-              <span>Pagado: <strong>{formatearPesos(Number(contrato.totalPagado) || 0)}</strong></span>
-              <span>Penalidades: <strong>{formatearPesos(Number(contrato.totalPenalidades) || 0)}</strong></span>
-              <span>Saldo: <strong>{formatearPesos(Number(contrato.saldoPendiente) || 0)}</strong></span>
-            </>
-          )}
-          {ordenCompra.documentoUrl && (
-            <span>
-              <a href={ordenCompra.documentoUrl} target="_blank" rel="noreferrer">Ver orden PDF</a>
-            </span>
-          )}
-        </div>
+    <Card hover={false} padding="md" className="space-y-4">
+      <h3 className="m-0 text-base font-semibold text-text">Recepcion, pagos y penalidades</h3>
 
-        <div className="overflow-x-auto w-full border border-border rounded-lg shadow-sm">
-          <table className="min-w-full divide-y divide-border text-sm">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Ordenado</th>
-                <th>Recibido</th>
-                <th>Pendiente</th>
-                {puedeRecibir && <th>Recibir ahora</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {pendientes.map((item) => {
-                const inputKey = `${ordenCompra.id}:${item.purchaseItemId}`
-                return (
-                  <tr key={item.purchaseItemId}>
-                    <td>{item.descripcion}</td>
-                    <td>{item.ordenado} {item.unidad}</td>
-                    <td>{item.recibido} {item.unidad}</td>
-                    <td>{item.pendiente} {item.unidad}</td>
-                    {puedeRecibir && (
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          max={item.pendiente}
-                          step="0.01"
-                          value={recepcionCantidades[inputKey] ?? ''}
-                          onChange={(e) => setRecepcionCantidades((prev) => ({
-                            ...prev,
-                            [inputKey]: e.target.value,
-                          }))}
-                          placeholder="0"
-                          style={{ maxWidth: '120px', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--color-borde)' }}
-                          disabled={item.pendiente <= 0 || registrandoRecepcion}
-                        />
-                      </td>
-                    )}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {puedeRecibir && (
-          <div style={{ marginTop: '16px', display: 'grid', gap: '12px' }}>
-            <label className="campo" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '600' }}>Conformidad</span>
-              <select
-                value={recepcionEstado}
-                onChange={(e) => setRecepcionEstado(e.target.value)}
-                disabled={registrandoRecepcion}
-                style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--color-borde)' }}
-              >
-                <option value="Accepted">Conforme</option>
-                <option value="AcceptedWithObservations">Conforme con observaciones</option>
-                <option value="Rejected">Rechazada</option>
-              </select>
-            </label>
-
-            <label className="campo" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '600' }}>Observaciones</span>
-              <textarea
-                rows={3}
-                value={recepcionObservaciones}
-                onChange={(e) => setRecepcionObservaciones(e.target.value)}
-                placeholder="Detalle de entrega, remito, diferencias o comentarios de conformidad."
-                disabled={registrandoRecepcion}
-                style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--color-borde)' }}
-              />
-            </label>
-
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60"
-                onClick={() => registrarRecepcion(ordenCompra)}
-                disabled={registrandoRecepcion}
-              >
-                {registrandoRecepcion ? 'Registrando...' : 'Registrar recepcion'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {ordenCompra.recepciones && ordenCompra.recepciones.length > 0 && (
+      <dl className="grid gap-3 rounded-md border border-border bg-background p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <ResumenDato label="Orden" value={<strong>{ordenCompra.numero}</strong>} />
+        <ResumenDato label="Proveedor" value={<strong>{ordenCompra.proveedor}</strong>} />
+        <ResumenDato label="Monto" value={<strong>{formatearPesos(Number(ordenCompra.monto) || 0)}</strong>} />
+        <ResumenDato label="Estado" value={<strong>{etiquetaEstadoOrdenCompra(ordenCompra.estado)}</strong>} />
+        {contrato && (
           <>
-            <h4 className="text-base font-semibold text-text" style={{ marginTop: '20px' }}>Recepciones registradas</h4>
-            <div className="overflow-x-auto w-full border border-border rounded-lg shadow-sm">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Conformidad</th>
-                    <th>Recibio</th>
-                    <th>Items</th>
-                    <th>Documento</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ordenCompra.recepciones.map((recepcion) => (
-                    <tr key={recepcion.id}>
-                      <td>{formatearFecha(recepcion.recibidaEn)}</td>
-                      <td>{etiquetaEstadoRecepcion(recepcion.estado)}</td>
-                      <td>{recepcion.receptor || '---'}</td>
-                      <td>{recepcion.items.map((item) => `${item.descripcion}: ${item.cantidadRecibida} ${item.unidad}`).join(', ')}</td>
-                      <td>{recepcion.documentoUrl ? <a href={recepcion.documentoUrl} target="_blank" rel="noreferrer">PDF</a> : '---'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ResumenDato label="Pagado" value={<strong>{formatearPesos(Number(contrato.totalPagado) || 0)}</strong>} />
+            <ResumenDato label="Penalidades" value={<strong>{formatearPesos(Number(contrato.totalPenalidades) || 0)}</strong>} />
+            <ResumenDato label="Saldo" value={<strong>{formatearPesos(Number(contrato.saldoPendiente) || 0)}</strong>} />
           </>
         )}
-
-        {contrato && (
-          <PagosPanel
-            contrato={contrato}
-            puedeRegistrarPago={puedeRegistrarPago}
-            contratoCompletado={contratoCompletado}
-            pagoContrato={pagoContrato}
-            setPagoContrato={setPagoContrato}
-            registrandoPago={registrandoPago}
-            registrarPago={registrarPago}
-            formatearPesos={formatearPesos}
+        {ordenCompra.documentoUrl && (
+          <ResumenDato
+            label="Documento"
+            value={<a href={ordenCompra.documentoUrl} target="_blank" rel="noreferrer">Ver orden PDF</a>}
           />
         )}
-      </div>
+      </dl>
+
+      <Table
+        data={pendientesRows}
+        sortable={false}
+        columns={[
+          { header: 'Item', accessor: 'descripcion' },
+          {
+            header: 'Ordenado',
+            accessor: 'ordenado',
+            render: (_value, item) => `${item.ordenado} ${item.unidad}`,
+          },
+          {
+            header: 'Recibido',
+            accessor: 'recibido',
+            render: (_value, item) => `${item.recibido} ${item.unidad}`,
+          },
+          {
+            header: 'Pendiente',
+            accessor: 'pendiente',
+            render: (_value, item) => `${item.pendiente} ${item.unidad}`,
+          },
+          ...(puedeRecibir ? [{
+            header: 'Recibir ahora',
+            accessor: 'inputKey',
+            render: (_value, item) => (
+              <Input
+                type="number"
+                min="0"
+                max={item.pendiente}
+                step="0.01"
+                value={recepcionCantidades[item.inputKey] ?? ''}
+                onChange={(event) => setRecepcionCantidades((prev) => ({
+                  ...prev,
+                  [item.inputKey]: event.target.value,
+                }))}
+                placeholder="0"
+                disabled={item.pendiente <= 0 || registrandoRecepcion}
+                fieldClassName="mb-0"
+                className="max-w-[120px]"
+                aria-label={`Cantidad a recibir de ${item.descripcion}`}
+              />
+            ),
+            sortKey: false,
+          }] : []),
+        ]}
+      />
+
+      {puedeRecibir && (
+        <div className="grid gap-3">
+          <Select
+            label="Conformidad"
+            value={recepcionEstado}
+            onChange={(event) => setRecepcionEstado(event.target.value)}
+            disabled={registrandoRecepcion}
+          >
+            <option value="Accepted">Conforme</option>
+            <option value="AcceptedWithObservations">Conforme con observaciones</option>
+            <option value="Rejected">Rechazada</option>
+          </Select>
+
+          <Textarea
+            label="Observaciones"
+            rows={3}
+            value={recepcionObservaciones}
+            onChange={(event) => setRecepcionObservaciones(event.target.value)}
+            placeholder="Detalle de entrega, remito, diferencias o comentarios de conformidad."
+            disabled={registrandoRecepcion}
+          />
+
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              onClick={() => registrarRecepcion(ordenCompra)}
+              disabled={registrandoRecepcion}
+              loading={registrandoRecepcion}
+            >
+              Registrar recepcion
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {ordenCompra.recepciones && ordenCompra.recepciones.length > 0 && (
+        <section className="space-y-3">
+          <h4 className="m-0 text-base font-semibold text-text">Recepciones registradas</h4>
+          <Table
+            data={ordenCompra.recepciones}
+            sortable={false}
+            columns={[
+              {
+                header: 'Fecha',
+                accessor: 'recibidaEn',
+                render: (value) => formatearFecha(value),
+              },
+              {
+                header: 'Conformidad',
+                accessor: 'estado',
+                render: (value) => etiquetaEstadoRecepcion(value),
+              },
+              {
+                header: 'Recibio',
+                accessor: 'receptor',
+                render: (value) => value || '---',
+              },
+              {
+                header: 'Items',
+                accessor: 'items',
+                render: (value) => {
+                  const items = Array.isArray(value) ? value : []
+                  return items.map((item) => `${item.descripcion}: ${item.cantidadRecibida} ${item.unidad}`).join(', ')
+                },
+              },
+              {
+                header: 'Documento',
+                accessor: 'documentoUrl',
+                render: (value) => value ? <a href={String(value)} target="_blank" rel="noreferrer">PDF</a> : '---',
+              },
+            ]}
+          />
+        </section>
+      )}
+
+      {contrato && (
+        <PagosPanel
+          contrato={contrato}
+          puedeRegistrarPago={puedeRegistrarPago}
+          contratoCompletado={contratoCompletado}
+          pagoContrato={pagoContrato}
+          setPagoContrato={setPagoContrato}
+          registrandoPago={registrandoPago}
+          registrarPago={registrarPago}
+          formatearPesos={formatearPesos}
+        />
+      )}
+    </Card>
+  )
+}
+
+function ResumenDato({ label, value }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</dt>
+      <dd className="m-0 mt-1 text-sm text-text">{value}</dd>
     </div>
   )
 }
@@ -245,5 +270,5 @@ function etiquetaEstadoRecepcion(estado) {
 
 function formatearFecha(fecha) {
   if (!fecha) return '---'
-  return new Date(fecha).toLocaleDateString('es-AR')
+  return new Date(String(fecha)).toLocaleDateString('es-AR')
 }

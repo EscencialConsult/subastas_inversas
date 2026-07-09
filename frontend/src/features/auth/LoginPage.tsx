@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { SubmitHandler, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../../auth/AuthContext'
@@ -10,22 +10,30 @@ import { ROLES } from '../../domain/roles'
 import { Button } from '../../shared/ui/Button'
 import { Input } from '../../shared/ui/Input'
 import { getErrorMessage } from '../../shared/query/queryClient'
+import { PageShell } from '../../shared/ui/PageShell'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { FormSection } from '../../shared/ui/FormSection'
+import { FormActions } from '../../shared/ui/FormActions'
 
 const USUARIOS_DEMO = [
   { email: 'admin@sicst.com', rol: 'Super Admin', password: 'Admin123!' },
-  { email: 'admin@prueba.com', rol: 'Admin tenant', password:'123456' },
-  { email: 'usuario1@prueba.com', rol: 'Comprador', password:'123456' },
-  { email: 'usuario2@prueba.com', rol: 'Evaluador', password:'123456' },
-  { email: 'usuario3@prueba.com', rol: 'Autoridad', password:'123456' },
-  { email: 'usuario4@prueba.com', rol: 'Auditor', password:'123456' },
-  { email: 'ventas@kotler.com', rol: 'Proveedor', password:'123456' },
+  { email: 'admin@prueba.com', rol: 'Admin tenant', password: '123456' },
+  { email: 'usuario1@prueba.com', rol: 'Comprador', password: '123456' },
+  { email: 'usuario2@prueba.com', rol: 'Evaluador', password: '123456' },
+  { email: 'usuario3@prueba.com', rol: 'Autoridad', password: '123456' },
+  { email: 'usuario4@prueba.com', rol: 'Auditor', password: '123456' },
+  { email: 'ventas@kotler.com', rol: 'Proveedor', password: '123456' },
 ]
 
 const loginSchema = z.object({
-  email: z.string().trim().email('Ingresá un email válido.'),
-  password: z.string().min(1, 'Ingresá tu contraseña.'),
+  email: z.string().trim().email('Ingresa un email valido.'),
+  password: z.string().min(1, 'Ingresa tu contrasena.'),
   mfaCode: z.string().optional(),
 })
+
+type LoginFormValues = z.infer<typeof loginSchema>
+type UsuarioDemo = (typeof USUARIOS_DEMO)[number]
+type UsuarioPendiente = { email?: string } | null
 
 export function LoginPage() {
   const { login, verificarMfa, cargando } = useAuth()
@@ -34,7 +42,7 @@ export function LoginPage() {
   const destino = location.state?.from?.pathname ?? '/'
 
   const [mfaToken, setMfaToken] = useState('')
-  const [usuarioPendiente, setUsuarioPendiente] = useState(null)
+  const [usuarioPendiente, setUsuarioPendiente] = useState<UsuarioPendiente>(null)
   const [error, setError] = useState('')
   const {
     register,
@@ -43,12 +51,12 @@ export function LoginPage() {
     setError: setFieldError,
     clearErrors,
     formState: { errors },
-  } = useForm({
+  } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '', mfaCode: '' },
   })
 
-  async function manejarSubmit(datos) {
+  const manejarSubmit: SubmitHandler<LoginFormValues> = async (datos) => {
     setError('')
     try {
       const respuesta = await login({ email: datos.email, password: datos.password })
@@ -65,9 +73,9 @@ export function LoginPage() {
     }
   }
 
-  async function manejarMfa(datos) {
+  const manejarMfa: SubmitHandler<LoginFormValues> = async (datos) => {
     if (!/^\d{6}$/.test(datos.mfaCode ?? '')) {
-      setFieldError('mfaCode', { message: 'Ingresá el código de 6 dígitos.' })
+      setFieldError('mfaCode', { message: 'Ingresa el codigo de 6 digitos.' })
       return
     }
     setError('')
@@ -83,7 +91,7 @@ export function LoginPage() {
     }
   }
 
-  function usarDemo(usuario) {
+  function usarDemo(usuario: UsuarioDemo) {
     setValue('email', usuario.email, { shouldValidate: true })
     setValue('password', usuario.password, { shouldValidate: true })
     setValue('mfaCode', '')
@@ -93,146 +101,153 @@ export function LoginPage() {
   }
 
   return (
-    <div className="public-page">
-      <header className="page-header">
-        <div className="contenedor page-header__inner">
-          <Link to="/portal" className="page-header__brand">
-            <span className="page-header__logo">SC</span>
-            <span className="flex flex-col">
-              <span className="page-header__title">SICST</span>
-              <span className="page-header__subtitle">Acceso al sistema</span>
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border bg-surface">
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <Link to="/portal" className="flex min-w-0 items-center gap-3 text-text transition-colors hover:text-primary">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-white">
+              SC
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-base font-semibold leading-tight">SICST</span>
+              <span className="truncate text-xs text-text-muted">Acceso al sistema</span>
             </span>
           </Link>
-          <nav className="page-header__nav">
+          <nav aria-label="Accesos publicos">
             <Button as={Link} to="/portal" variant="secondary">
-              Portal público
+              Portal publico
             </Button>
           </nav>
         </div>
       </header>
 
-      <section className="flex min-h-[calc(100vh-80px)] items-center justify-center bg-background px-4 py-10">
+      <PageShell width="default" className="min-h-[calc(100vh-64px)]">
         <form
-          className="w-full max-w-xl space-y-5 rounded-md border border-border bg-surface p-6 shadow-sm"
+          className="mx-auto flex w-full max-w-xl flex-col gap-6"
           onSubmit={handleSubmit(mfaToken ? manejarMfa : manejarSubmit)}
         >
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-primary">Inicio de sesion</span>
-            <h1 className="mt-2 text-2xl font-semibold text-text">Ingresa a tu cuenta</h1>
-            <p className="mt-2 text-sm text-text-muted">
-              {mfaToken
+          <PageHeader
+            eyebrow="Inicio de sesion"
+            title="Ingresa a tu cuenta"
+            description={
+              mfaToken
                 ? `Ingresa el codigo de tu app autenticadora${usuarioPendiente?.email ? ` para ${usuarioPendiente.email}` : ''}.`
-                : 'Usa el email asignado para entrar al panel correspondiente.'}
-            </p>
-          </div>
+                : 'Usa el email asignado para entrar al panel correspondiente.'
+            }
+            className="border-b-0 pb-0"
+          />
 
-          {error && <Alert variant="error" className="mt-16">{error}</Alert>}
-
-          {!mfaToken ? (
-            <div className="grid gap-4">
-              <Input
-                label="Email"
-                type="email"
-                placeholder="tu@email.com"
-                autoComplete="username"
-                error={errors.email?.message}
-                required
-                {...register('email')}
-              />
-
-              <Input
-                label="Contrasena"
-                type="password"
-                placeholder="********"
-                autoComplete="current-password"
-                error={errors.password?.message}
-                required
-                {...register('password')}
-              />
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              <Input
-                label="Codigo MFA"
-                placeholder="123456"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                error={errors.mfaCode?.message}
-                required
-                {...register('mfaCode')}
-              />
-              <Button
-                variant="link"
-                type="button"
-                className="mt-1 self-start"
-                onClick={() => {
-                  setMfaToken('')
-                  setValue('mfaCode', '')
-                  clearErrors('mfaCode')
-                  setUsuarioPendiente(null)
-                }}
-              >
-                Usar otra cuenta
-              </Button>
-            </div>
-          )}
-
-          <Button
-            className="mt-16"
-            fullWidth
-            type="submit"
-            loading={cargando}
+          <FormSection
+            title={mfaToken ? 'Verificacion MFA' : 'Credenciales'}
+            description={mfaToken ? 'Completa el segundo factor para continuar.' : 'Ingresa email y contrasena para acceder.'}
           >
-            {mfaToken ? 'Verificar codigo' : 'Ingresar'}
-          </Button>
+            {error && <Alert variant="error">{error}</Alert>}
+
+            {!mfaToken ? (
+              <div className="grid gap-4">
+                <Input
+                  label="Email"
+                  type="email"
+                  placeholder="tu@email.com"
+                  autoComplete="username"
+                  error={errors.email?.message}
+                  required
+                  {...register('email')}
+                />
+
+                <Input
+                  label="Contrasena"
+                  type="password"
+                  placeholder="********"
+                  autoComplete="current-password"
+                  error={errors.password?.message}
+                  required
+                  {...register('password')}
+                />
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                <Input
+                  label="Codigo MFA"
+                  placeholder="123456"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  error={errors.mfaCode?.message}
+                  required
+                  {...register('mfaCode')}
+                />
+                <Button
+                  variant="link"
+                  type="button"
+                  className="self-start"
+                  onClick={() => {
+                    setMfaToken('')
+                    setValue('mfaCode', '')
+                    clearErrors('mfaCode')
+                    setUsuarioPendiente(null)
+                  }}
+                >
+                  Usar otra cuenta
+                </Button>
+              </div>
+            )}
+
+            <FormActions align="between" className="-mx-5 -mb-5 mt-2 rounded-b-md">
+              {!mfaToken ? (
+                <p className="m-0 text-sm text-text-muted">
+                  Sos proveedor?{' '}
+                  <Link className="font-semibold text-success hover:underline" to="/registro-proveedor">
+                    Registrate aca
+                  </Link>
+                </p>
+              ) : (
+                <span />
+              )}
+              <Button type="submit" loading={cargando}>
+                {mfaToken ? 'Verificar codigo' : 'Ingresar'}
+              </Button>
+            </FormActions>
+          </FormSection>
 
           {!mfaToken && (
-            <div className="text-center mt-16 text-sm">
-              <p className="text-muted">
-                Sos proveedor?{' '}
-                <Link className="text-success font-bold" to="/registro-proveedor">
-                  Registrate aca
-                </Link>
-              </p>
-              <Button as={Link} variant="link" className="mt-8" to="/portal">
-                Ver portal público sin ingresar
+            <div className="flex justify-center">
+              <Button as={Link} variant="link" to="/portal">
+                Ver portal publico sin ingresar
               </Button>
             </div>
           )}
 
           {!mfaToken && (
-            <div className="demo-section">
-              <div className="demo-section__header">
-                <div>
-                  <h2 className="demo-section__title">Usuarios de prueba</h2>
-                  <p className="demo-section__help">
-                    Selecciona uno para autocompletar el email y contraseña.
-                  </p>
-                </div>
-                <Badge variant="neutral">Demo</Badge>
-              </div>
-              <div className="demo-section__list">
+            <FormSection
+              title="Usuarios de prueba"
+              description="Selecciona uno para autocompletar el email y contrasena."
+              actions={<Badge variant="neutral">Demo</Badge>}
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
                 {USUARIOS_DEMO.map((usuario) => (
-                  <button
-                    className="demo-section__user"
+                  <Button
+                    className="h-auto justify-start px-3 py-3 text-left"
                     key={usuario.email}
                     type="button"
+                    variant="secondary"
                     onClick={() => usarDemo(usuario)}
                   >
-                    <span className="demo-section__user-email">{usuario.email}</span>
-                    <span className="demo-section__user-rol">{usuario.rol}</span>
-                  </button>
+                    <span className="flex min-w-0 flex-col items-start gap-1">
+                      <span className="truncate text-sm font-semibold text-text">{usuario.email}</span>
+                      <span className="text-xs text-text-muted">{usuario.rol}</span>
+                    </span>
+                  </Button>
                 ))}
               </div>
-            </div>
+            </FormSection>
           )}
         </form>
-      </section>
+      </PageShell>
     </div>
   )
 }
 
-function destinoSeguroPorRol(rol, destino) {
+function destinoSeguroPorRol(rol: string | undefined, destino: string) {
   if (rol === ROLES.EVALUADOR) return '/evaluacion'
   if (rol === ROLES.PROVEEDOR) return '/proveedor'
   if (!destino || destino === '/login') return '/'

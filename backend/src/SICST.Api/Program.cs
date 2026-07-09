@@ -50,6 +50,7 @@ builder.Services.AddHostedService<SupplierArcaVerificationService>();
 builder.Services.AddHostedService<OutboxDispatcherService>();
 builder.Services.AddSingleton<IUploadStorage, LocalUploadStorage>();
 builder.Services.AddSingleton<IAntivirusScanner, NoOpAntivirusScanner>();
+builder.Services.AddScoped<IArcaVerificationAuditStore, ArcaVerificationAuditStore>();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready", "db"])
     .AddCheck<RedisHealthCheck>("redis", tags: ["ready", "cache"])
@@ -192,6 +193,11 @@ builder.Services.AddAuthorization(options =>
     {
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
     }
+
+    options.AddPolicy(PermissionCodes.PurchasesManageOrEvaluate, policy =>
+        policy.Requirements.Add(new PermissionRequirement(
+            PermissionCodes.PurchasesManage,
+            PermissionCodes.PurchasesEvaluate)));
 });
 
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();

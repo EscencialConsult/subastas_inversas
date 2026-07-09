@@ -1,13 +1,33 @@
-import { apiFetch, ApiError } from './client'
+import { apiFetch, ApiError, API_URL, getAccessToken } from './client'
 import type { components } from './schema'
 
-type SupplierResponse = components["schemas"]["SupplierDto"]
+type SupplierResponse = components["schemas"]["SupplierDto"] & {
+  arcaBusinessName?: string | null
+  arcaFiscalAddress?: string | null
+  arcaIvaCondition?: string | null
+  arcaBusinessNameMatchScore?: number | null
+  arcaVerificationExpiresAtUtc?: string | null
+  documentsTotal?: number | null
+  documentsApproved?: number | null
+  documentsRejected?: number | null
+  documentsExpired?: number | null
+  documentsPendingReview?: number | null
+  lastCompanyReviewAtUtc?: string | null
+  lastCompanyReviewNotes?: string | null
+  readinessStatus?: string | number | null
+}
 type SupplierDocumentResponse = components["schemas"]["SupplierDocumentDto"]
 type SupplierDocumentReviewResponse = components["schemas"]["SupplierDocumentReviewDto"]
 type SupplierInvitationResponse = components["schemas"]["InvitationDto"]
 type AuctionDtoResponse = components["schemas"]["SupplierAuctionDto"]
 type BidDtoResponse = components["schemas"]["BidDto"]
 type CompanySupplierDtoResponse = components["schemas"]["CompanySupplierDto"]
+type RegisterSupplierResponse = {
+  userId?: string
+  supplierId?: string
+  status?: string
+  message?: string | null
+}
 
 const ESTADOS: Record<string | number, string> = {
   0: 'pendiente',
@@ -32,10 +52,14 @@ const ESTADOS_ARCA: Record<string | number, string> = {
   1: 'verificado',
   2: 'rechazado',
   3: 'fallido',
+  4: 'revision_manual',
+  5: 'pendiente_revision',
   Pending: 'pendiente',
   Verified: 'verificado',
   Rejected: 'rechazado',
   Failed: 'fallido',
+  PendingManualReview: 'revision_manual',
+  PendingReview: 'pendiente_revision',
 }
 
 const ESTADOS_EMPRESA_PROVEEDOR: Record<string | number, string> = {
@@ -54,6 +78,15 @@ const VEREDICTOS_DOCUMENTO: Record<string | number, string> = {
   Approved: 'aprobado',
   Rejected: 'rechazado',
   ApprovedWithException: 'aprobado_con_excepcion',
+}
+
+const READINESS_STATUS: Record<string | number, string> = {
+  0: 'listo',
+  1: 'requiere_revision',
+  2: 'bloqueado',
+  Ready: 'listo',
+  NeedsReview: 'requiere_revision',
+  Blocked: 'bloqueado',
 }
 
 const ESTADOS_INVITACION: Record<string | number, string> = {
@@ -97,7 +130,20 @@ export interface ProveedorMapped {
   estadoArca: string
   verificadoArcaEn: string | null
   notasArca: string
+  arcaRazonSocial: string
+  arcaDomicilioFiscal: string
+  arcaCondicionIva: string
+  arcaMatchScore: number | null
+  arcaVenceEl: string | null
   credencialesEnviadasEn: string | null
+  documentosTotal: number
+  documentosAprobados: number
+  documentosRechazados: number
+  documentosVencidos: number
+  documentosPendientesRevision: number
+  ultimaRevisionEmpresaEn: string | null
+  ultimaRevisionEmpresaNotas: string
+  readinessStatus: string
   estadoEmpresa: string
   advertenciaEmpresa: string
   politicaEstricta?: boolean | null
@@ -117,6 +163,7 @@ export interface DocumentoProveedorMapped {
   id: string
   proveedorId: string
   tipo: number
+  tipoNombre: string
   nombreArchivo: string
   contentType: string
   ruta: string
@@ -140,6 +187,17 @@ export interface RevisionDocumentoMapped {
   notas?: string | null
   excepcion?: string | null
   fecha: string
+}
+
+const TIPOS_DOCUMENTO: Record<string | number, string> = {
+  0: 'Constancia CUIT/CUIL',
+  1: 'Certificado fiscal',
+  2: 'Documento legal',
+  3: 'Otro',
+  CuitCertificate: 'Constancia CUIT/CUIL',
+  TaxCertificate: 'Certificado fiscal',
+  LegalDocument: 'Documento legal',
+  Other: 'Otro',
 }
 
 export interface InvitacionProveedorMapped {
@@ -199,7 +257,7 @@ export interface HabilitarProveedorEmpresaMapped {
 export async function registrarProveedor({ datos }: { datos: RegistrarProveedorInput }): Promise<string> {
   validar(datos)
 
-  return apiFetch<string>('/api/suppliers/register', {
+  const respuesta = await apiFetch<string | RegisterSupplierResponse>('/api/suppliers/register', {
     method: 'POST',
     body: {
       businessName: datos.razonSocial.trim(),
@@ -210,6 +268,12 @@ export async function registrarProveedor({ datos }: { datos: RegistrarProveedorI
       locality: datos.localidad?.trim() || 'Sin informar',
     },
   })
+
+  if (typeof respuesta === 'string') {
+    return respuesta
+  }
+
+  return respuesta.message || 'Tus datos fueron enviados a verificacion.'
 }
 
 export async function obtenerProveedorDeUsuario({ usuarioId }: { usuarioId: string }): Promise<ProveedorMapped> {
@@ -251,9 +315,31 @@ async function listarProveedoresDesdeEndpoint(
   return resultado
 }
 
-export async function habilitarProveedorEmpresa({ tenantId, proveedorId }: { tenantId: string; proveedorId: string }): Promise<HabilitarProveedorEmpresaMapped> {
+export interface HabilitarProveedorEmpresaInput {
+  tenantId: string
+  proveedorId: string
+  arcaReviewed: boolean
+  documentsReviewed: boolean
+  warningsAccepted: boolean
+  reviewNotes?: string
+}
+
+export async function habilitarProveedorEmpresa({
+  tenantId,
+  proveedorId,
+  arcaReviewed,
+  documentsReviewed,
+  warningsAccepted,
+  reviewNotes = '',
+}: HabilitarProveedorEmpresaInput): Promise<HabilitarProveedorEmpresaMapped> {
   const data = await apiFetch<CompanySupplierDtoResponse>(`/api/companies/${tenantId}/suppliers/${proveedorId}/enable`, {
     method: 'POST',
+    body: {
+      arcaReviewed,
+      documentsReviewed,
+      warningsAccepted,
+      reviewNotes: reviewNotes.trim() || null,
+    },
   })
 
   return {
@@ -266,6 +352,73 @@ export async function habilitarProveedorEmpresa({ tenantId, proveedorId }: { ten
   }
 }
 
+export async function eliminarProveedor({ proveedorId }: { proveedorId: string }): Promise<void> {
+  await apiFetch(`/api/suppliers/${proveedorId}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function reintentarVerificacionArcaProveedor({ proveedorId }: { proveedorId: string }): Promise<void> {
+  await apiFetch(`/api/suppliers/${proveedorId}/arca/retry`, {
+    method: 'POST',
+  })
+}
+
+export interface ArcaAuditEntryMapped {
+  id: string
+  supplierId: string
+  result: string
+  notes: string
+  source: string
+  businessNameMatchScore: number | null
+  cuitConsulted: string | null
+  businessNameDeclared: string | null
+  businessNameFoundInArca: string | null
+  rawResponseSummary: string | null
+  reviewedByUserId: string | null
+  automatic: boolean
+  createdAtUtc: string
+}
+
+interface ArcaHistoryResponse {
+  id: string
+  supplierId: string
+  result: number
+  notes: string
+  source: string
+  businessNameMatchScore: number | null
+  cuitConsulted: string | null
+  businessNameDeclared: string | null
+  businessNameFoundInArca: string | null
+  rawResponseSummary: string | null
+  reviewedByUserId: string | null
+  automatic: boolean
+  createdAtUtc: string
+}
+
+export async function listarHistorialArcaProveedor({ proveedorId }: { proveedorId: string }): Promise<ArcaAuditEntryMapped[]> {
+  const data = await apiFetch<ArcaHistoryResponse[]>(`/api/suppliers/${proveedorId}/arca-history`)
+  return data.map(mapArcaAuditEntry)
+}
+
+function mapArcaAuditEntry(entry: ArcaHistoryResponse): ArcaAuditEntryMapped {
+  return {
+    id: entry.id ?? '',
+    supplierId: entry.supplierId ?? '',
+    result: ESTADOS_ARCA[entry.result ?? ''] ?? String(entry.result ?? ''),
+    notes: entry.notes ?? '',
+    source: entry.source ?? '',
+    businessNameMatchScore: entry.businessNameMatchScore ?? null,
+    cuitConsulted: entry.cuitConsulted ?? null,
+    businessNameDeclared: entry.businessNameDeclared ?? null,
+    businessNameFoundInArca: entry.businessNameFoundInArca ?? null,
+    rawResponseSummary: entry.rawResponseSummary ?? null,
+    reviewedByUserId: entry.reviewedByUserId ?? null,
+    automatic: Boolean(entry.automatic),
+    createdAtUtc: entry.createdAtUtc ?? '',
+  }
+}
+
 export async function listarInvitacionesDeProveedor({ proveedorId }: { proveedorId: string }): Promise<InvitacionProveedorMapped[]> {
   const data = await apiFetch<SupplierInvitationResponse[]>(`/api/suppliers/${proveedorId}/invitations`)
   return data.map(mapInvitacionProveedor)
@@ -274,6 +427,22 @@ export async function listarInvitacionesDeProveedor({ proveedorId }: { proveedor
 export async function listarDocumentosProveedor({ proveedorId }: { proveedorId: string }): Promise<DocumentoProveedorMapped[]> {
   const data = await apiFetch<SupplierDocumentResponse[]>(`/api/suppliers/${proveedorId}/documents`)
   return data.map(mapDocumentoProveedor)
+}
+
+export async function abrirDocumentoProveedor({ documentoId }: { documentoId: string }): Promise<void> {
+  const response = await fetch(`${API_URL}/api/v1/suppliers/documents/${documentoId}/file`, {
+    credentials: 'include',
+    headers: getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : undefined,
+  })
+
+  if (!response.ok) {
+    throw new ApiError('No se pudo abrir el documento.', response.status)
+  }
+
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank', 'noopener,noreferrer')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 export async function subirDocumentoProveedor({ proveedorId, tipo, archivo, venceEl }: { proveedorId: string; tipo: number | string; archivo: File; venceEl: string }): Promise<DocumentoProveedorMapped> {
@@ -428,7 +597,20 @@ function mapProveedor(proveedor: SupplierResponse): ProveedorMapped {
     estadoArca: ESTADOS_ARCA[proveedor.arcaVerificationStatus ?? ''] ?? 'pendiente',
     verificadoArcaEn: proveedor.arcaVerifiedAtUtc ?? null,
     notasArca: proveedor.arcaVerificationNotes ?? '',
+    arcaRazonSocial: proveedor.arcaBusinessName ?? '',
+    arcaDomicilioFiscal: proveedor.arcaFiscalAddress ?? '',
+    arcaCondicionIva: proveedor.arcaIvaCondition ?? '',
+    arcaMatchScore: proveedor.arcaBusinessNameMatchScore ?? null,
+    arcaVenceEl: proveedor.arcaVerificationExpiresAtUtc ?? null,
     credencialesEnviadasEn: proveedor.credentialsSentAtUtc ?? null,
+    documentosTotal: proveedor.documentsTotal ?? 0,
+    documentosAprobados: proveedor.documentsApproved ?? 0,
+    documentosRechazados: proveedor.documentsRejected ?? 0,
+    documentosVencidos: proveedor.documentsExpired ?? 0,
+    documentosPendientesRevision: proveedor.documentsPendingReview ?? 0,
+    ultimaRevisionEmpresaEn: proveedor.lastCompanyReviewAtUtc ?? null,
+    ultimaRevisionEmpresaNotas: proveedor.lastCompanyReviewNotes ?? '',
+    readinessStatus: READINESS_STATUS[proveedor.readinessStatus ?? ''] ?? 'requiere_revision',
     estadoEmpresa: ESTADOS_EMPRESA_PROVEEDOR[proveedor.companySupplierStatus ?? ''] ?? 'sin_habilitar',
     advertenciaEmpresa: proveedor.companySupplierWarning ?? '',
     politicaEstricta: proveedor.companySupplierStrictPolicy,
@@ -440,6 +622,7 @@ function mapDocumentoProveedor(data: SupplierDocumentResponse): DocumentoProveed
     id: data.id ?? '',
     proveedorId: data.supplierId ?? '',
     tipo: data.type ?? 0,
+    tipoNombre: TIPOS_DOCUMENTO[data.type ?? ''] ?? 'Documento',
     nombreArchivo: data.fileName ?? '',
     contentType: data.contentType ?? '',
     ruta: data.storagePath ?? '',

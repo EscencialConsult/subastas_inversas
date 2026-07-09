@@ -188,6 +188,67 @@ namespace SICST.Persistence.Migrations
                     b.ToTable("ApprovalWorkflowLevels");
                 });
 
+            modelBuilder.Entity("SICST.Domain.Entities.ArcaVerificationAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Automatic")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("BusinessNameDeclared")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("BusinessNameFoundInArca")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("BusinessNameMatchScore")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CuitConsulted")
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("RawResponseSummary")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Result")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("ArcaVerificationAudits", (string)null);
+                });
+
             modelBuilder.Entity("SICST.Domain.Entities.Auction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1320,6 +1381,52 @@ namespace SICST.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ArcaBusinessName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("ArcaBusinessNameMatchScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ArcaEmployeeCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ArcaFiscalAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ArcaFiscalCity")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ArcaFiscalProvince")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ArcaIvaCondition")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("ArcaIvaConditionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ArcaLastRenewalAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ArcaMonotributoCategory")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ArcaPersonType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ArcaRawData")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ArcaVerificationExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ArcaVerificationNotes")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -1675,6 +1782,24 @@ namespace SICST.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("ApprovalWorkflow");
+                });
+
+            modelBuilder.Entity("SICST.Domain.Entities.ArcaVerificationAudit", b =>
+                {
+                    b.HasOne("SICST.Domain.Entities.User", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SICST.Domain.Entities.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReviewedBy");
+
+                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("SICST.Domain.Entities.Auction", b =>

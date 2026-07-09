@@ -1,3 +1,5 @@
+using SICST.Application.Common.Models;
+
 namespace SICST.Application.Common.Interfaces;
 
 public record ArcaVerificationRequest(
@@ -9,7 +11,14 @@ public record ArcaVerificationRequest(
 
 public record ArcaVerificationResult(
     bool Verified,
-    string Notes);
+    string Notes)
+{
+    public ArcaTaxpayerData? TaxpayerData { get; init; }
+
+    public int? BusinessNameMatchScore { get; init; }
+
+    public bool RequiresManualReview { get; init; }
+}
 
 public interface IArcaVerificationService
 {

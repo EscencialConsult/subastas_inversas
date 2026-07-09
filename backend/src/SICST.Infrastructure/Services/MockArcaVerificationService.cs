@@ -13,17 +13,40 @@ public class MockArcaVerificationService : IArcaVerificationService
             return Task.FromResult(new ArcaVerificationResult(false, "ARCA rechazó el CUIT informado."));
         }
 
-        if (request.Cuit.EndsWith("-0", StringComparison.Ordinal))
+        if (request.Cuit.EndsWith("-1", StringComparison.Ordinal))
         {
-            return Task.FromResult(new ArcaVerificationResult(false, "ARCA informó que el CUIT no está activo."));
+            return Task.FromResult(new ArcaVerificationResult(false, "ARCA informó que el CUIT no está activo.")
+            {
+                BusinessNameMatchScore = 0
+            });
+        }
+
+        if (request.Cuit.EndsWith("-2", StringComparison.Ordinal))
+        {
+            return Task.FromResult(new ArcaVerificationResult(true, "La razón social no coincide exactamente. Se requiere revisión manual.")
+            {
+                BusinessNameMatchScore = 75,
+                RequiresManualReview = true
+            });
+        }
+
+        if (request.Cuit.EndsWith("-3", StringComparison.Ordinal))
+        {
+            return Task.FromResult(new ArcaVerificationResult(true, "CUIT válido, pero la razón social no coincide con el registro de ARCA. Requiere revisión manual.")
+            {
+                BusinessNameMatchScore = 50
+            });
         }
 
         if (string.IsNullOrWhiteSpace(request.BusinessName))
         {
-            return Task.FromResult(new ArcaVerificationResult(false, "ARCA no pudo validar la razón social."));
+            return Task.FromResult(new ArcaVerificationResult(false, "ARCA no pudo validar los datos fiscales porque falta la razón social del proveedor."));
         }
 
-        return Task.FromResult(new ArcaVerificationResult(true, "Datos fiscales verificados correctamente por ARCA."));
+        return Task.FromResult(new ArcaVerificationResult(true, "Situación fiscal verificada: CUIT activo y datos coinciden con ARCA.")
+        {
+            BusinessNameMatchScore = 100
+        });
     }
 
     private static bool IsValidCuit(string cuit)

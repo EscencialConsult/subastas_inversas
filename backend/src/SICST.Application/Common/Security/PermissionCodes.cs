@@ -10,6 +10,7 @@ public static class PermissionCodes
     public const string UsersManage = "users:manage";
     public const string SuppliersManage = "suppliers:manage";
     public const string PurchasesManage = "purchases:manage";
+    public const string PurchasesManageOrEvaluate = "purchases:manage-or-evaluate";
     public const string PurchasesApprove = "purchases:approve";
     public const string PurchasesEvaluate = "purchases:evaluate";
     public const string AuditRead = "audit:read";

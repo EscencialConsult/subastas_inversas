@@ -1,12 +1,13 @@
-// Alta, edicion y vista de un proceso de compra mediante wizard.
-
-import { Check } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { Alert } from '../../shared/ui/Alert'
 import { AnimatedPage } from '../../shared/ui/AnimatedPage'
 import { Badge } from '../../shared/ui/Badge'
 import { LoadingState } from '../../shared/ui/StateViews'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
+import { Stepper, type Step } from '../../shared/ui/Stepper'
 import { claseEstado, etiquetaEstado } from '../../domain/compras'
 import {
   PROCESO_FORM_ETAPAS,
@@ -21,24 +22,71 @@ export function ProcesoFormPage() {
   const navigate = useNavigate()
   const formState = useProcesoForm({ id, tenantId, usuario, navigate })
 
+  const [isSaving, setIsSaving] = useState(false)
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    if (formState.editable && !formState.esNuevo && id) {
+      autoSaveTimer.current = setTimeout(() => {
+        setIsSaving(true)
+        setTimeout(() => setIsSaving(false), 300)
+      }, 800)
+    }
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    }
+  }, [formState.datos, formState.esNuevo, formState.editable, id])
+
   if (formState.cargando) return <LoadingState label="Cargando proceso..." />
+
+  function pasoCompletado(etapa: { nro: number }): boolean {
+    const { datos, criteriosEvaluacion, docRequisitos, invitadosIds } = formState
+    switch (etapa.nro) {
+      case 1: return !!datos.titulo && !!datos.descripcion
+      case 2: return !!datos.presupuestoEstimado && !!datos.modalidadContratacionId
+      case 3: return datos.items.length > 0
+      case 4: return criteriosEvaluacion.length > 0
+      case 5: return docRequisitos.length > 0
+      case 6: return true
+      case 7: return invitadosIds.length > 0
+      default: return true
+    }
+  }
+
+  const steps: Step[] = PROCESO_FORM_ETAPAS.map((etapa) => ({
+    ...etapa,
+    state: formState.currentStep > etapa.nro
+      ? 'completed'
+      : formState.currentStep === etapa.nro
+        ? 'active'
+        : 'pending',
+    completado: pasoCompletado(etapa),
+  }))
 
   return (
     <AnimatedPage>
-      <section className="space-y-6">
-        <div className="encabezado">
-          <h1>{tituloPagina(formState.esNuevo, formState.editable)}</h1>
-          {formState.proceso && (
+      <PageShell as="section" width="wide" className="px-0 py-0">
+        <PageHeader
+          title={tituloPagina(formState.esNuevo, formState.editable)}
+          description={
+            <span className="inline-flex items-center gap-2">
+              {formState.editable ? 'Completa los pasos para configurar y publicar el proceso.' : 'Consulta el detalle completo del proceso.'}
+              {isSaving && <span className="text-xs text-text-muted">Guardando...</span>}
+            </span>
+          }
+          meta={formState.proceso && (
             <Badge variant={claseEstado(formState.proceso.estado)}>
               {etiquetaEstado(formState.proceso.estado)}
             </Badge>
           )}
-        </div>
+        />
 
         {formState.editable && (
-          <ProcesoStepper
+          <Stepper
+            steps={steps}
             currentStep={formState.currentStep}
-            irAlPaso={formState.irAlPaso}
+            onStepClick={formState.irAlPaso}
           />
         )}
 
@@ -73,45 +121,17 @@ export function ProcesoFormPage() {
             navigate={navigate}
           />
         )}
-      </section>
+      </PageShell>
     </AnimatedPage>
   )
 }
 
-function ProcesoStepper({ currentStep, irAlPaso }) {
-  return (
-    <div className="wizard-progress">
-      <div
-        className="wizard-progress__bar-fill"
-        style={{ width: `${((currentStep - 1) / 7) * 100}%` }}
-      />
-      {PROCESO_FORM_ETAPAS.map((etapa) => {
-        const isActive = currentStep === etapa.nro
-        const isCompleted = currentStep > etapa.nro
-        return (
-          <div
-            key={etapa.nro}
-            className={`wizard-progress__step ${isActive ? 'wizard-progress__step--active' : ''} ${isCompleted ? 'wizard-progress__step--completed' : ''}`}
-            style={{ cursor: isCompleted || isActive ? 'pointer' : 'default' }}
-            onClick={() => (isCompleted || isActive) && irAlPaso(etapa.nro)}
-          >
-            <div className="wizard-progress__circle">
-              {isCompleted ? <Check size={14} /> : etapa.nro}
-            </div>
-            <div className="wizard-progress__label">{etapa.label}</div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function tituloPagina(esNuevo, editable) {
+function tituloPagina(esNuevo: boolean, editable: boolean) {
   if (esNuevo) return 'Nuevo proceso de compra (Asistente)'
   return editable ? 'Editar proceso de compra (Asistente)' : 'Proceso de compra'
 }
 
-function formatearPesos(monto) {
+function formatearPesos(monto: number) {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',

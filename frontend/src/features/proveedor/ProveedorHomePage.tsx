@@ -1,57 +1,34 @@
-// Home del proveedor: ve su perfil de empresa y su estado de verificacion.
-// Es su espacio propio: no ve datos de ningun tenant comprador.
-
-import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { CircleAlert, FileCheck2, FileClock, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
+import type { DocumentoProveedorMapped, ProveedorMapped } from '../../shared/api/proveedoresApi'
 import { getErrorMessage } from '../../shared/query/queryClient'
-import { Badge } from '../../shared/ui/Badge'
 import { Alert } from '../../shared/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
+import { Card, CardGrid } from '../../shared/ui/Card'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
 import { Spinner } from '../../shared/ui/Spinner'
 import {
   proveedorHomeQuery,
   proveedoresKeys,
-  subsanarDocumentoProveedorMutation,
-  subirDocumentoProveedorMutation,
 } from './data/proveedoresData'
 
 const ESTADO = {
-  pendiente: { texto: 'Pendiente de verificacion', clase: 'neutral' },
-  verificado: { texto: 'Verificado', clase: 'success' },
+  pendiente: { texto: 'Pendiente de verificacion', variant: 'warning' as const },
+  verificado: { texto: 'Verificado', variant: 'success' as const },
+  rechazado: { texto: 'Rechazado', variant: 'error' as const },
 }
 
-const TIPOS_DOCUMENTO = [
-  { valor: 'CuitCertificate', texto: 'Constancia CUIT' },
-  { valor: 'TaxCertificate', texto: 'Certificado fiscal' },
-  { valor: 'LegalDocument', texto: 'Documento legal' },
-  { valor: 'Other', texto: 'Otro' },
-]
-
-const ESTADO_DOCUMENTO = {
-  valido: { texto: 'Vigente', clase: 'success' },
-  por_vencer: { texto: 'Por vencer', clase: 'warning' },
-  vencido: { texto: 'Vencido', clase: 'error' },
+const READINESS = {
+  listo: { texto: 'Listo para operar', variant: 'success' as const },
+  requiere_revision: { texto: 'Requiere revision', variant: 'warning' as const },
+  bloqueado: { texto: 'Bloqueado', variant: 'error' as const },
 }
-
-const DICTAMEN_DOCUMENTO = {
-  aprobado: { texto: 'Aprobado', clase: 'success' },
-  rechazado: { texto: 'Rechazado', clase: 'error' },
-  aprobado_con_excepcion: { texto: 'Aprobado con excepcion', clase: 'warning' },
-}
-
-
 
 export function ProveedorHomePage() {
   const { usuario } = useAuth()
-  const queryClient = useQueryClient()
-  const [subsanandoId, setSubsanandoId] = useState(null)
-  const [errorDocumento, setErrorDocumento] = useState('')
-  const [subsanaciones, setSubsanaciones] = useState({})
-  const [formDocumento, setFormDocumento] = useState({
-    tipo: 'CuitCertificate',
-    venceEl: '',
-    archivo: null,
-  })
 
   const homeQuery = useQuery({
     queryKey: proveedoresKeys.byUser(usuario.id),
@@ -59,246 +36,166 @@ export function ProveedorHomePage() {
     enabled: Boolean(usuario.id),
   })
 
-  const subirMutation = useMutation({
-    mutationFn: subirDocumentoProveedorMutation,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: proveedoresKeys.byUser(usuario.id) })
-    },
-  })
-
-  const subsanarMutation = useMutation({
-    mutationFn: subsanarDocumentoProveedorMutation,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: proveedoresKeys.byUser(usuario.id) })
-    },
-  })
-
   const proveedor = homeQuery.data?.proveedor
-  const documentos = homeQuery.data?.documentos ?? []
+  const documentos = useMemo(() => homeQuery.data?.documentos ?? [], [homeQuery.data?.documentos])
 
-  if (homeQuery.isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (homeQuery.isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner />
+      </div>
+    )
+  }
+
   const error = getErrorMessage(homeQuery.error, '')
-  if (error) return <Alert variant="error">{error}</Alert>
+  if (error || !proveedor) return <Alert variant="error">{error || 'No se encontro el proveedor.'}</Alert>
 
   const estado = ESTADO[proveedor.estado] ?? ESTADO.pendiente
-  const documentosConAlerta = documentos.filter((documento) =>
-    ['por_vencer', 'vencido'].includes(documento.estado),
-  )
-
-  const manejarCambioDocumento = (event) => {
-    const { name, value, files } = event.target
-    setFormDocumento((actual) => ({
-      ...actual,
-      [name]: files ? files[0] : value,
-    }))
-  }
-
-  const manejarSubmitDocumento = async (event) => {
-    event.preventDefault()
-    setErrorDocumento('')
-
-    if (!formDocumento.archivo) {
-      setErrorDocumento('Selecciona un PDF para cargar.')
-      return
-    }
-
-    if (!formDocumento.venceEl) {
-      setErrorDocumento('Indica la fecha de vencimiento.')
-      return
-    }
-
-    try {
-      await subirMutation.mutateAsync({
-        proveedorId: proveedor.id,
-        tipo: formDocumento.tipo,
-        archivo: formDocumento.archivo,
-        venceEl: formDocumento.venceEl,
-      })
-
-      setFormDocumento({
-        tipo: 'CuitCertificate',
-        venceEl: '',
-        archivo: null,
-      })
-      event.target.reset()
-    } catch (err) {
-      setErrorDocumento(getErrorMessage(err))
-    }
-  }
-
-  const manejarSubsanacion = async (documentoId) => {
-    const notas = subsanaciones[documentoId]?.trim()
-    if (!notas) {
-      setErrorDocumento('Escribe una nota de subsanacion.')
-      return
-    }
-
-    setSubsanandoId(documentoId)
-    setErrorDocumento('')
-    try {
-      await subsanarMutation.mutateAsync({
-        documentoId,
-        proveedorId: proveedor.id,
-        notes: notas,
-      })
-      setSubsanaciones((actual) => ({ ...actual, [documentoId]: '' }))
-    } catch (err) {
-      setErrorDocumento(getErrorMessage(err))
-    } finally {
-      setSubsanandoId(null)
-    }
-  }
-
-
+  const readiness = READINESS[proveedor.readinessStatus] ?? READINESS.requiere_revision
+  const checklist = construirChecklist(proveedor, documentos)
 
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <h1>Mi cuenta de proveedor</h1>
-      </div>
+    <PageShell as="section" width="wide" className="px-0 py-0">
+      <PageHeader
+        title="Mi cuenta de proveedor"
+        description="Resumen de tu cuenta de proveedor: verificacion fiscal, estado documental y checklist de habilitacion."
+        meta={
+          <>
+            <Badge variant={estado.variant}>{estado.texto}</Badge>
+            <Badge variant={readiness.variant}>{readiness.texto}</Badge>
+          </>
+        }
+      />
 
-      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-text">Datos de la empresa</h2>
-        <div className="perfil__solo-lectura">
-          <span>Razon social: {proveedor.razonSocial}</span>
-          <span>CUIT: {proveedor.cuit}</span>
-          <span>Email: {usuario.email}</span>
+      <Card hover={false} padding="md" className="space-y-4">
+        <ResumenGrid
+          items={[
+            ['Razon social', proveedor.razonSocial],
+            ['CUIT', proveedor.cuit],
+            ['Email', usuario.email],
+            ['Rubro', proveedor.rubro],
+            ['ARCA', proveedor.arcaVerificado ? 'Verificado' : 'Pendiente'],
+            ['Ultima revision empresa', formatearFechaHora(proveedor.ultimaRevisionEmpresaEn)],
+          ]}
+        />
+
+        <Alert variant={proveedor.readinessStatus === 'bloqueado' ? 'error' : proveedor.readinessStatus === 'listo' ? 'success' : 'warning'}>
+          {mensajeEstadoProveedor(proveedor)}
+        </Alert>
+      </Card>
+
+      <Card hover={false} padding="md" className="space-y-4">
+        <div className="flex items-center gap-2 text-lg font-semibold text-text">
+          <ShieldCheck size={18} />
+          Checklist de habilitacion
         </div>
-
-        <div className="proveedor__estado">
-          <span>Estado:</span>
-          <Badge variant={estado.clase}>{estado.texto}</Badge>
+        <div className="space-y-2">
+          {checklist.map((item) => (
+            <div key={item.label} className="flex items-start gap-3 rounded-md border border-border p-3">
+              <Badge variant={item.ok ? 'success' : item.variant}>{item.ok ? 'OK' : item.badge}</Badge>
+              <div>
+                <div className="text-sm font-medium text-text">{item.label}</div>
+                <div className="text-sm text-text-muted">{item.detail}</div>
+              </div>
+            </div>
+          ))}
         </div>
+      </Card>
 
-        {proveedor.estado === 'pendiente' && (
-          <p className="text-sm text-text-muted">
-            Tu cuenta esta creada pero todavia no fue verificada. Una vez verificada
-            vas a poder participar de las subastas.
-          </p>
-        )}
-      </div>
+      <CardGrid>
+        <MetricCard icon={FileCheck2} label="Aprobados" value={`${proveedor.documentosAprobados}/${proveedor.documentosTotal}`} />
+        <MetricCard icon={FileClock} label="Pendientes" value={String(proveedor.documentosPendientesRevision)} />
+        <MetricCard icon={CircleAlert} label="Rechazados" value={String(proveedor.documentosRechazados)} />
+        <MetricCard icon={CircleAlert} label="Vencidos" value={String(proveedor.documentosVencidos)} />
+      </CardGrid>
 
 
-
-      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-text">Documentacion</h2>
-
-        {documentosConAlerta.length > 0 && (
-          <Alert variant="warning">Tenes {documentosConAlerta.length} documento(s) vencidos o por vencer.</Alert>
-        )}
-
-        <form className="documentos__form" onSubmit={manejarSubmitDocumento}>
-          <label>
-            Tipo
-            <select name="tipo" value={formDocumento.tipo} onChange={manejarCambioDocumento}>
-              {TIPOS_DOCUMENTO.map((tipo) => (
-                <option key={tipo.valor} value={tipo.valor}>
-                  {tipo.texto}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Vencimiento
-            <input
-              name="venceEl"
-              type="date"
-              value={formDocumento.venceEl}
-              onChange={manejarCambioDocumento}
-            />
-          </label>
-
-          <label>
-            PDF
-            <input name="archivo" type="file" accept="application/pdf" onChange={manejarCambioDocumento} />
-          </label>
-
-          <button type="submit" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" disabled={subirMutation.isPending}>
-            {subirMutation.isPending ? 'Cargando...' : 'Subir documento'}
-          </button>
-        </form>
-
-        {errorDocumento && <Alert variant="error">{errorDocumento}</Alert>}
-
-        {homeQuery.isFetching ? (
-          <div className="flex justify-center py-12"><Spinner /></div>
-        ) : documentos.length === 0 ? (
-          <p className="text-sm text-text-muted">Todavia no cargaste documentacion global.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-md border border-border bg-surface shadow-sm">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead>
-                <tr>
-                  <th>Documento</th>
-                  <th>Hash</th>
-                  <th>Vencimiento</th>
-                  <th>Estado</th>
-                  <th>Dictamen</th>
-                  <th>Subsanacion</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documentos.map((documento) => {
-                  const estadoDocumento = ESTADO_DOCUMENTO[documento.estado] ?? ESTADO_DOCUMENTO.valido
-                  const dictamen = documento.dictamen
-                    ? DICTAMEN_DOCUMENTO[documento.dictamen]
-                    : null
-                  return (
-                    <tr key={documento.id}>
-                      <td>{documento.nombreArchivo}</td>
-                      <td className="mono">{documento.hashCorto}</td>
-                      <td>{formatearFecha(documento.venceEl)}</td>
-                      <td>
-                        <Badge variant={estadoDocumento.clase}>{estadoDocumento.texto}</Badge>
-                      </td>
-                      <td>
-                        {dictamen ? (
-                          <Badge variant={dictamen.clase}>{dictamen.texto}</Badge>
-                        ) : (
-                          <Badge variant="neutral">Sin dictamen</Badge>
-                        )}
-                        {documento.revisiones.length > 0 && (
-                          <small className="mt-1 block text-xs text-text-muted">
-                            Ultima revision: {documento.revisiones.at(-1).notas}
-                          </small>
-                        )}
-                      </td>
-                      <td>
-                        <textarea
-                          className="documentos__subsanacion"
-                          rows={2}
-                          value={subsanaciones[documento.id] ?? ''}
-                          onChange={(event) =>
-                            setSubsanaciones((actual) => ({
-                              ...actual,
-                              [documento.id]: event.target.value,
-                            }))
-                          }
-                          placeholder="Responder observacion"
-                        />
-                        <button
-                          className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
-                          type="button"
-                          onClick={() => manejarSubsanacion(documento.id)}
-                          disabled={subsanandoId === documento.id}
-                        >
-                          {subsanandoId === documento.id ? 'Enviando...' : 'Subsanar'}
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </section>
+    </PageShell>
   )
 }
 
-function formatearFecha(fechaIso) {
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof FileCheck2
+  label: string
+  value: string
+}) {
+  return (
+    <Card hover={false} padding="sm" className="space-y-2">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+        <Icon size={16} />
+        {label}
+      </div>
+      <div className="text-2xl font-semibold text-text">{value}</div>
+    </Card>
+  )
+}
+
+function ResumenGrid({ items }: { items: Array<[string, string]> }) {
+  return (
+    <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      {items.map(([label, value]) => (
+        <div key={label}>
+          <dt className="text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</dt>
+          <dd className="m-0 mt-1 text-sm text-text">{value || '---'}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function construirChecklist(proveedor: ProveedorMapped, documentos: DocumentoProveedorMapped[]) {
+  const tieneConstancia = documentos.some((documento) => documento.tipoNombre === 'Constancia CUIT/CUIL')
+  return [
+    {
+      label: 'Verificacion ARCA',
+      detail: proveedor.arcaVerificado ? 'Tus datos fiscales ya fueron verificados.' : 'Todavia estamos validando tu situacion fiscal en ARCA.',
+      ok: proveedor.arcaVerificado,
+      badge: 'Pendiente',
+      variant: 'warning' as const,
+    },
+    {
+      label: 'Constancia CUIT/CUIL',
+      detail: tieneConstancia ? 'Hay al menos una constancia cargada para revision.' : 'Todavia no cargaste la constancia CUIT/CUIL.',
+      ok: tieneConstancia,
+      badge: 'Falta',
+      variant: 'error' as const,
+    },
+    {
+      label: 'Documentacion con dictamen',
+      detail: proveedor.documentosPendientesRevision === 0
+        ? 'Todos los documentos cargados tienen dictamen.'
+        : `Quedan ${proveedor.documentosPendientesRevision} documento(s) pendientes de revision.`,
+      ok: proveedor.documentosPendientesRevision === 0 && proveedor.documentosTotal > 0,
+      badge: 'Revision',
+      variant: 'warning' as const,
+    },
+    {
+      label: 'Documentacion vigente',
+      detail: proveedor.documentosVencidos === 0
+        ? 'No se detectan documentos vencidos.'
+        : `Tenes ${proveedor.documentosVencidos} documento(s) vencidos o bloqueantes.`,
+      ok: proveedor.documentosVencidos === 0,
+      badge: 'Vencido',
+      variant: 'error' as const,
+    },
+  ]
+}
+
+function mensajeEstadoProveedor(proveedor: ProveedorMapped) {
+  if (proveedor.readinessStatus === 'bloqueado') {
+    return 'Tu cuenta todavia no puede operar. Revisa los documentos vencidos, rechazados o la verificacion ARCA pendiente.'
+  }
+  if (proveedor.readinessStatus === 'requiere_revision') {
+    return 'Tu cuenta ya esta avanzada, pero todavia quedan documentos o validaciones por revisar antes de habilitarla.'
+  }
+  return 'Tu cuenta esta alineada para operar. Si una empresa todavia no te habilito, ya cuenta con la informacion necesaria para hacerlo.'
+}
+
+function formatearFechaHora(fechaIso?: string | null) {
   if (!fechaIso) return '---'
-  return new Intl.DateTimeFormat('es-AR', { dateStyle: 'short' }).format(new Date(fechaIso))
+  return new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(String(fechaIso)))
 }

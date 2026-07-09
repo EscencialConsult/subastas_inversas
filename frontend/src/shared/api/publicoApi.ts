@@ -172,6 +172,7 @@ export interface PublicAwardMapped {
 export async function listarProcesosPublicos({ busqueda = '', estado = '' }: { busqueda?: string; estado?: string } = {}): Promise<PublicProcessMapped[]> {
   const params = new URLSearchParams()
   if (busqueda.trim()) params.set('search', busqueda.trim())
+  if (estado) params.set('estado', estado)
 
   const data = await apiFetch<PublicProcessResponse[]>(`/api/public/purchase-processes${params.toString() ? `?${params}` : ''}`)
   let filas = data.map(mapearProcesoPublico)
@@ -301,7 +302,7 @@ function mapearSubastaPublica(subasta: PublicAuctionResponse): PublicAuctionMapp
       cantidadLances: item.bidCount ?? 0,
       ultimoLanceEn: item.lastBidAtUtc,
     })),
-    eventsUrl: subasta.eventsUrl ?? `/api/public/auctions/${subasta.id}/events`,
+    eventsUrl: subasta.eventsUrl ?? `/api/v1/public/auctions/${subasta.id}/events`,
     inicioISO: subasta.startsAtUtc ?? null,
     inicioEn: subasta.startsAtUtc ?? null,
     cierreEn: subasta.endsAtUtc ?? null,

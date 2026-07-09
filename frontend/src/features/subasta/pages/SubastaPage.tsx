@@ -11,6 +11,7 @@ import { FormSection } from '../../../shared/ui/FormSection'
 import { LoadingState } from '../../../shared/ui/StateViews'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { PageShell } from '../../../shared/ui/PageShell'
+import { Pagination, usePagination } from '../../../shared/ui/Pagination'
 import { StatusBadge } from '../../../shared/ui/StatusBadge'
 import { useSubasta } from '../hooks/useSubasta'
 
@@ -175,6 +176,8 @@ function ComparativoSection({ subasta }: { subasta: SubastaMapped }) {
 }
 
 function LancesTable({ lances }: { lances: SubastaMapped['lances'] }) {
+  const { paginatedItems, setPage, setPageSize, ...paginacion } = usePagination(lances as LanceRow[])
+
   const columns: Array<DataTableColumn<LanceRow>> = [
     {
       header: 'Proveedor',
@@ -195,13 +198,16 @@ function LancesTable({ lances }: { lances: SubastaMapped['lances'] }) {
   ]
 
   return (
-    <DataTable
-      columns={columns}
-      rows={lances as LanceRow[]}
-      getRowId={(row) => row.id}
-      emptyTitle="Sin lances"
-      emptyDescription="Todavia no hay lances registrados."
-    />
+    <>
+      <DataTable
+        columns={columns}
+        rows={paginatedItems}
+        getRowId={(row) => row.id}
+        emptyTitle="Sin lances"
+        emptyDescription="No se registraron lances."
+      />
+      <Pagination {...paginacion} onPageChange={setPage} onPageSizeChange={setPageSize} />
+    </>
   )
 }
 

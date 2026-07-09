@@ -1,158 +1,154 @@
 import { X } from 'lucide-react'
 import { Alert } from '../../../../shared/ui/Alert'
+import { Button } from '../../../../shared/ui/Button'
+import { Input } from '../../../../shared/ui/Input'
 
 export function Paso4Criterios({ criteriosEvaluacion, setCriteriosEvaluacion }) {
-  const excluyentes = criteriosEvaluacion.filter(c => c.type === 'Exclusionary')
-  const ponderados = criteriosEvaluacion.filter(c => c.type === 'Weighted')
-  const weightSum = ponderados.reduce((s, c) => s + (Number(c.weight) || 0), 0)
+  const excluyentes = criteriosEvaluacion.filter((criterio) => criterio.type === 'Exclusionary')
+  const ponderados = criteriosEvaluacion.filter((criterio) => criterio.type === 'Weighted')
+  const weightSum = ponderados.reduce((suma, criterio) => suma + (Number(criterio.weight) || 0), 0)
+
+  function actualizarCriterio(index, field, value) {
+    const next = [...criteriosEvaluacion]
+    next[index] = { ...next[index], [field]: value }
+    setCriteriosEvaluacion(next)
+  }
+
+  function quitarCriterio(index) {
+    setCriteriosEvaluacion((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+  }
 
   return (
     <div>
-      <h2 className="wizard-card__title">Etapa 4: Criterios de Evaluación</h2>
+      <h2 className="wizard-card__title">Etapa 4: Criterios de evaluacion</h2>
       <p className="wizard-card__sub">
-        Define los criterios para evaluar objetivamente a los proveedores. Los criterios excluyentes filtran postores; los ponderados se puntúan 0-100% con un peso asignado.
+        Define criterios para evaluar objetivamente a los proveedores. Los excluyentes filtran postores; los ponderados se puntuan 0-100% con un peso asignado.
       </p>
 
-      <h3 className="text-base font-semibold text-text">Criterios Excluyentes</h3>
-      {excluyentes.length === 0 && (
-        <p className="text-sm text-text-muted">No hay criterios excluyentes definidos.</p>
-      )}
-      
-      <div className="overflow-x-auto w-full mb-4">
-        <div className="min-w-[500px]">
-          {excluyentes.map((c) => {
-            const realIdx = criteriosEvaluacion.indexOf(c)
-            return (
-              <div key={realIdx} className="wizard-item-row" style={{ marginBottom: '8px' }}>
-                <input
-                  className="campo input"
-                  value={c.name}
-                  onChange={e => {
-                    const next = [...criteriosEvaluacion]
-                    next[realIdx] = { ...next[realIdx], name: e.target.value }
-                    setCriteriosEvaluacion(next)
-                  }}
-                  placeholder="Nombre del criterio (ej: Certificación ISO requerida)"
-                  style={{ flex: 2, padding: '6px 10px', fontSize: '13px' }}
-                />
-                <input
-                  className="campo input"
-                  value={c.description || ''}
-                  onChange={e => {
-                    const next = [...criteriosEvaluacion]
-                    next[realIdx] = { ...next[realIdx], description: e.target.value }
-                    setCriteriosEvaluacion(next)
-                  }}
-                  placeholder="Descripción (opcional)"
-                  style={{ flex: 3, padding: '6px 10px', fontSize: '13px' }}
-                />
-                <button 
-                  type="button" 
-                  className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-60" 
-                  onClick={() => {
-                    setCriteriosEvaluacion(prev => prev.filter((_, i) => i !== realIdx))
-                  }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      
-      <button 
-        type="button" 
-        className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" 
-        onClick={() => {
-          setCriteriosEvaluacion(prev => [...prev, { id: null, name: '', description: '', type: 'Exclusionary', weight: 0 }])
-        }} 
-        style={{ marginBottom: '20px' }}
-      >
-        + Agregar criterio excluyente
-      </button>
-
-      <h3 className="text-base font-semibold text-text">Criterios Ponderados</h3>
-      {ponderados.length === 0 && (
-        <p className="text-sm text-text-muted">No hay criterios ponderados definidos.</p>
-      )}
-
-      <div className="overflow-x-auto w-full">
-        <div className="min-w-[600px]">
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr 80px 40px', gap: '8px', padding: '0 8px 8px', borderBottom: '1px solid var(--color-borde)', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold' }}>
-            <span>Nombre</span>
-            <span>Descripción</span>
-            <span>Peso %</span>
-            <span></span>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="m-0 text-base font-semibold text-text">Criterios excluyentes</h3>
+            <p className="m-0 mt-1 text-sm text-text-muted">Condiciones que un proveedor debe cumplir para participar.</p>
           </div>
-          
-          {ponderados.map((c) => {
-            const realIdx = criteriosEvaluacion.indexOf(c)
-            return (
-              <div key={realIdx} className="wizard-item-row" style={{ marginBottom: '8px' }}>
-                <input
-                  className="campo input"
-                  value={c.name}
-                  onChange={e => {
-                    const next = [...criteriosEvaluacion]
-                    next[realIdx] = { ...next[realIdx], name: e.target.value }
-                    setCriteriosEvaluacion(next)
-                  }}
-                  placeholder="Nombre del criterio (ej: Calidad técnica)"
-                  style={{ padding: '6px 10px', fontSize: '13px' }}
-                />
-                <input
-                  className="campo input"
-                  value={c.description || ''}
-                  onChange={e => {
-                    const next = [...criteriosEvaluacion]
-                    next[realIdx] = { ...next[realIdx], description: e.target.value }
-                    setCriteriosEvaluacion(next)
-                  }}
-                  placeholder="Descripción (opcional)"
-                  style={{ padding: '6px 10px', fontSize: '13px' }}
-                />
-                <input
-                  className="campo input"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={c.weight}
-                  onChange={e => {
-                    const next = [...criteriosEvaluacion]
-                    next[realIdx] = { ...next[realIdx], weight: e.target.value }
-                    setCriteriosEvaluacion(next)
-                  }}
-                  style={{ padding: '6px 10px', fontSize: '13px' }}
-                />
-                <button 
-                  type="button" 
-                  className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-60" 
-                  onClick={() => {
-                    setCriteriosEvaluacion(prev => prev.filter((_, i) => i !== realIdx))
-                  }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )
-          })}
+          <Button
+            type="button"
+            onClick={() => {
+              setCriteriosEvaluacion((prev) => [...prev, { id: null, name: '', description: '', type: 'Exclusionary', weight: 0 }])
+            }}
+          >
+            Agregar criterio
+          </Button>
         </div>
-      </div>
 
-      {ponderados.length > 0 && weightSum !== 100 && (
-        <Alert variant="warning">La suma de pesos debe ser 100% (actual: {weightSum}%)</Alert>
-      )}
+        {excluyentes.length === 0 ? (
+          <p className="rounded-md border border-border bg-background px-3 py-2 text-sm text-text-muted">
+            No hay criterios excluyentes definidos.
+          </p>
+        ) : (
+          <div className="w-full overflow-x-auto">
+            <div className="grid min-w-[520px] gap-2">
+              {excluyentes.map((criterio) => {
+                const realIdx = criteriosEvaluacion.indexOf(criterio)
+                return (
+                  <div key={realIdx} className="grid grid-cols-[2fr_3fr_40px] gap-3">
+                    <Input
+                      value={criterio.name}
+                      onChange={(event) => actualizarCriterio(realIdx, 'name', event.target.value)}
+                      placeholder="Nombre del criterio"
+                    />
+                    <Input
+                      value={criterio.description || ''}
+                      onChange={(event) => actualizarCriterio(realIdx, 'description', event.target.value)}
+                      placeholder="Descripcion opcional"
+                    />
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      onClick={() => quitarCriterio(realIdx)}
+                      aria-label="Quitar criterio excluyente"
+                      icon={<X size={14} />}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </section>
 
-      <button 
-        type="button" 
-        className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" 
-        onClick={() => {
-          setCriteriosEvaluacion(prev => [...prev, { id: null, name: '', description: '', type: 'Weighted', weight: 0 }])
-        }}
-      >
-        + Agregar criterio ponderado
-      </button>
+      <section className="mt-6 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="m-0 text-base font-semibold text-text">Criterios ponderados</h3>
+            <p className="m-0 mt-1 text-sm text-text-muted">Criterios con peso porcentual para ranking tecnico/economico.</p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              setCriteriosEvaluacion((prev) => [...prev, { id: null, name: '', description: '', type: 'Weighted', weight: 0 }])
+            }}
+          >
+            Agregar criterio
+          </Button>
+        </div>
+
+        {ponderados.length === 0 ? (
+          <p className="rounded-md border border-border bg-background px-3 py-2 text-sm text-text-muted">
+            No hay criterios ponderados definidos.
+          </p>
+        ) : (
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-[620px]">
+              <div className="mb-2 grid grid-cols-[2fr_3fr_80px_40px] gap-3 border-b border-border px-2 pb-2 text-xs font-semibold text-text-muted">
+                <span>Nombre</span>
+                <span>Descripcion</span>
+                <span>Peso %</span>
+                <span></span>
+              </div>
+              <div className="grid gap-2">
+                {ponderados.map((criterio) => {
+                  const realIdx = criteriosEvaluacion.indexOf(criterio)
+                  return (
+                    <div key={realIdx} className="grid grid-cols-[2fr_3fr_80px_40px] gap-3">
+                      <Input
+                        value={criterio.name}
+                        onChange={(event) => actualizarCriterio(realIdx, 'name', event.target.value)}
+                        placeholder="Nombre del criterio"
+                      />
+                      <Input
+                        value={criterio.description || ''}
+                        onChange={(event) => actualizarCriterio(realIdx, 'description', event.target.value)}
+                        placeholder="Descripcion opcional"
+                      />
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={criterio.weight}
+                        onChange={(event) => actualizarCriterio(realIdx, 'weight', event.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        onClick={() => quitarCriterio(realIdx)}
+                        aria-label="Quitar criterio ponderado"
+                        icon={<X size={14} />}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {ponderados.length > 0 && weightSum !== 100 && (
+          <Alert variant="warning">La suma de pesos debe ser 100% (actual: {weightSum}%).</Alert>
+        )}
+      </section>
     </div>
   )
 }

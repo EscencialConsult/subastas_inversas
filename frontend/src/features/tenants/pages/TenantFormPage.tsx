@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Building2, CheckCircle, Clipboard, Globe, Image, Palette, ShieldCheck } from 'lucide-react'
@@ -72,8 +72,9 @@ export function TenantFormPage() {
     },
   })
 
-  useEffect(() => {
-    if (!tenantQuery.data) return
+  const [formInited, setFormInited] = useState(false)
+  if (tenantQuery.data && !formInited) {
+    setFormInited(true)
     setDatos({
       nombre: tenantQuery.data.nombre,
       subdominio: tenantQuery.data.subdominio,
@@ -81,7 +82,7 @@ export function TenantFormPage() {
       colorPrimario: tenantQuery.data.colorPrimario || COLOR_PRIMARIO_DEFAULT,
       activo: tenantQuery.data.activo,
     })
-  }, [tenantQuery.data])
+  }
 
   function actualizarCampo(campo: keyof TenantInput, valor: string | boolean) {
     setDatos((prev) => ({ ...prev, [campo]: valor }))

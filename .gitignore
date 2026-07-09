@@ -21,6 +21,9 @@ Thumbs.db
 .env
 .env.local
 
+# ARCA certificates (contain private key material)
+certificados_arca
+
 # Runtime
 backend/backend.log
 *.db

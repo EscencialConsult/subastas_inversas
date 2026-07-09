@@ -1,6 +1,7 @@
 import { forwardRef, useRef, useState, DragEvent, ChangeEvent, InputHTMLAttributes } from 'react'
 import { UploadCloud, File, Trash } from 'lucide-react'
 import { FormField } from './FormField'
+import { Button } from './Button'
 
 export interface FilePickerProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   label?: string
@@ -96,18 +97,7 @@ export const FilePicker = forwardRef<HTMLInputElement, FilePickerProps>(function
       {({ id: fieldId, describedBy, invalid }: { id: string; describedBy: string; invalid: boolean }) => (
         <div className={`w-full flex flex-col gap-3 ${className}`}>
           {/* Drag & Drop Area */}
-          <div
-            className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer select-none
-              ${dragActive ? 'border-primary bg-primary/5 scale-[1.01]' : 'border-border bg-surface'}
-              ${disabled ? 'opacity-50 cursor-default bg-background' : 'hover:border-primary/60 hover:bg-slate-50/50'}
-              ${invalid ? 'border-error bg-error-bg/10' : ''}`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={!disabled ? onButtonClick : undefined}
-            role="presentation"
-          >
+          <div className="relative">
             <input
               id={fieldId}
               ref={(e) => {
@@ -116,7 +106,7 @@ export const FilePicker = forwardRef<HTMLInputElement, FilePickerProps>(function
                 else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = e
               }}
               type="file"
-              className="hidden"
+              className="sr-only"
               accept={accept}
               multiple={multiple}
               disabled={disabled}
@@ -126,14 +116,26 @@ export const FilePicker = forwardRef<HTMLInputElement, FilePickerProps>(function
               {...props}
             />
 
-            <UploadCloud className={`w-10 h-10 mb-2 ${invalid ? 'text-error' : dragActive ? 'text-primary' : 'text-text-muted'}`} />
+            <div
+              className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer
+                ${dragActive ? 'border-primary bg-primary/5 scale-[1.01]' : 'border-border bg-surface'}
+                ${disabled ? 'opacity-50 cursor-default bg-background' : 'hover:border-primary/60 hover:bg-slate-50/50'}
+                ${invalid ? 'border-error bg-error-bg/10' : ''}`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              onClick={!disabled ? onButtonClick : undefined}
+            >
+              <UploadCloud className={`w-10 h-10 mb-2 ${invalid ? 'text-error' : dragActive ? 'text-primary' : 'text-text-muted'}`} />
 
-            <p className="text-sm font-semibold text-text">
-              {multiple ? 'Arrastra tus archivos aquí o haz clic para subir' : 'Arrastra tu archivo aquí o haz clic para subir'}
-            </p>
-            <p className="text-xs text-text-muted mt-1">
-              {accept ? `Archivos permitidos: ${accept.split(',').join(', ')}` : 'Cualquier tipo de archivo'}
-            </p>
+              <p className="text-sm font-semibold text-text">
+                {multiple ? 'Arrastra tus archivos aquí o haz clic para subir' : 'Arrastra tu archivo aquí o haz clic para subir'}
+              </p>
+              <p className="text-xs text-text-muted mt-1">
+                {accept ? `Archivos permitidos: ${accept.split(',').join(', ')}` : 'Cualquier tipo de archivo'}
+              </p>
+            </div>
           </div>
 
           {/* Selected Files List */}
@@ -153,17 +155,16 @@ export const FilePicker = forwardRef<HTMLInputElement, FilePickerProps>(function
                   </div>
 
                   {!disabled && (
-                    <button
-                      type="button"
-                      className="p-1.5 rounded-md text-text-muted hover:text-error hover:bg-error-bg/20 transition-colors cursor-pointer"
-                      title="Eliminar archivo"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash className="w-4 h-4" />}
+                      aria-label="Eliminar archivo"
                       onClick={(e) => {
                         e.stopPropagation()
                         removeFile(idx)
                       }}
-                    >
-                      <Trash className="w-4 h-4" />
-                    </button>
+                    />
                   )}
                 </li>
               ))}

@@ -278,7 +278,7 @@ function actividadReciente({ procesos, subastas }: { procesos: ProcesoMapped[]; 
       titulo: p.titulo,
       detalle: `${p.codigo} - ${etiquetaEstado(p.estado)}`,
       tipo: 'Proceso',
-      to: `/compras/${p.id}`,
+      to: `/auditoria/${p.id}`,
     })),
     ...subastas.map((s) => ({
       id: `subasta-${s.procesoId}`,
@@ -286,7 +286,7 @@ function actividadReciente({ procesos, subastas }: { procesos: ProcesoMapped[]; 
       titulo: s.titulo,
       detalle: `${s.codigo} - baja ${Number(s.bajaPorcentaje ?? 0).toFixed(1)}%`,
       tipo: 'Subasta',
-      to: `/subasta/${s.procesoId}`,
+      to: `/auditoria/${s.procesoId}`,
     })),
   ]
 

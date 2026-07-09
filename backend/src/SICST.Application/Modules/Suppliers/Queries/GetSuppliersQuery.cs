@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SICST.Application.Common.Interfaces;
 using SICST.Application.Common.Models;
 using SICST.Application.Modules.Suppliers.DTOs;
+using SICST.Domain.Entities;
 
 namespace SICST.Application.Modules.Suppliers.Queries;
 
@@ -29,6 +30,7 @@ public class GetSuppliersQueryHandler : IRequestHandler<GetSuppliersQuery, Paged
     {
         var pageNumber = Paging.NormalizePageNumber(request.PageNumber);
         var pageSize = Paging.NormalizePageSize(request.PageSize);
+        var nowUtc = DateTime.UtcNow;
 
         var query = _context.Suppliers.AsNoTracking();
 
@@ -98,34 +100,95 @@ public class GetSuppliersQueryHandler : IRequestHandler<GetSuppliersQuery, Paged
                 ArcaVerificationStatus = s.ArcaVerificationStatus,
                 ArcaVerifiedAtUtc = s.ArcaVerifiedAtUtc,
                 ArcaVerificationNotes = s.ArcaVerificationNotes,
+                ArcaBusinessName = s.ArcaBusinessName,
+                ArcaFiscalAddress = s.ArcaFiscalAddress,
+                ArcaIvaCondition = s.ArcaIvaCondition,
+                ArcaBusinessNameMatchScore = s.ArcaBusinessNameMatchScore,
+                ArcaVerificationExpiresAtUtc = s.ArcaVerificationExpiresAtUtc,
                 CredentialsSentAtUtc = s.CredentialsSentAtUtc
             })
             .ToListAsync(cancellationToken);
 
-        if (request.CompanyId.HasValue && items.Count > 0)
+        if (items.Count > 0)
         {
             var supplierIds = items.Select(i => i.Id).ToList();
-            var companySuppliers = await _context.CompanySuppliers
-                .AsNoTracking()
-                .Where(cs => cs.CompanyId == request.CompanyId.Value && supplierIds.Contains(cs.SupplierId))
-                .ToDictionaryAsync(cs => cs.SupplierId, cancellationToken);
 
-            var strictPolicy = await _context.CompanyConfigurations
+            var documentSummaries = await _context.SupplierDocuments
                 .AsNoTracking()
-                .Where(c => c.CompanyId == request.CompanyId.Value)
-                .Select(c => (bool?)c.RequireSupplierVerification)
-                .FirstOrDefaultAsync(cancellationToken) ?? true;
+                .Where(document => supplierIds.Contains(document.SupplierId))
+                .Select(document => new
+                {
+                    document.SupplierId,
+                    document.ExpiresAtUtc,
+                    Verdict = document.Reviews
+                        .Where(review => review.Action == SupplierDocumentReviewAction.Verdict)
+                        .OrderByDescending(review => review.CreatedAtUtc)
+                        .Select(review => review.Verdict)
+                        .FirstOrDefault()
+                })
+                .ToListAsync(cancellationToken);
+
+            var documentSummaryBySupplier = documentSummaries
+                .GroupBy(document => document.SupplierId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyCollection<SupplierDocumentSnapshot>)group
+                        .Select(document => new SupplierDocumentSnapshot(
+                            SupplierDocumentMapper.ResolveStatus(document.ExpiresAtUtc, nowUtc),
+                            document.Verdict))
+                        .ToList());
+
+            var companySuppliersQuery = _context.CompanySuppliers
+                .AsNoTracking()
+                .Where(cs => supplierIds.Contains(cs.SupplierId));
+
+            if (request.CompanyId.HasValue)
+            {
+                companySuppliersQuery = companySuppliersQuery.Where(cs => cs.CompanyId == request.CompanyId.Value);
+            }
+
+            var companySuppliers = await companySuppliersQuery
+                .OrderByDescending(cs => cs.EvaluatedAtUtc)
+                .ToListAsync(cancellationToken);
+
+            var strictPolicy = request.CompanyId.HasValue
+                ? await _context.CompanyConfigurations
+                    .AsNoTracking()
+                    .Where(c => c.CompanyId == request.CompanyId.Value)
+                    .Select(c => (bool?)c.RequireSupplierVerification)
+                    .FirstOrDefaultAsync(cancellationToken) ?? true
+                : (bool?)null;
+
+            var companySummaryBySupplier = companySuppliers
+                .GroupBy(cs => cs.SupplierId)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                    {
+                        var relation = group
+                            .OrderByDescending(cs => cs.EvaluatedAtUtc)
+                            .First();
+
+                        return new CompanySupplierSnapshot(
+                            relation.Status,
+                            relation.WarningMessage,
+                            strictPolicy,
+                            relation.EvaluatedAtUtc);
+                    });
 
             foreach (var item in items)
             {
-                if (!companySuppliers.TryGetValue(item.Id, out var relation))
+                var documents = documentSummaryBySupplier.TryGetValue(item.Id, out var summary)
+                    ? summary
+                    : Array.Empty<SupplierDocumentSnapshot>();
+                SupplierSummaryBuilder.ApplyDocumentSummary(item, documents);
+
+                if (!companySummaryBySupplier.TryGetValue(item.Id, out var relation))
                 {
                     continue;
                 }
 
-                item.CompanySupplierStatus = relation.Status;
-                item.CompanySupplierWarning = relation.WarningMessage;
-                item.CompanySupplierStrictPolicy = strictPolicy;
+                SupplierSummaryBuilder.ApplyCompanySummary(item, relation);
             }
         }
 

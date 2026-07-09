@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from './Button'
 import { Modal } from './Modal'
@@ -25,6 +26,8 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const descId = useId()
+
   return (
     <Modal
       open={open}
@@ -32,6 +35,7 @@ export function ConfirmDialog({
       title={title}
       size="sm"
       closeOnOverlay={!loading}
+      describedById={description ? descId : undefined}
       footer={(
         <>
           <Button variant="secondary" onClick={onCancel} disabled={loading}>
@@ -47,7 +51,7 @@ export function ConfirmDialog({
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-warning-bg text-warning">
           <AlertTriangle size={20} />
         </div>
-        {description && <p className="m-0 text-sm leading-6 text-text-muted">{description}</p>}
+        {description && <p id={descId} className="m-0 text-sm leading-6 text-text-muted">{description}</p>}
       </div>
     </Modal>
   )

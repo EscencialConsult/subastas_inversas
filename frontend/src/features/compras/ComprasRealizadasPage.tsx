@@ -12,6 +12,7 @@ import { Badge } from '../../shared/ui/Badge'
 import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { Input } from '../../shared/ui/Input'
+import { Pagination, usePagination } from '../../shared/ui/Pagination'
 import { Spinner } from '../../shared/ui/Spinner'
 import { Table } from '../../shared/ui/Table'
 import { listarComprasRealizadasQuery, procesosKeys } from './data/procesosData'
@@ -30,6 +31,7 @@ export function ComprasRealizadasPage() {
 
   const compras = comprasQuery.data ?? []
   const error = getErrorMessage(comprasQuery.error, '')
+  const { paginatedItems, setPage, setPageSize, ...paginacion } = usePagination(compras)
 
   return (
     <section>
@@ -55,32 +57,34 @@ export function ComprasRealizadasPage() {
       ) : compras.length === 0 ? (
         <EmptyState icon={Package} title="Sin compras" description="Todavia no hay compras realizadas." />
       ) : (
-        <Table
-          data={compras}
-          pageSize={10}
-          columns={[
-            { header: 'Codigo', accessor: 'codigo', render: (valor) => <code>{String(valor ?? '')}</code> },
-            { header: 'Titulo', accessor: 'titulo' },
-            { header: 'Proveedor', accessor: 'proveedor' },
-            { header: 'Monto', accessor: 'monto', render: (valor) => formatearPesos(Number(valor) || 0) },
-            { header: 'Fecha', accessor: 'fecha' },
-            {
-              header: 'Estado',
-              accessor: 'estado',
-              render: (valor) => <Badge variant={claseEstado(String(valor))}>{etiquetaEstado(String(valor))}</Badge>,
-            },
-            {
-              header: '',
-              accessor: 'acciones',
-              sortKey: false,
-              render: (_, compra) => (
-                <Button variant="ghost" onClick={() => navigate(`/compras/${compra.id}`)}>
-                  Ver legajo
-                </Button>
-              ),
-            },
-          ]}
-        />
+        <>
+          <Table
+            data={paginatedItems}
+            columns={[
+              { header: 'Codigo', accessor: 'codigo', render: (valor) => <code>{String(valor ?? '')}</code> },
+              { header: 'Titulo', accessor: 'titulo' },
+              { header: 'Proveedor', accessor: 'proveedor' },
+              { header: 'Monto', accessor: 'monto', render: (valor) => formatearPesos(Number(valor) || 0) },
+              { header: 'Fecha', accessor: 'fecha' },
+              {
+                header: 'Estado',
+                accessor: 'estado',
+                render: (valor) => <Badge variant={claseEstado(String(valor))}>{etiquetaEstado(String(valor))}</Badge>,
+              },
+              {
+                header: '',
+                accessor: 'acciones',
+                sortKey: false,
+                render: (_, compra) => (
+                  <Button variant="ghost" onClick={() => navigate(`/compras/${compra.id}`)}>
+                    Ver legajo
+                  </Button>
+                ),
+              },
+            ]}
+          />
+          <Pagination {...paginacion} onPageChange={setPage} onPageSizeChange={setPageSize} />
+        </>
       )}
     </section>
   )

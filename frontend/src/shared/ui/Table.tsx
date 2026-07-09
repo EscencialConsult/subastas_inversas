@@ -76,7 +76,7 @@ export function Table<T extends Record<string, unknown>>({
           <thead>
             <tr>
               {columns.map((col, i) => (
-                <th key={i} className="border-b border-border bg-background px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                <th key={i} scope="col" className="border-b border-border bg-background px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted">
                   {col.header}
                 </th>
               ))}
@@ -113,11 +113,13 @@ export function Table<T extends Record<string, unknown>>({
                 return (
                   <th
                     key={i}
+                    scope="col"
                     className={[
                       'border-b border-border bg-background px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted',
                       canSort ? 'cursor-pointer select-none hover:text-text' : '',
                     ].join(' ')}
                     onClick={() => canSort && toggleSort(accessor)}
+                    aria-sort={canSort && sort.key === accessor ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                   >
                     <span className="inline-flex items-center gap-1">
                       {col.header}

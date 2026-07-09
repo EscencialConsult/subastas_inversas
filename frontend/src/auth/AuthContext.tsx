@@ -131,11 +131,12 @@ export function useAuth() {
 
 function aplicarBranding(colorPrimario?: string) {
   const color = esHexColor(colorPrimario) ? colorPrimario : COLOR_PRIMARIO_DEFAULT
+  const colorHover = esHexColor(colorPrimario) ? oscurecerHex(colorPrimario, 0.12) : COLOR_PRIMARIO_HOVER_DEFAULT
+
+  document.documentElement.style.setProperty('--color-primary', color)
+  document.documentElement.style.setProperty('--color-primary-hover', colorHover)
   document.documentElement.style.setProperty('--color-primario', color)
-  document.documentElement.style.setProperty(
-    '--color-primario-hover',
-    esHexColor(colorPrimario) ? oscurecerHex(colorPrimario, 0.12) : COLOR_PRIMARIO_HOVER_DEFAULT,
-  )
+  document.documentElement.style.setProperty('--color-primario-hover', colorHover)
 }
 
 function esHexColor(valor: unknown): valor is string {

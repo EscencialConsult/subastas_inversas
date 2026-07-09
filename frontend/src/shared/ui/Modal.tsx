@@ -1,21 +1,16 @@
-import { ReactNode, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-
-const sizes = {
-  sm: 'max-w-sm',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-}
+import { Button } from './Button'
 
 export interface ModalProps {
   open: boolean
   onClose: () => void
   title?: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   children?: ReactNode
   footer?: ReactNode
   closeOnOverlay?: boolean
+  describedById?: string
 }
 
 export function Modal({
@@ -26,13 +21,33 @@ export function Modal({
   children,
   footer,
   closeOnOverlay = true,
+  describedById,
 }: ModalProps) {
+  const generatedTitleId = useId()
+  const titleId = title ? generatedTitleId : undefined
   const overlayRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<Element | null>(null)
+  const [mounted, setMounted] = useState(false)
+  const [entering, setEntering] = useState(false)
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setMounted(true)
+      requestAnimationFrame(() => setEntering(true))
+    } else if (mounted) {
+      setEntering(false)
+      const timer = setTimeout(() => {
+        setMounted(false)
+      }, 180)
+      return () => clearTimeout(timer)
+    }
+
+    return undefined
+  }, [open])
+
+  useEffect(() => {
+    if (!mounted) {
       return undefined
     }
 
@@ -95,7 +110,7 @@ export function Modal({
         (previousFocusRef.current as HTMLElement).focus()
       }
     }
-  }, [open, onClose])
+  }, [mounted, onClose])
 
   function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
     if (closeOnOverlay && e.target === overlayRef.current) {
@@ -103,44 +118,35 @@ export function Modal({
     }
   }
 
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          ref={overlayRef}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4"
-          onClick={handleOverlayClick}
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-        >
-          <motion.div
-            ref={containerRef}
-            initial={{ scale: 0.95, opacity: 0, y: 15 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 15 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className={['bg-surface rounded-md w-full shadow-xl overflow-hidden', sizes[size]].join(' ')}
-          >
-            <div className="flex items-center justify-between px-6 pt-5 pb-0">
-              <h2 className="text-xl font-semibold text-text m-0">{title}</h2>
-              <button
-                onClick={onClose}
-                className="p-1 rounded hover:bg-background transition-colors text-text-muted hover:text-text"
-                aria-label="Cerrar modal"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-6 py-4">{children}</div>
-            {footer && <div className="flex justify-end gap-2 px-6 pb-5">{footer}</div>}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
+  return mounted ? (
+    <div
+      ref={overlayRef}
+      className={`fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-4 transition-opacity duration-180 ${entering ? 'opacity-100' : 'opacity-0'}`}
+      onClick={handleOverlayClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-label={title ? undefined : 'Dialogo'}
+      aria-describedby={describedById}
+    >
+      <div
+        ref={containerRef}
+        className={`bg-surface rounded-md w-full shadow-xl overflow-hidden transition-all duration-180 ease-out ${entering ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-3'}`}
+        style={{ maxWidth: size === 'sm' ? '24rem' : size === 'lg' ? '42rem' : size === 'xl' ? '72rem' : '36rem' }}
+      >
+        <div className="flex items-center justify-between px-6 pt-5 pb-0">
+          {title && <h2 id={titleId} className="text-xl font-semibold text-text m-0">{title}</h2>}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            icon={<X size={18} />}
+            aria-label="Cerrar modal"
+          />
+        </div>
+        <div className="px-6 py-4">{children}</div>
+        {footer && <div className="flex justify-end gap-2 px-6 pb-5">{footer}</div>}
+      </div>
+    </div>
+  ) : null
 }

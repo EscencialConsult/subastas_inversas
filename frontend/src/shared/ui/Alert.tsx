@@ -1,6 +1,7 @@
 import { ReactNode } from 'react'
 import { X, AlertCircle, CheckCircle2, Info, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
+import { Button } from './Button'
 
 const config = {
   error: {
@@ -53,21 +54,20 @@ export function Alert({
   }
 
   return (
-    <div className={`${bg} ${text} p-3 px-4 rounded-md mb-4 text-sm leading-[1.5] flex gap-3 items-start ${className}`}>
+    <div className={`${bg} ${text} p-3 px-4 rounded-md mb-4 text-sm leading-[1.5] flex gap-3 items-start ${className}`} role="alert">
       <Icon className="shrink-0 mt-0.5" size={16} />
       <div className="flex-1 min-w-0">
         {title && <div className="font-semibold mb-1">{title}</div>}
         {children}
       </div>
       {dismissible && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleDismiss}
-          className="shrink-0 opacity-60 hover:opacity-100 transition-opacity p-0.5"
+          icon={<X size={14} />}
           aria-label="Cerrar"
-        >
-          <X size={14} />
-        </button>
+        />
       )}
     </div>
   )

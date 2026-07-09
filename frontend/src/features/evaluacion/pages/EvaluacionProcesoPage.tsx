@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../../auth/AuthContext'
+import { useToast } from '../../../context/ToastContext'
 import { Alert } from '../../../shared/ui/Alert'
-import { Spinner } from '../../../shared/ui/Spinner'
+import { Button } from '../../../shared/ui/Button'
+import { LoadingState } from '../../../shared/ui/StateViews'
+import { PageHeader } from '../../../shared/ui/PageHeader'
+import { PageShell } from '../../../shared/ui/PageShell'
+import { ProgressBar } from '../../../shared/ui/ProgressBar'
 import { getErrorMessage } from '../../../shared/query/queryClient'
 import {
   CriteriosEvaluacionSection,
@@ -17,20 +22,65 @@ import {
   guardarCriteriosEvaluacionMutation,
 } from '../data/evaluacionData'
 
+interface Criterion {
+  id: string
+  name: string
+  description?: string
+  type: string
+  weight?: number
+  sortOrder?: number
+}
+
 export function EvaluacionProcesoPage() {
   const { id } = useParams<{ id: string }>()
   const { tenantId, usuario } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const toast = useToast()
 
-  const [criteria, setCriteria] = useState<any[]>([])
   const [scores, setScores] = useState<Record<string, string>>({})
   const [pasaronExcluyentes, setPasaronExcluyentes] = useState<Record<string, boolean>>({})
-  const [notas, setNotas] = useState<Record<string, string>>({})
-  const [results, setResults] = useState<any>(null)
+  const [results, setResults] = useState<Record<string, unknown> | null>(null)
   const [validationError, setValidationError] = useState('')
   const [editandoCriterios, setEditandoCriterios] = useState(false)
-  const [criteriaForm, setCriteriaForm] = useState<any[]>([])
+  const [criteriaForm, setCriteriaForm] = useState<Criterion[]>([])
+
+  function initEmptyScores(criteriaList: Criterion[]) {
+    const initialScores: Record<string, string> = {}
+    const initialPasaron: Record<string, boolean> = {}
+    for (const criterion of criteriaList) {
+      initialScores[criterion.id] = ''
+      initialPasaron[criterion.id] = true
+    }
+    setScores(initialScores)
+    setPasaronExcluyentes(initialPasaron)
+  }
+
+  function initScores(existingResults: Record<string, unknown>) {
+    const initialScores: Record<string, string> = {}
+    const initialPasaron: Record<string, boolean> = {}
+
+    for (const criterion of (existingResults.criteria as Criterion[]) ?? []) {
+      initialScores[criterion.id] = ''
+      initialPasaron[criterion.id] = true
+    }
+
+    const supplierEvaluations = existingResults.supplierEvaluations as Array<Record<string, unknown>> | undefined
+    if (supplierEvaluations?.length > 0) {
+      const firstEval = supplierEvaluations[0]
+      const criterionResults = firstEval.criterionResults as Array<Record<string, unknown>> | undefined
+      for (const result of criterionResults ?? []) {
+        if (result.criterionType === 'Weighted') {
+          initialScores[result.evaluationCriterionId as string] = (result.score as string) ?? ''
+        } else {
+          initialPasaron[result.evaluationCriterionId as string] = (result.passed as boolean) ?? true
+        }
+      }
+    }
+
+    setScores(initialScores)
+    setPasaronExcluyentes(initialPasaron)
+  }
 
   const evaluacionQuery = useQuery({
     queryKey: evaluacionKeys.detail(tenantId, id),
@@ -41,7 +91,8 @@ export function EvaluacionProcesoPage() {
   const evaluarMutation = useMutation({
     mutationFn: evaluarProveedoresMutation,
     onSuccess: async (data) => {
-      setResults(data)
+      setResults(data as unknown as Record<string, unknown>)
+      toast.success('Evaluación guardada correctamente.')
       await queryClient.invalidateQueries({ queryKey: evaluacionKeys.detail(tenantId, id) })
     },
   })
@@ -49,85 +100,57 @@ export function EvaluacionProcesoPage() {
   const guardarCriteriosMutation = useMutation({
     mutationFn: guardarCriteriosEvaluacionMutation,
     onSuccess: async (data) => {
-      setCriteria(data)
-      setCriteriaForm(toCriteriaForm(data))
-      initEmptyScores(data)
+      const typedData = data as Criterion[]
+      setCriteriaForm(toCriteriaForm(typedData))
+      initEmptyScores(typedData)
       setEditandoCriterios(false)
+      toast.success('Criterios guardados correctamente.')
       await queryClient.invalidateQueries({ queryKey: evaluacionKeys.detail(tenantId, id) })
     },
   })
 
-  function initEmptyScores(criteriaList: any[]) {
-    const initialScores: Record<string, string> = {}
-    const initialPasaron: Record<string, boolean> = {}
-    const initialNotas: Record<string, string> = {}
-    for (const criterion of criteriaList) {
-      initialScores[criterion.id] = ''
-      initialPasaron[criterion.id] = true
-      initialNotas[criterion.id] = ''
-    }
-    setScores(initialScores)
-    setPasaronExcluyentes(initialPasaron)
-    setNotas(initialNotas)
-  }
+  const queryData = evaluacionQuery.data
 
-  function initScores(existingResults: any) {
-    const initialScores: Record<string, string> = {}
-    const initialPasaron: Record<string, boolean> = {}
-    const initialNotas: Record<string, string> = {}
-
-    for (const criterion of existingResults.criteria ?? []) {
-      initialScores[criterion.id] = ''
-      initialPasaron[criterion.id] = true
-      initialNotas[criterion.id] = ''
-    }
-
-    if (existingResults.supplierEvaluations?.length > 0) {
-      const firstEval = existingResults.supplierEvaluations[0]
-      for (const result of firstEval.criterionResults ?? []) {
-        if (result.criterionType === 'Weighted') {
-          initialScores[result.evaluationCriterionId] = result.score ?? ''
-        } else {
-          initialPasaron[result.evaluationCriterionId] = result.passed
-        }
-        initialNotas[result.evaluationCriterionId] = result.notes ?? ''
-      }
-    }
-
-    setScores(initialScores)
-    setPasaronExcluyentes(initialPasaron)
-    setNotas(initialNotas)
-  }
+  const criteria = useMemo(() => (queryData?.criteria ?? []) as Criterion[], [queryData?.criteria])
+  const queryResults = queryData?.results ?? null
 
   useEffect(() => {
-    if (!evaluacionQuery.data) return
-    const criteriaList = evaluacionQuery.data.criteria ?? []
-    setResults(evaluacionQuery.data.results)
-    setCriteria(criteriaList)
-    setCriteriaForm(toCriteriaForm(criteriaList))
-    if (evaluacionQuery.data.results) initScores(evaluacionQuery.data.results)
-    else initEmptyScores(criteriaList)
-  }, [evaluacionQuery.data])
+    if (!queryData) return
+    setResults(queryResults as Record<string, unknown> | null)
+    setCriteriaForm(toCriteriaForm(criteria))
+    if (queryResults) initScores(queryResults as Record<string, unknown>)
+    else initEmptyScores(criteria)
+  }, [queryData])
 
-  const proceso = evaluacionQuery.data?.proceso ?? null
-  const subasta = evaluacionQuery.data?.subasta ?? null
+  const proceso = queryData?.proceso ?? null
+  const subasta = queryData?.subasta ?? (null as Record<string, unknown> | null)
 
-  const postores: Array<{ id: string; name: string; monto: number }> = subasta?.lances
-    ? ([...new Map<string, { id: string; name: string; monto: number }>(
-      subasta.lances.map((lance: any) => [lance.proveedorId || lance.proveedor, { id: lance.proveedorId || lance.proveedor, name: lance.proveedor, monto: lance.monto }])
-    ).values()] as Array<{ id: string; name: string; monto: number }>)
-      .sort((left, right) => left.monto - right.monto)
-    : []
+  const postores = useMemo(() => {
+    const lances = subasta?.lances as Array<Record<string, unknown>> | undefined
+    if (!lances) return []
+    const unique = [...new Map<string, { id: string; name: string; monto: number }>(
+      lances.map((lance) => [
+        (lance.proveedorId || lance.proveedor) as string,
+        { id: (lance.proveedorId || lance.proveedor) as string, name: lance.proveedor as string, monto: lance.monto as number },
+      ]),
+    ).values()]
+    return unique.sort((left, right) => left.monto - right.monto)
+  }, [subasta])
 
-  const exclusionaryCriteria = criteria.filter(criterion => criterion.type === 'Exclusionary')
-  const weightedCriteria = criteria.filter(criterion => criterion.type === 'Weighted')
+  const exclusionaryCriteria = criteria.filter((c) => c.type === 'Exclusionary')
+  const weightedCriteria = criteria.filter((c) => c.type === 'Weighted')
+
+  const totalProveedores = postores.length
+  const progresoEvaluacion = totalProveedores > 0 && criteria.length > 0
+    ? Math.round((Object.keys(scores).length / (totalProveedores * criteria.length)) * 100)
+    : 0
 
   function handleScoreChange(criterionId: string, supplierId: string, value: string) {
-    setScores(prev => ({ ...prev, [`${supplierId}_${criterionId}`]: value }))
+    setScores((prev) => ({ ...prev, [`${supplierId}_${criterionId}`]: value }))
   }
 
   function handlePassedChange(criterionId: string, supplierId: string, passed: boolean) {
-    setPasaronExcluyentes(prev => ({ ...prev, [`${supplierId}_${criterionId}`]: passed }))
+    setPasaronExcluyentes((prev) => ({ ...prev, [`${supplierId}_${criterionId}`]: passed }))
   }
 
   function getScore(criterionId: string, supplierId: string) {
@@ -138,12 +161,8 @@ export function EvaluacionProcesoPage() {
     return pasaronExcluyentes[`${supplierId}_${criterionId}`] ?? true
   }
 
-  function getNotes(criterionId: string, supplierId: string) {
-    return notas[`${supplierId}_${criterionId}`] ?? ''
-  }
-
   function isSupplierExcluded(supplierId: string) {
-    return exclusionaryCriteria.some(criterion => !getPassed(criterion.id, supplierId))
+    return exclusionaryCriteria.some((criterion) => !getPassed(criterion.id, supplierId))
   }
 
   function getSupplierWeightedScore(supplierId: string) {
@@ -159,26 +178,26 @@ export function EvaluacionProcesoPage() {
     return appliedWeight > 0 ? Math.round((sum / appliedWeight) * 100) / 100 : null
   }
 
-  async function guardarEvaluacion(e: React.FormEvent) {
-    e.preventDefault()
+  async function guardarEvaluacion(event: React.FormEvent) {
+    event.preventDefault()
     if (!tenantId || !id || !usuario) return
     setValidationError('')
 
     try {
-      const supplierEvaluations = postores.map(supplier => ({
+      const supplierEvaluations = postores.map((supplier) => ({
         supplierId: supplier.id,
         results: [
-          ...exclusionaryCriteria.map(criterion => ({
+          ...exclusionaryCriteria.map((criterion) => ({
             evaluationCriterionId: criterion.id,
             score: null,
             passed: getPassed(criterion.id, supplier.id),
-            notes: getNotes(criterion.id, supplier.id) || null,
+            notes: null,
           })),
-          ...weightedCriteria.map(criterion => ({
+          ...weightedCriteria.map((criterion) => ({
             evaluationCriterionId: criterion.id,
             score: parseFloat(getScore(criterion.id, supplier.id)) || null,
             passed: true,
-            notes: getNotes(criterion.id, supplier.id) || null,
+            notes: null,
           })),
         ],
       }))
@@ -195,19 +214,18 @@ export function EvaluacionProcesoPage() {
   }
 
   function agregarCriterio(tipo: string) {
-    setCriteriaForm(prev => [...prev, {
-      id: null,
+    setCriteriaForm((prev) => [...prev, {
+      id: '',
       name: '',
       description: '',
       type: tipo,
       weight: tipo === 'Weighted' ? 0 : 0,
       sortOrder: prev.length + 1,
-      _new: true,
     }])
   }
 
   function actualizarCriterioForm(idx: number, field: string, value: unknown) {
-    setCriteriaForm(prev => {
+    setCriteriaForm((prev) => {
       const next = [...prev]
       next[idx] = { ...next[idx], [field]: value }
       return next
@@ -215,7 +233,7 @@ export function EvaluacionProcesoPage() {
   }
 
   function quitarCriterioForm(idx: number) {
-    setCriteriaForm(prev => prev.filter((_, index) => index !== idx))
+    setCriteriaForm((prev) => prev.filter((_, index) => index !== idx))
   }
 
   async function guardarCriterios() {
@@ -227,7 +245,7 @@ export function EvaluacionProcesoPage() {
         procesoId: id,
         userId: usuario.id,
         criteria: criteriaForm.map((criterion, index) => ({
-          id: criterion.id,
+          id: criterion.id || null,
           name: criterion.name,
           description: criterion.description || null,
           type: criterion.type,
@@ -240,33 +258,58 @@ export function EvaluacionProcesoPage() {
     }
   }
 
-  if (evaluacionQuery.isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (evaluacionQuery.isLoading) {
+    return <LoadingState label="Cargando proceso..." />
+  }
+
   const guardando = evaluarMutation.isPending || guardarCriteriosMutation.isPending
   const error = validationError || getErrorMessage(evaluacionQuery.error ?? evaluarMutation.error ?? guardarCriteriosMutation.error, '')
   if (!proceso) return <Alert variant="error">{error}</Alert>
 
   if (results && !editandoCriterios) {
     return (
-      <EvaluacionCompletadaSection
-        proceso={proceso}
-        onBack={() => navigate('/evaluacion')}
-        onEdit={() => {
-          setResults(null)
-          setEditandoCriterios(true)
-        }}
-      />
+      <PageShell width="wide">
+        <PageHeader
+          title={<>Evaluación completada <code>{proceso.codigo}</code></>}
+          description={proceso.titulo}
+          actions={(
+            <Button variant="secondary" onClick={() => navigate('/evaluacion')}>
+              Volver
+            </Button>
+          )}
+        />
+        <EvaluacionCompletadaSection
+          onBack={() => navigate('/evaluacion')}
+          onEdit={() => {
+            setResults(null)
+            setEditandoCriterios(true)
+          }}
+        />
+      </PageShell>
     )
   }
 
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <h1>Evaluar Proveedores · <code>{proceso.codigo}</code></h1>
-        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => navigate('/evaluacion')}>Volver</button>
-      </div>
-
-      <p className="proceso__descripcion">{proceso.titulo}</p>
+    <PageShell width="wide">
+      <PageHeader
+        title={<>Evaluar proveedores <code>{proceso.codigo}</code></>}
+        description={proceso.titulo}
+        actions={(
+          <Button variant="secondary" onClick={() => navigate('/evaluacion')}>
+            Volver
+          </Button>
+        )}
+      />
       {error && <Alert variant="error">{error}</Alert>}
+
+      {criteria.length > 0 && postores.length > 0 && (
+        <ProgressBar
+          value={progresoEvaluacion}
+          label="Progreso de evaluación"
+          showPercent
+          variant={progresoEvaluacion === 100 ? 'success' : 'primary'}
+        />
+      )}
 
       <CriteriosEvaluacionSection
         criteria={criteria}
@@ -298,14 +341,14 @@ export function EvaluacionProcesoPage() {
       )}
 
       {!editandoCriterios && postores.length === 0 && (
-        <Alert variant="info" className="mt-4">No hay postores en la subasta para evaluar.</Alert>
+        <Alert variant="info">No hay postores en la subasta para evaluar.</Alert>
       )}
-    </section>
+    </PageShell>
   )
 }
 
-function toCriteriaForm(criteriaList: any[]) {
-  return criteriaList.map(criterion => ({
+function toCriteriaForm(criteriaList: Criterion[]): Criterion[] {
+  return criteriaList.map((criterion) => ({
     id: criterion.id,
     name: criterion.name,
     description: criterion.description || '',

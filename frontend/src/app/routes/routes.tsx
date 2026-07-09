@@ -1,11 +1,14 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { RutaProtegida } from '../../auth/RutaProtegida'
 import { useAuth } from '../../auth/AuthContext'
 import { esProveedor } from '../../auth/permisos'
-import { Layout } from '../layout/Layout'
 import { protectedFeatureRoutes } from './featureRoutes'
 import { publicRoutes } from './publicRoutes'
 import { publicRouteLayout, publicoRoutes } from '../../features/publico/routes'
+import { Spinner } from '../../shared/ui/Spinner'
+
+const Layout = lazy(() => import('../layout/Layout').then(m => ({ default: m.Layout })))
 
 function Inicio() {
   const { rol } = useAuth()
@@ -31,7 +34,9 @@ export function AppRoutes() {
       <Route
         element={
           <RutaProtegida>
-            <Layout />
+            <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Spinner size="lg" /></div>}>
+              <Layout />
+            </Suspense>
           </RutaProtegida>
         }
       >

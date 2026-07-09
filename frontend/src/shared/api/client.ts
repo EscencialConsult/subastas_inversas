@@ -140,5 +140,25 @@ function resolveErrorMessage(body: unknown): string {
     }
   }
 
+  if (body && typeof body === 'object' && 'errors' in body) {
+    const errors = (body as { errors?: unknown }).errors
+    if (errors && typeof errors === 'object') {
+      const messages = Object.values(errors)
+        .flatMap((value) => Array.isArray(value) ? value : [value])
+        .filter((value): value is string => typeof value === 'string')
+
+      if (messages.length > 0) {
+        return messages.join(' ')
+      }
+    }
+  }
+
+  if (body && typeof body === 'object' && 'title' in body) {
+    const title = (body as { title?: unknown }).title
+    if (typeof title === 'string') {
+      return title
+    }
+  }
+
   return 'Ocurrio un error inesperado.'
 }

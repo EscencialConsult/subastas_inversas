@@ -66,6 +66,36 @@ public class SuppliersController : ControllerBase
         return Ok(suppliers);
     }
 
+    [Authorize(Policy = PermissionCodes.SuppliersManage)]
+    [HttpDelete("{supplierId:guid}")]
+    public async Task<IActionResult> Delete(Guid supplierId)
+    {
+        try
+        {
+            await _sender.Send(new DeleteSupplierCommand(supplierId));
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize(Policy = PermissionCodes.SuppliersManage)]
+    [HttpPost("{supplierId:guid}/arca/retry")]
+    public async Task<IActionResult> RetryArcaVerification(Guid supplierId)
+    {
+        try
+        {
+            await _sender.Send(new RetrySupplierArcaVerificationCommand(supplierId));
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
     [HttpGet("evaluation")]
     [HttpGet("/api/evaluation/suppliers")]
@@ -115,16 +145,31 @@ public class SuppliersController : ControllerBase
         return Ok(suppliers);
     }
 
+    [Authorize(Policy = PermissionCodes.AuditRead)]
+    [HttpGet("{supplierId:guid}/arca-history")]
+    public async Task<ActionResult<List<SICST.Application.Modules.Suppliers.DTOs.ArcaHistoryDto>>> GetArcaHistory(Guid supplierId)
+    {
+        var history = await _sender.Send(new GetSupplierArcaHistoryQuery(supplierId));
+        return Ok(history);
+    }
+
     [Authorize(Policy = PermissionCodes.PurchasesManage)]
     [HttpPost("/api/companies/{companyId:guid}/suppliers/{supplierId:guid}/enable")]
-    public async Task<ActionResult<CompanySupplierDto>> EnableForCompany(Guid companyId, Guid supplierId)
+    public async Task<ActionResult<CompanySupplierDto>> EnableForCompany(
+        Guid companyId,
+        Guid supplierId,
+        [FromBody] EnableSupplierForCompanyReviewRequest request)
     {
         try
         {
             var result = await _sender.Send(new EnableSupplierForCompanyCommand
             {
                 CompanyId = companyId,
-                SupplierId = supplierId
+                SupplierId = supplierId,
+                ArcaReviewed = request.ArcaReviewed,
+                DocumentsReviewed = request.DocumentsReviewed,
+                WarningsAccepted = request.WarningsAccepted,
+                ReviewNotes = request.ReviewNotes
             });
 
             return Ok(result);
@@ -222,6 +267,31 @@ public class SuppliersController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [Authorize]
+    [HttpGet("documents/{documentId:guid}/file")]
+    public async Task<IActionResult> GetDocumentFile(Guid documentId)
+    {
+        var document = await _sender.Send(new GetSupplierDocumentFileQuery(documentId));
+        if (document is null)
+        {
+            return NotFound(new { message = "Documento no encontrado." });
+        }
+
+        var fullPath = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, document.StoragePath));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, "uploads"));
+
+        if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(fullPath))
+        {
+            return NotFound(new { message = "Archivo no encontrado." });
+        }
+
+        var contentType = string.IsNullOrWhiteSpace(document.ContentType)
+            ? "application/pdf"
+            : document.ContentType;
+
+        return PhysicalFile(fullPath, contentType, document.FileName, enableRangeProcessing: true);
     }
 
     [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
@@ -383,4 +453,12 @@ public class UploadDocumentRequest
     public SupplierDocumentType Type { get; set; }
     public DateTime ExpiresAtUtc { get; set; }
     public IFormFile File { get; set; } = null!;
+}
+
+public class EnableSupplierForCompanyReviewRequest
+{
+    public bool ArcaReviewed { get; set; }
+    public bool DocumentsReviewed { get; set; }
+    public bool WarningsAccepted { get; set; }
+    public string? ReviewNotes { get; set; }
 }

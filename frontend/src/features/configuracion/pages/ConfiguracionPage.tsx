@@ -5,6 +5,8 @@ import { useConfirm } from '../../../context/ConfirmContext'
 import { useToast } from '../../../context/ToastContext'
 import { getErrorMessage } from '../../../shared/query/queryClient'
 import { Alert } from '../../../shared/ui/Alert'
+import { PageHeader } from '../../../shared/ui/PageHeader'
+import { PageShell } from '../../../shared/ui/PageShell'
 import {
   CircuitosSection,
   etiquetaTipoPlantilla,
@@ -264,10 +266,8 @@ export function ConfiguracionPage() {
   }
 
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <h1>Configuracion</h1>
-      </div>
+    <PageShell width="wide">
+      <PageHeader title="Configuración" />
 
       {error && <Alert variant="error">{error}</Alert>}
 
@@ -311,6 +311,6 @@ export function ConfiguracionPage() {
         onSetForm={setPlantillaForm}
         onActivate={activarPlantilla}
       />
-    </section>
+    </PageShell>
   )
 }

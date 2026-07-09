@@ -128,7 +128,7 @@ export function DataTable<T extends Record<string, unknown>>({
                     aria-sort={activeSort === 'asc' ? 'ascending' : activeSort === 'desc' ? 'descending' : undefined}
                   >
                     <span className={['inline-flex items-center gap-1', column.align === 'right' ? 'justify-end' : '', column.align === 'center' ? 'justify-center' : ''].join(' ')}>
-                      {column.header}
+                      {column.header || <span className="sr-only">{column.id}</span>}
                       {column.sortable && (
                         activeSort === 'asc' ? <ChevronUp size={14} /> : activeSort === 'desc' ? <ChevronDown size={14} /> : <ChevronsUpDown size={14} className="opacity-35" />
                       )}

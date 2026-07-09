@@ -1,22 +1,31 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { SearchX } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
-import { etiquetaEstado, claseEstado } from '../../domain/compras'
+import { puedeCalificarProveedores } from '../../auth/permisos'
+import { claseEstado, etiquetaEstado } from '../../domain/compras'
 import { getErrorMessage } from '../../shared/query/queryClient'
-import { Badge } from '../../shared/ui/Badge'
 import { Alert } from '../../shared/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
 import { Button } from '../../shared/ui/Button'
-import { EmptyState } from '../../shared/ui/EmptyState'
+import { DataTable, type DataTableColumn } from '../../shared/ui/DataTable'
+import { FormSection } from '../../shared/ui/FormSection'
 import { Input } from '../../shared/ui/Input'
-import { Pagination, usePagination } from '../../shared/ui/Pagination'
-import { Spinner } from '../../shared/ui/Spinner'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
 import { calificacionKeys, listarProcesosCalificacionQuery } from './data/calificacionData'
 
+type ProcesoRow = {
+  id: string
+  codigo: string
+  titulo: string
+  estado: string
+}
+
 export function CalificacionListPage() {
-  const { tenantId } = useAuth()
+  const { tenantId, rol } = useAuth()
   const navigate = useNavigate()
+  const puedeCalificar = puedeCalificarProveedores(rol)
 
   const [busqueda, setBusqueda] = useState('')
   const procesosQuery = useQuery({
@@ -25,71 +34,56 @@ export function CalificacionListPage() {
     enabled: Boolean(tenantId),
     placeholderData: (previousData) => previousData,
   })
-  const procesos = procesosQuery.data ?? []
-  const procesosPagination = usePagination(procesos, { initialPageSize: 10 })
+  const procesos = (procesosQuery.data ?? []) as ProcesoRow[]
   const error = getErrorMessage(procesosQuery.error, '')
 
+  const columns: Array<DataTableColumn<ProcesoRow & Record<string, unknown>>> = [
+    {
+      header: 'Código',
+      cell: (row) => <code>{row.codigo}</code>,
+    },
+    { header: 'Título', accessor: 'titulo', sortable: true },
+    {
+      header: 'Estado',
+      cell: (row) => <Badge variant={claseEstado(row.estado)}>{etiquetaEstado(row.estado)}</Badge>,
+    },
+    {
+      header: '',
+      align: 'right',
+      cell: (row) => (
+        <Button size="sm" onClick={() => navigate(`/calificacion/${row.id}`)}>
+          {puedeCalificar ? 'Calificar proveedores' : 'Ver proveedores'}
+        </Button>
+      ),
+    },
+  ]
+
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <h1>Calificación de Proveedores</h1>
-        <p className="text-sm text-text-muted">
-          Califique los proveedores que aceptaron la invitación. Solo los <strong>Aprobados</strong> podrán participar en la subasta.
-        </p>
-      </div>
+    <PageShell width="wide">
+      <PageHeader
+        title="Calificación de Proveedores"
+        description="Califique los proveedores que aceptaron la invitación. Solo los Aprobados podrán participar en la subasta."
+      />
 
-      {error && <Alert variant="error">{error}</Alert>}
-
-      <div className="barra-busqueda">
+      <FormSection title="Filtros">
         <Input
           placeholder="Buscar por código o título..."
           value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
+          onChange={(e) => setBusqueda(e.target.value)}
         />
-      </div>
+      </FormSection>
 
-      {procesosQuery.isLoading || procesosQuery.isFetching ? (
-        <div className="flex justify-center py-12"><Spinner /></div>
-      ) : procesos.length === 0 ? (
-        <EmptyState icon={SearchX} title="Sin procesos" description="No hay procesos con proveedores pendientes de calificación." />
-      ) : (
-        <>
-        <table className="min-w-full divide-y divide-border text-sm">
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Título</th>
-              <th>Estado</th>
-              <th>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {procesosPagination.paginatedItems.map(p => (
-              <tr key={p.id}>
-                <td><code>{p.codigo}</code></td>
-                <td>{p.titulo}</td>
-                <td>
-                  <Badge variant={claseEstado(p.estado)}>{etiquetaEstado(p.estado)}</Badge>
-                </td>
-                <td>
-                  <Button size="sm" onClick={() => navigate(`/calificacion/${p.id}`)}>
-                    Calificar proveedores
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Pagination
-          page={procesosPagination.page}
-          pageSize={procesosPagination.pageSize}
-          totalItems={procesosPagination.totalItems}
-          totalPages={procesosPagination.totalPages}
-          onPageChange={procesosPagination.setPage}
-          onPageSizeChange={procesosPagination.setPageSize}
-        />
-        </>
-      )}
-    </section>
+      {error && <Alert variant="error">{error}</Alert>}
+
+      <DataTable
+        columns={columns}
+        rows={procesos as (ProcesoRow & Record<string, unknown>)[]}
+        loading={procesosQuery.isLoading || procesosQuery.isFetching}
+        getRowId={(row) => row.id}
+        pageSize={10}
+        emptyTitle="Sin procesos"
+        emptyDescription="No hay procesos con proveedores pendientes de calificación."
+      />
+    </PageShell>
   )
 }

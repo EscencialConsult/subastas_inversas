@@ -183,9 +183,7 @@ export function useProcesoForm({ id, tenantId, usuario, navigate }: UseProcesoFo
       .catch(() => setModalidades([]))
   }, [tenantId])
 
-  useEffect(() => {
-    if (proveedoresState.error) setError(proveedoresState.error)
-  }, [proveedoresState.error])
+
 
   useEffect(() => {
     if (id) localStorage.setItem(`wizard_docs_${id}`, JSON.stringify(docRequisitos))
@@ -547,6 +545,7 @@ export function useProcesoForm({ id, tenantId, usuario, navigate }: UseProcesoFo
     }
   }
 
+  const errorFinal = error || (proveedoresState.error ? String(proveedoresState.error) : '')
   return {
     esNuevo,
     currentStep,
@@ -554,7 +553,7 @@ export function useProcesoForm({ id, tenantId, usuario, navigate }: UseProcesoFo
     subasta,
     cargando,
     guardando,
-    error,
+    error: errorFinal,
     setError,
     datos,
     modalidades,

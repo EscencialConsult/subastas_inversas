@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Toast } from '../shared/ui/Toast'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
@@ -37,32 +36,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
-  const toast = {
+  const toast = useMemo<ToastApi>(() => ({
     success: (msg: ReactNode, duration?: number) => addToast('success', msg, duration),
     error: (msg: ReactNode, duration?: number) => addToast('error', msg, duration),
     warning: (msg: ReactNode, duration?: number) => addToast('warning', msg, duration),
     info: (msg: ReactNode, duration?: number) => addToast('info', msg, duration),
-  }
+  }), [addToast])
 
   return (
     <ToastContext.Provider value={toast}>
       {children}
       <div className="fixed top-4 right-4 z-[1100] flex flex-col gap-2 pointer-events-none">
-        <AnimatePresence>
-          {toasts.map((t) => (
-            <motion.div
-              key={t.id}
-              layout
-              initial={{ opacity: 0, x: 80, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 80, scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              className="pointer-events-auto"
-            >
-              <Toast {...t} onDismiss={removeToast} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        {toasts.map((t) => (
+          <div key={t.id} className="pointer-events-auto animate-slideIn">
+            <Toast {...t} onDismiss={removeToast} />
+          </div>
+        ))}
       </div>
     </ToastContext.Provider>
   )

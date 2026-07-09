@@ -46,7 +46,7 @@ public class GetPublicAuctionsQueryHandler : IRequestHandler<GetPublicAuctionsQu
                 StartsAtUtc = a.StartsAtUtc,
                 EndsAtUtc = a.EndsAtUtc,
                 BidCount = a.Bids.Count,
-                EventsUrl = $"/api/public/auctions/{a.Id}/events"
+                EventsUrl = $"/api/v1/public/auctions/{a.Id}/events"
             })
             .ToListAsync(cancellationToken);
     }

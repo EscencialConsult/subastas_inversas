@@ -101,7 +101,7 @@ public class PurchaseProcessesController : ControllerBase
     }
 
     [HttpGet("qualification")]
-    [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
+    [Authorize(Policy = PermissionCodes.PurchasesManageOrEvaluate)]
     public async Task<ActionResult<List<PurchaseProcessDto>>> GetForQualification(
         Guid companyId,
         [FromQuery] string? search)

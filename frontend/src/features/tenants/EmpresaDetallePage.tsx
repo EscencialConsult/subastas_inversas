@@ -1,21 +1,35 @@
-// Detalle de una empresa (solo super-admin): datos + actividad + sus usuarios.
-
 import { ReactNode, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Clipboard, SearchX } from 'lucide-react'
-import { EmptyState } from '../../shared/ui/EmptyState'
+import { Clipboard } from 'lucide-react'
 import { etiquetaRol } from '../../domain/roles'
 import { getErrorMessage } from '../../shared/query/queryClient'
 import { Alert } from '../../shared/ui/Alert'
 import { Badge } from '../../shared/ui/Badge'
 import { Button } from '../../shared/ui/Button'
+import { DataTable, type DataTableColumn } from '../../shared/ui/DataTable'
+import { FormSection } from '../../shared/ui/FormSection'
 import { LoadingState } from '../../shared/ui/StateViews'
 import { Modal } from '../../shared/ui/Modal'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { PageShell } from '../../shared/ui/PageShell'
+import { Pagination, usePagination } from '../../shared/ui/Pagination'
 import { resetPasswordUsuarioMutation } from '../usuarios/data/usuariosData'
 import { obtenerDetalleEmpresaQuery, tenantsKeys } from './data/tenantsData'
+
+interface UsuarioEmpresa {
+  id: string
+  nombre: string
+  apellido: string
+  email: string
+  rol: string
+  activo: boolean
+}
+
+interface ResetModalState {
+  usuario: UsuarioEmpresa
+  nuevaPass: string
+}
 
 function generarPass() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
@@ -28,7 +42,7 @@ export function EmpresaDetallePage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [resetModal, setResetModal] = useState(null)
+  const [resetModal, setResetModal] = useState<ResetModalState | null>(null)
 
   const detalleQuery = useQuery({
     queryKey: tenantsKeys.companyDetail(id),
@@ -43,22 +57,55 @@ export function EmpresaDetallePage() {
     },
   })
 
-  async function manejarResetPass(usuario) {
+  async function manejarResetPass(usuario: UsuarioEmpresa) {
     const res = await resetMutation.mutateAsync({ userId: usuario.id, newPassword: generarPass() })
     setResetModal({ usuario, nuevaPass: res.newPassword })
   }
 
+  const data = detalleQuery.data as unknown as { tenant: Record<string, unknown>; stats: Record<string, unknown>; usuarios: UsuarioEmpresa[] } | undefined
+  const usuarios = data?.usuarios ?? []
+  const { paginatedItems: usuariosPaginados, setPage: setUsuariosPage, setPageSize: setUsuariosPageSize, ...usuariosPaginacion } = usePagination(usuarios as (UsuarioEmpresa & Record<string, unknown>)[])
+
   if (detalleQuery.isLoading) return <LoadingState label="Cargando empresa..." />
   const error = getErrorMessage(detalleQuery.error ?? resetMutation.error, '')
-  const data = detalleQuery.data
   if (!data) return <Alert variant="error">{error}</Alert>
 
-  const { tenant, stats, usuarios } = data
+  const { tenant, stats } = data
+
+  const usuarioColumns: Array<DataTableColumn<UsuarioEmpresa & Record<string, unknown>>> = [
+    {
+      header: 'Nombre',
+      cell: (row) => `${row.nombre} ${row.apellido}`,
+      sortValue: (row) => `${row.nombre} ${row.apellido}`,
+    },
+    { header: 'Email', accessor: 'email', sortable: true },
+    {
+      header: 'Rol',
+      cell: (row) => etiquetaRol(row.rol),
+    },
+    {
+      header: 'Estado',
+      cell: (row) => (
+        <Badge variant={row.activo ? 'success' : 'neutral'}>
+          {row.activo ? 'Activo' : 'Inactivo'}
+        </Badge>
+      ),
+    },
+    {
+      header: '',
+      align: 'right',
+      cell: (row) => (
+        <Button variant="ghost" size="sm" onClick={() => manejarResetPass(row)}>
+          Resetear pass
+        </Button>
+      ),
+    },
+  ]
 
   return (
     <PageShell width="wide">
       <PageHeader
-        title={tenant.nombre}
+        title={tenant.nombre as string}
         actions={(
           <div className="flex flex-wrap gap-2">
             <Button variant="ghost" onClick={() => navigate('/tenants')}>Volver</Button>
@@ -68,7 +115,7 @@ export function EmpresaDetallePage() {
       />
 
       <div className="grid max-w-xl gap-2 rounded-md border border-border bg-surface p-4 text-sm text-text">
-        <span>Subdominio: <code>{tenant.subdominio}</code>.sicst.gob.ar</span>
+        <span>Subdominio: <code>{tenant.subdominio as string}</code>.sicst.gob.ar</span>
         <span>
           Estado:{' '}
           <Badge variant={tenant.activo ? 'success' : 'neutral'}>
@@ -78,74 +125,49 @@ export function EmpresaDetallePage() {
       </div>
 
       <section className="grid gap-3 md:grid-cols-5">
-        <Metric label="Usuarios" value={stats.usuarios} tone="primary" />
-        <Metric label="Activos" value={stats.activos} tone="success" />
-        <Metric label="Procesos de compra" value={stats.procesos} tone="primary" />
-        <Metric label="Subastas" value={stats.subastas} tone="warning" />
-        <Metric label="Ahorro promedio" value={stats.ahorroProm === null ? '-' : `${stats.ahorroProm}%`} tone="success" />
+        <Metric label="Usuarios" value={stats.usuarios as number} tone="primary" />
+        <Metric label="Activos" value={stats.activos as number} tone="success" />
+        <Metric label="Procesos de compra" value={stats.procesos as number} tone="primary" />
+        <Metric label="Subastas" value={stats.subastas as number} tone="warning" />
+        <Metric label="Ahorro promedio" value={stats.ahorroProm === null ? '-' : `${stats.ahorroProm as number}%`} tone="success" />
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-text">Usuarios de la empresa</h2>
-        {usuarios.length === 0 ? (
-          <EmptyState icon={SearchX} title="Sin usuarios" description="Este tenant no tiene usuarios." />
-        ) : (
-          <div className="overflow-x-auto rounded-md border border-border bg-surface shadow-sm">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead>
-                <tr className="bg-muted/30 text-left text-xs font-semibold uppercase tracking-wide text-text-muted">
-                  <th className="px-4 py-3">Nombre</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Rol</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {usuarios.map((u) => (
-                  <tr key={u.id}>
-                    <td className="px-4 py-3 font-medium text-text">{u.nombre} {u.apellido}</td>
-                    <td className="px-4 py-3">{u.email}</td>
-                    <td className="px-4 py-3">{etiquetaRol(u.rol)}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={u.activo ? 'success' : 'neutral'}>{u.activo ? 'Activo' : 'Inactivo'}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button variant="ghost" onClick={() => manejarResetPass(u)}>Resetear pass</Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <FormSection title="Usuarios de la empresa">
+        <DataTable
+          columns={usuarioColumns}
+          rows={usuariosPaginados}
+          getRowId={(row) => row.id}
+          emptyTitle="Sin usuarios"
+          emptyDescription="Este tenant no tiene usuarios."
+        />
+        <Pagination {...usuariosPaginacion} onPageChange={setUsuariosPage} onPageSizeChange={setUsuariosPageSize} />
+      </FormSection>
 
       <Modal
         open={Boolean(resetModal)}
         onClose={() => setResetModal(null)}
-        title="Contrasena restablecida"
+        title="Contraseña restablecida"
         footer={<Button onClick={() => setResetModal(null)}>Entendido, cerrar</Button>}
       >
         {resetModal && (
           <div className="space-y-4">
             <p>
-              Se restablecio la contrasena de <strong>{resetModal.usuario.nombre} {resetModal.usuario.apellido}</strong> ({resetModal.usuario.email}).
+              Se restableció la contraseña de <strong>{resetModal.usuario.nombre} {resetModal.usuario.apellido}</strong> ({resetModal.usuario.email}).
             </p>
-            <Alert variant="info"><strong>Nueva contrasena temporal:</strong></Alert>
+            <Alert variant="info"><strong>Nueva contraseña temporal:</strong></Alert>
             <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-4 py-3">
               <code>{resetModal.nuevaPass}</code>
               <Button
                 type="button"
                 variant="ghost"
-                title="Copiar contrasena"
+                title="Copiar contraseña"
                 onClick={() => navigator.clipboard.writeText(resetModal.nuevaPass)}
               >
                 <Clipboard size={16} />
               </Button>
             </div>
             <p className="text-sm text-text-muted">
-              El usuario debera cambiar esta contrasena al iniciar sesion. Copiala ahora antes de cerrar.
+              El usuario deberá cambiar esta contraseña al iniciar sesión. Copiala ahora antes de cerrar.
             </p>
           </div>
         )}
@@ -155,7 +177,7 @@ export function EmpresaDetallePage() {
 }
 
 function Metric({ label, value, tone }: { label: string; value: ReactNode; tone: string }) {
-  const tones = {
+  const tones: Record<string, string> = {
     primary: 'text-primary',
     success: 'text-success',
     warning: 'text-warning',

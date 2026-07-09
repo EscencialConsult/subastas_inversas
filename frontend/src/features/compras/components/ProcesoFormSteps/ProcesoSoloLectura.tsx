@@ -1,4 +1,7 @@
 import { Alert } from '../../../../shared/ui/Alert'
+import { Button } from '../../../../shared/ui/Button'
+import { Card } from '../../../../shared/ui/Card'
+import { Table } from '../../../../shared/ui/Table'
 import { ESTADO_PROCESO } from '../../../../domain/compras'
 import { ContratoPanel } from '../ContratoPanel'
 import { InvitacionesPanel } from '../InvitacionesPanel'
@@ -26,7 +29,7 @@ export function ProcesoSoloLectura({
   navigate,
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+    <Card hover={false} padding="lg" className="space-y-6">
       <ProcesoResumen
         proceso={proceso}
         datos={datos}
@@ -58,7 +61,7 @@ export function ProcesoSoloLectura({
       ))}
 
       {proceso?.adjudicacion && (
-        <Alert variant="success" className="mt-4">
+        <Alert variant="success">
           {proceso.estado === ESTADO_PROCESO.APROBADA
             ? `Adjudicado y aprobado: ${proceso.adjudicacion.proveedor} (${proceso.adjudicacion.fecha}).`
             : `Adjudicado a ${proceso.adjudicacion.proveedor}, pendiente de aprobacion de la Autoridad.`}
@@ -66,68 +69,67 @@ export function ProcesoSoloLectura({
       )}
 
       {proceso?.aprobacion?.estado === 'rechazada' && (
-        <Alert variant="error" className="mt-4">
+        <Alert variant="error">
           La Autoridad rechazo la adjudicacion. Motivo: {proceso.aprobacion.motivo}
         </Alert>
       )}
 
-      <div className="flex flex-wrap justify-end gap-2" style={{ marginTop: '24px' }}>
-        <button
-          type="button"
-          className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
-          onClick={() => navigate('/compras')}
-        >
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={() => navigate('/compras')}>
           Volver
-        </button>
+        </Button>
       </div>
 
       {subasta && <ResumenSubasta subasta={subasta} formatearPesos={formatearPesos} />}
-    </div>
+    </Card>
   )
 }
 
 function ResumenSubasta({ subasta, formatearPesos }) {
   const lances = [...(subasta.lances ?? [])].sort((x, y) => x.monto - y.monto)
-  const oferentes = new Set(lances.map((l) => l.proveedorId ?? l.proveedor)).size
+  const oferentes = new Set(lances.map((lance) => lance.proveedorId ?? lance.proveedor)).size
   const mejor = lances[0]?.monto ?? 0
   const base = subasta.precioBase ?? 0
   const ahorro = base - mejor
   const bajaPorcentaje = base > 0 ? (ahorro / base) * 100 : 0
 
   return (
-    <div className="rounded-md border border-border bg-surface p-5 shadow-sm" style={{ marginTop: '24px' }}>
-      <h2 className="text-lg font-semibold text-text">Resultado de la subasta</h2>
-      <div className="perfil__solo-lectura" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-        <span>Proveedores que ofertaron: {oferentes}</span>
-        <span>Lances totales: {lances.length}</span>
-        <span>Presupuesto base: {formatearPesos(base)}</span>
-        <span>Mejor oferta: {formatearPesos(mejor)}</span>
-        <span>Baja lograda: {bajaPorcentaje.toFixed(1)}%</span>
-      </div>
+    <Card hover={false} padding="md">
+      <h2 className="m-0 text-lg font-semibold text-text">Resultado de la subasta</h2>
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
+        <ResumenDato label="Proveedores" value={oferentes} />
+        <ResumenDato label="Lances" value={lances.length} />
+        <ResumenDato label="Presupuesto base" value={formatearPesos(base)} />
+        <ResumenDato label="Mejor oferta" value={formatearPesos(mejor)} />
+        <ResumenDato label="Baja lograda" value={`${bajaPorcentaje.toFixed(1)}%`} />
+      </dl>
 
-      <h3 className="text-base font-semibold text-text" style={{ marginTop: '16px' }}>Lances ({lances.length})</h3>
+      <h3 className="mt-5 text-base font-semibold text-text">Lances ({lances.length})</h3>
       {lances.length === 0 ? (
         <p className="text-sm text-text-muted">No hay lances registrados en esta subasta.</p>
       ) : (
-        <div className="overflow-x-auto w-full border border-border rounded-lg shadow-sm">
-          <table className="min-w-full divide-y divide-border text-sm">
-            <thead>
-              <tr>
-                <th>Proveedor</th>
-                <th>Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lances.map((l) => (
-                <tr key={l.id}>
-                  <td>{l.proveedor}</td>
-                  <td>{formatearPesos(l.monto)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          data={lances}
+          sortable={false}
+          columns={[
+            { header: 'Proveedor', accessor: 'proveedor' },
+            {
+              header: 'Monto',
+              accessor: 'monto',
+              render: (value) => formatearPesos(Number(value) || 0),
+            },
+          ]}
+        />
       )}
+    </Card>
+  )
+}
+
+function ResumenDato({ label, value }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</dt>
+      <dd className="m-0 mt-1 text-sm font-semibold text-text">{value}</dd>
     </div>
   )
 }

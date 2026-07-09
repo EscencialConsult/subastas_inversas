@@ -182,10 +182,16 @@ export async function obtenerSubastaDeProcesoParaEvaluacion({ tenantId, procesoI
 
 export async function simularLance({ tenantId, procesoId }: SubastaCommandParams): Promise<SubastaMapped> {
   const subasta = await obtenerSubastaDeProceso({ tenantId, procesoId })
-  const supplierId = subasta.participantes[0]
+  const ultimoLance = [...subasta.lances].reverse()[0]
+  const supplierId = subasta.participantes.find((id) => id !== ultimoLance?.proveedorId)
 
   if (!supplierId) {
-    throw new ApiError('La subasta no tiene proveedores invitados.', 409)
+    throw new ApiError(
+      subasta.participantes.length === 0
+        ? 'La subasta no tiene proveedores invitados.'
+        : 'No hay otro proveedor disponible para simular un lance sin romper la regla de alternancia.',
+      409,
+    )
   }
 
   const monto = Math.round(mejorOferta(subasta) * 0.98)

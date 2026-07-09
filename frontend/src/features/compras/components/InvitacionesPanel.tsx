@@ -1,48 +1,50 @@
+import { Badge } from '../../../shared/ui/Badge'
+import { Card } from '../../../shared/ui/Card'
+import { Table } from '../../../shared/ui/Table'
+
 export function InvitacionesPanel({ invitaciones }) {
   return (
-    <div className="wizard-summary-section">
-      <h3 className="wizard-summary-section__title">Invitaciones y Respuestas ({invitaciones.length})</h3>
-      <div className="wizard-summary-section__content">
-        {invitaciones.length === 0 ? (
-          <p>No se enviaron invitaciones para este proceso.</p>
-        ) : (
-          <div className="overflow-x-auto w-full border border-border rounded-lg shadow-sm">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead>
-                <tr>
-                  <th>Proveedor</th>
-                  <th>CUIT</th>
-                  <th>Estado</th>
-                  <th>Detalle/Motivo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invitaciones.map((inv) => {
-                  const est = estadoInvitacion(inv.estado)
-                  return (
-                    <tr key={inv.id}>
-                      <td>{inv.proveedor}</td>
-                      <td><code>{inv.cuit}</code></td>
-                      <td>
-                        <span className={`badge ${est.clase}`}>{est.texto}</span>
-                      </td>
-                      <td>{detalleInvitacion(inv)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
+    <Card hover={false} padding="md">
+      <h3 className="m-0 mb-3 border-b border-border pb-3 text-base font-semibold text-text">
+        Invitaciones y respuestas ({invitaciones.length})
+      </h3>
+      {invitaciones.length === 0 ? (
+        <p className="m-0 text-sm text-text-muted">No se enviaron invitaciones para este proceso.</p>
+      ) : (
+        <Table
+          data={invitaciones}
+          sortable={false}
+          columns={[
+            { header: 'Proveedor', accessor: 'proveedor' },
+            {
+              header: 'CUIT',
+              accessor: 'cuit',
+              render: (value) => <code>{String(value ?? '---')}</code>,
+            },
+            {
+              header: 'Estado',
+              accessor: 'estado',
+              render: (value) => {
+                const estado = estadoInvitacion(value)
+                return <Badge variant={estado.variant}>{estado.texto}</Badge>
+              },
+            },
+            {
+              header: 'Detalle/Motivo',
+              accessor: 'estado',
+              render: (_value, invitacion) => detalleInvitacion(invitacion),
+            },
+          ]}
+        />
+      )}
+    </Card>
   )
 }
 
 function estadoInvitacion(estado) {
-  if (estado === 'pendiente') return { texto: 'Pendiente', clase: 'badge--warn' }
-  if (estado === 'aceptada') return { texto: 'Aceptada', clase: 'badge--ok' }
-  return { texto: 'Rechazada', clase: 'badge--error' }
+  if (estado === 'pendiente') return { texto: 'Pendiente', variant: 'warning' as const }
+  if (estado === 'aceptada') return { texto: 'Aceptada', variant: 'success' as const }
+  return { texto: 'Rechazada', variant: 'error' as const }
 }
 
 function detalleInvitacion(inv) {

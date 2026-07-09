@@ -7,6 +7,7 @@ import {
 } from '../../../shared/api/proveedoresApi'
 import { crearConexionSubastas } from '../../../shared/api/subastasRealtime'
 import { useAuth } from '../../../auth/AuthContext'
+import { useToast } from '../../../context/ToastContext'
 import { getErrorMessage } from '../../../shared/query/queryClient'
 import { Alert } from '../../../shared/ui/Alert'
 import { Button } from '../../../shared/ui/Button'
@@ -47,29 +48,29 @@ export function ProveedorSubastaLivePage() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   const [subasta, setSubasta] = useState<SubastaProveedorMapped | null>(null)
   const [monto, setMonto] = useState('')
   const [error, setError] = useState('')
-  const [mensaje, setMensaje] = useState('')
   const [conexion, setConexion] = useState('Conectando')
   const [ahoraMs, setAhoraMs] = useState(() => Date.now())
-
   const { data, isLoading, error: loadError } = useQuery({
     queryKey: proveedoresKeys.supplierAuction(usuario?.id, auctionId),
     queryFn: () => proveedorSubastaLiveQuery({ usuarioId: usuario?.id, auctionId }),
     enabled: Boolean(usuario?.id && auctionId),
   })
 
-  useEffect(() => {
-    if (data?.subasta) setSubasta(data.subasta)
-  }, [data?.subasta])
+  const [subastaInited, setSubastaInited] = useState(false)
+  if (data?.subasta && !subastaInited) {
+    setSubastaInited(true)
+    setSubasta(data.subasta)
+  }
 
   const registrarLance = useMutation({
     mutationFn: realizarLanceProveedorMutation,
     onMutate: () => {
       setError('')
-      setMensaje('')
     },
     onSuccess: async (bid) => {
       setSubasta((actual) => {
@@ -84,7 +85,11 @@ export function ProveedorSubastaLivePage() {
         }
       })
       setMonto('')
-      setMensaje(bid.subastaExtendida ? 'Lance registrado. El cierre fue extendido automaticamente.' : 'Lance registrado con timestamp de servidor.')
+      if (bid.subastaExtendida) {
+        toast.success('Lance registrado. El cierre fue extendido automaticamente.')
+      } else {
+        toast.success('Lance registrado con timestamp de servidor.')
+      }
       await queryClient.invalidateQueries({ queryKey: proveedoresKeys.supplierAuction(usuario?.id, auctionId) })
       await queryClient.invalidateQueries({ queryKey: proveedoresKeys.opportunities(data?.proveedor.id) })
     },
@@ -95,6 +100,13 @@ export function ProveedorSubastaLivePage() {
     const intervalo = setInterval(() => setAhoraMs(Date.now()), 1000)
     return () => clearInterval(intervalo)
   }, [])
+
+  const precioAnterior = useMemo(() => {
+    if (!subasta?.lances?.length) return subasta?.precioBase ?? 0
+    const montos = subasta.lances.map((l) => Number(l.monto))
+    const sortedAsc = [...new Set(montos)].sort((a, b) => a - b)
+    return sortedAsc.length > 1 ? sortedAsc[1] : sortedAsc[0]
+  }, [subasta])
 
   useEffect(() => {
     if (!auctionId) return undefined
@@ -122,7 +134,11 @@ export function ProveedorSubastaLivePage() {
           lances,
         }
       })
-      setMensaje(bid.auctionExtended ? 'Nuevo lance registrado. El cierre fue extendido automaticamente.' : 'Nuevo lance registrado en vivo.')
+      if (bid.auctionExtended) {
+        toast.info('Nuevo lance registrado. El cierre fue extendido automaticamente.')
+      } else if (bid.supplierId !== usuario?.id) {
+        toast.info('Nuevo lance registrado en vivo.')
+      }
     })
 
     connection.on('AuctionUpdated', (auction: RealtimeAuctionUpdate) => {
@@ -137,6 +153,7 @@ export function ProveedorSubastaLivePage() {
 
     connection.on('AuctionClosed', () => {
       setSubasta((actual) => actual ? { ...actual, estado: 'Closed' } : actual)
+      toast.info('La subasta ha sido cerrada.')
     })
 
     connection
@@ -145,11 +162,13 @@ export function ProveedorSubastaLivePage() {
         if (!activa) return
         await connection.invoke('JoinAuctionRoom', auctionId)
         setConexion('En vivo')
+        toast.success('Conectado a la sala en vivo.')
       })
       .catch((err: unknown) => {
         if (!activa) return
         setConexion('Sin conexion')
         setError(getErrorMessage(err))
+        toast.error('Error al conectar con la sala en vivo.')
       })
 
     return () => {
@@ -157,7 +176,7 @@ export function ProveedorSubastaLivePage() {
       connection.invoke('LeaveAuctionRoom', auctionId).catch(() => {})
       connection.stop().catch(() => {})
     }
-  }, [auctionId])
+  }, [auctionId, usuario?.id, toast])
 
   const mejorOferta = useMemo(() => {
     if (!subasta) return 0
@@ -190,11 +209,12 @@ export function ProveedorSubastaLivePage() {
   const ofertaNumerica = Number(monto)
   const esPab = Number.isFinite(ofertaNumerica) && subasta.pabThreshold > 0 && ofertaNumerica < subasta.pabThreshold
   const lancesOrdenados = [...subasta.lances].sort((a, b) => b.secuencia - a.secuencia)
+  const restanteMs = finMs - ahoraMs
+  const tiempoBajo = abierta && restanteMs > 0 && restanteMs < 60000
 
   async function enviarLance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
-    setMensaje('')
 
     if (!abierta) {
       setError('La subasta no esta abierta para recibir lances.')
@@ -202,6 +222,18 @@ export function ProveedorSubastaLivePage() {
     }
     if (!Number.isFinite(ofertaNumerica) || ofertaNumerica <= 0) {
       setError('Ingresa un monto valido.')
+      return
+    }
+    if (ofertaNumerica >= mejorOferta) {
+      setError('La oferta debe ser menor al precio actual.')
+      return
+    }
+    if (ofertaNumerica > minimoPermitido) {
+      setError(`La oferta debe ser igual o menor a ${formatearPesos(minimoPermitido)}.`)
+      return
+    }
+    if (!subasta.participantes.includes(data.proveedor.id)) {
+      setError('Tu proveedor no esta habilitado como participante de esta subasta.')
       return
     }
 
@@ -223,22 +255,31 @@ export function ProveedorSubastaLivePage() {
           </>
         )}
         actions={(
-          <Button variant="ghost" type="button" onClick={() => navigate('/proveedor/oportunidades')}>
-            Volver
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {tiempoBajo && (
+              <span className="text-sm font-semibold text-error animate-pulse" role="timer">
+                Quedan menos de 60 segundos
+              </span>
+            )}
+            <Button variant="ghost" type="button" onClick={() => navigate('/proveedor/oportunidades')}>
+              Volver
+            </Button>
+          </div>
         )}
       />
 
       {error && <Alert variant="error">{error}</Alert>}
-      {mensaje && <Alert variant="info">{mensaje}</Alert>}
 
-      <SubastaLiveMetrics
-        conexion={conexion}
-        abierta={abierta}
-        estado={subasta.estado}
-        mejorOferta={mejorOferta}
-        minimoPermitido={minimoPermitido}
-      />
+      <section aria-live="polite" aria-label="Actualizacion de precios y estado">
+        <SubastaLiveMetrics
+          conexion={conexion}
+          abierta={abierta}
+          estado={subasta.estado}
+          mejorOferta={mejorOferta}
+          minimoPermitido={minimoPermitido}
+          precioAnterior={precioAnterior}
+        />
+      </section>
 
       <LanceForm
         abierta={abierta}
@@ -285,4 +326,12 @@ function formatearFecha(fechaIso?: string | null) {
     dateStyle: 'short',
     timeStyle: 'medium',
   }).format(new Date(fechaIso))
+}
+
+function formatearPesos(monto: number) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 2,
+  }).format(monto)
 }

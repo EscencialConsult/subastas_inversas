@@ -15,6 +15,7 @@ import { FormSection } from '../../../shared/ui/FormSection'
 import { Input } from '../../../shared/ui/Input'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { PageShell } from '../../../shared/ui/PageShell'
+import { Spinner } from '../../../shared/ui/Spinner'
 import { StatusBadge } from '../../../shared/ui/StatusBadge'
 import {
   activarMfaMutation,
@@ -46,6 +47,16 @@ type PasswordForm = z.infer<typeof passwordSchema>
 
 export function PerfilPage() {
   const { usuario, tenant, actualizarUsuarioSesion } = useAuth()
+
+  if (!usuario) {
+    return (
+      <PageShell>
+        <div className="flex justify-center py-12">
+          <Spinner size="lg" />
+        </div>
+      </PageShell>
+    )
+  }
 
   return (
     <PageShell>

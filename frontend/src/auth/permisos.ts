@@ -33,7 +33,7 @@ export function puedeGestionarCompras(rol: RolVisual) {
 }
 
 export function puedeVerProveedores(rol: RolVisual) {
-  return rol === ROLES.COMPRADOR || rol === ROLES.ADMINISTRADOR || rol === ROLES.AUDITOR
+  return rol === ROLES.SUPER_ADMIN || rol === ROLES.COMPRADOR || rol === ROLES.ADMINISTRADOR || rol === ROLES.AUDITOR
 }
 
 export function puedeAprobarAdjudicacion(rol: RolVisual) {
@@ -42,6 +42,18 @@ export function puedeAprobarAdjudicacion(rol: RolVisual) {
 
 export function puedeEvaluar(rol: RolVisual) {
   return rol === ROLES.EVALUADOR
+}
+
+export function puedeVerCalificacion(rol: RolVisual) {
+  return rol === ROLES.EVALUADOR || rol === ROLES.COMPRADOR
+}
+
+export function puedeCalificarProveedores(rol: RolVisual) {
+  return rol === ROLES.EVALUADOR
+}
+
+export function puedeFirmarActaEvaluacion(rol: RolVisual) {
+  return rol === ROLES.COMPRADOR
 }
 
 export function puedeSupervisar(rol: RolVisual) {

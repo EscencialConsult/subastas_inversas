@@ -10,11 +10,16 @@ namespace SICST.Api.Auth;
 public class PermissionRequirement : IAuthorizationRequirement
 {
     public PermissionRequirement(string permission)
+        : this([permission])
     {
-        Permission = permission;
     }
 
-    public string Permission { get; }
+    public PermissionRequirement(params string[] permissions)
+    {
+        Permissions = permissions;
+    }
+
+    public IReadOnlyCollection<string> Permissions { get; }
 }
 
 public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
@@ -51,7 +56,7 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
 
         var cacheKey = $"role-permissions-{role}";
 
-        var permissions = await _cache.GetOrCreateAsync(cacheKey, async entry =>
+        var rolePermissions = await _cache.GetOrCreateAsync(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
 
@@ -64,7 +69,7 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
                 .ToListAsync();
         });
 
-        if (permissions != null && permissions.Contains(requirement.Permission))
+        if (rolePermissions != null && requirement.Permissions.Any(rolePermissions.Contains))
         {
             context.Succeed(requirement);
         }

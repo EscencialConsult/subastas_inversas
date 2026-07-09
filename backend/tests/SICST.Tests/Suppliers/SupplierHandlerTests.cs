@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SICST.Application.Modules.Suppliers.Commands;
+using SICST.Application.Modules.Suppliers.DTOs;
 using SICST.Application.Modules.Suppliers.Queries;
 using SICST.Domain.Entities;
 using SICST.Infrastructure.Security;
@@ -118,6 +119,60 @@ public class SupplierHandlerTests
         Assert.Equal(supplierId, result.Id);
         Assert.Equal("Proveedor Test", result.BusinessName);
         Assert.Equal(SupplierStatus.Pending, result.Status);
+        Assert.Equal(SupplierReadinessStatus.Blocked, result.ReadinessStatus);
+        Assert.Equal(0, result.DocumentsTotal);
+    }
+
+    [Fact]
+    public async Task GetSuppliers_ShouldPopulateSummaryAndLatestCompanyReview()
+    {
+        using var context = CreateDbContext();
+        var companyId = await SeedCompanyAsync(context, requireSupplierVerification: true);
+        var supplierId = await SeedSupplierAsync(context, email: "resumen@test.com", cuit: "30-10101010-1");
+        var evaluatorId = await SeedEvaluatorAsync(context);
+        var supplier = await context.Suppliers.FindAsync(supplierId);
+        Assert.NotNull(supplier);
+        supplier!.ArcaBusinessName = "Proveedor Test SA";
+        supplier.ArcaFiscalAddress = "Av. Siempre Viva 123";
+        supplier.ArcaIvaCondition = "Responsable inscripto";
+
+        var document = CreateDocument(
+            supplierId,
+            "constancia.pdf",
+            "9999999999999999999999999999999999999999999999999999999999999999");
+        context.SupplierDocuments.Add(document);
+        context.SupplierDocumentReviews.Add(ObserveSupplierDocumentCommandHandler.CreateReview(
+            document.Id,
+            evaluatorId,
+            SupplierDocumentReviewAction.Verdict,
+            "Documento aprobado.",
+            SupplierDocumentVerdict.Approved));
+        context.CompanySuppliers.Add(new CompanySupplier
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            SupplierId = supplierId,
+            LinkedAtUtc = DateTime.UtcNow.AddDays(-1),
+            Status = CompanySupplierStatus.Enabled,
+            WarningMessage = "Revision admin: documentacion completa.",
+            EvaluatedAtUtc = DateTime.UtcNow,
+        });
+        await context.SaveChangesAsync();
+
+        var handler = new GetSuppliersQueryHandler(context);
+        var result = await handler.Handle(new GetSuppliersQuery(CompanyId: companyId), CancellationToken.None);
+        var dto = Assert.Single(result.Items);
+
+        Assert.Equal("Proveedor Test SA", dto.ArcaBusinessName);
+        Assert.Equal("Av. Siempre Viva 123", dto.ArcaFiscalAddress);
+        Assert.Equal("Responsable inscripto", dto.ArcaIvaCondition);
+        Assert.Equal(1, dto.DocumentsTotal);
+        Assert.Equal(1, dto.DocumentsApproved);
+        Assert.Equal(0, dto.DocumentsPendingReview);
+        Assert.Equal(SupplierReadinessStatus.Ready, dto.ReadinessStatus);
+        Assert.Equal(CompanySupplierStatus.Enabled, dto.CompanySupplierStatus);
+        Assert.Contains("documentacion completa", dto.LastCompanyReviewNotes);
+        Assert.NotNull(dto.LastCompanyReviewAtUtc);
     }
 
     [Fact]
@@ -261,7 +316,11 @@ public class SupplierHandlerTests
         var result = await handler.Handle(new EnableSupplierForCompanyCommand
         {
             CompanyId = companyId,
-            SupplierId = supplierId
+            SupplierId = supplierId,
+            ArcaReviewed = true,
+            DocumentsReviewed = true,
+            WarningsAccepted = true,
+            ReviewNotes = "Revision documental realizada."
         }, CancellationToken.None);
 
         Assert.Equal(CompanySupplierStatus.Blocked, result.Status);
@@ -280,7 +339,11 @@ public class SupplierHandlerTests
         var result = await handler.Handle(new EnableSupplierForCompanyCommand
         {
             CompanyId = companyId,
-            SupplierId = supplierId
+            SupplierId = supplierId,
+            ArcaReviewed = true,
+            DocumentsReviewed = true,
+            WarningsAccepted = true,
+            ReviewNotes = "Se acepta por politica flexible."
         }, CancellationToken.None);
 
         Assert.Equal(CompanySupplierStatus.EnabledWithWarning, result.Status);
@@ -304,11 +367,57 @@ public class SupplierHandlerTests
         var result = await handler.Handle(new EnableSupplierForCompanyCommand
         {
             CompanyId = companyId,
-            SupplierId = supplierId
+            SupplierId = supplierId,
+            ArcaReviewed = true,
+            DocumentsReviewed = true,
+            WarningsAccepted = true,
+            ReviewNotes = "Documentacion vigente revisada."
         }, CancellationToken.None);
 
         Assert.Equal(CompanySupplierStatus.Enabled, result.Status);
-        Assert.Null(result.WarningMessage);
+        Assert.Contains("Documentacion vigente revisada", result.WarningMessage);
+    }
+
+    [Fact]
+    public async Task EnableSupplierForCompany_ShouldThrow_WhenArcaIsNotVerified()
+    {
+        using var context = CreateDbContext();
+        var companyId = await SeedCompanyAsync(context, requireSupplierVerification: true);
+        var supplierId = await SeedSupplierAsync(context, arcaVerified: false);
+
+        var handler = new EnableSupplierForCompanyCommandHandler(context);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            handler.Handle(new EnableSupplierForCompanyCommand
+            {
+                CompanyId = companyId,
+                SupplierId = supplierId,
+                ArcaReviewed = true,
+                DocumentsReviewed = true,
+                WarningsAccepted = true,
+                ReviewNotes = "Intento sin ARCA."
+            }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task EnableSupplierForCompany_ShouldThrow_WhenChecklistIsIncomplete()
+    {
+        using var context = CreateDbContext();
+        var companyId = await SeedCompanyAsync(context, requireSupplierVerification: true);
+        var supplierId = await SeedSupplierAsync(context);
+
+        var handler = new EnableSupplierForCompanyCommandHandler(context);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            handler.Handle(new EnableSupplierForCompanyCommand
+            {
+                CompanyId = companyId,
+                SupplierId = supplierId,
+                ArcaReviewed = true,
+                DocumentsReviewed = false,
+                WarningsAccepted = true,
+                ReviewNotes = "Falta revisar documentacion."
+            }, CancellationToken.None));
     }
 
     [Fact]
@@ -512,7 +621,8 @@ public class SupplierHandlerTests
         string cuit = "30-99999999-1",
         string businessCategory = "Servicios",
         string province = "Buenos Aires",
-        string locality = "La Plata")
+        string locality = "La Plata",
+        bool arcaVerified = true)
     {
         var userId = Guid.NewGuid();
         var supplierId = Guid.NewGuid();
@@ -539,7 +649,10 @@ public class SupplierHandlerTests
             Province = province,
             Locality = locality,
             Status = SupplierStatus.Verified,
-            ArcaVerified = false,
+            ArcaVerified = arcaVerified,
+            ArcaVerificationStatus = arcaVerified ? ArcaVerificationStatus.Verified : ArcaVerificationStatus.Pending,
+            ArcaVerificationNotes = arcaVerified ? "Datos fiscales verificados por ARCA." : "Pendiente de verificacion ARCA.",
+            ArcaVerifiedAtUtc = arcaVerified ? DateTime.UtcNow : null,
             CreatedAtUtc = DateTime.UtcNow
         });
 

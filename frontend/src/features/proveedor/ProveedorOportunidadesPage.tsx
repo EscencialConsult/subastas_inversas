@@ -4,20 +4,29 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { getErrorMessage } from '../../shared/query/queryClient'
 import { Alert } from '../../shared/ui/Alert'
+import { Badge } from '../../shared/ui/Badge'
+import { Button } from '../../shared/ui/Button'
+import { Card } from '../../shared/ui/Card'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { Input } from '../../shared/ui/Input'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
+import { Pagination, usePagination } from '../../shared/ui/Pagination'
 import { Spinner } from '../../shared/ui/Spinner'
+import { Table } from '../../shared/ui/Table'
 import { oportunidadesProveedorQuery, proveedoresKeys, responderInvitacionMutation } from './data/proveedoresData'
 
 const ESTADO_INVITACION = {
-  pendiente: { texto: 'Pendiente', clase: 'badge--warn' },
-  aceptada: { texto: 'Aceptada', clase: 'badge--ok' },
-  rechazada: { texto: 'Rechazada', clase: 'badge--error' },
+  pendiente: { texto: 'Pendiente', variant: 'warning' as const },
+  aceptada: { texto: 'Aceptada', variant: 'success' as const },
+  rechazada: { texto: 'Rechazada', variant: 'error' as const },
 }
 
 const ESTADO_SUBASTA = {
-  Scheduled: { texto: 'Programada', clase: 'badge--info' },
-  Open: { texto: 'Abierta', clase: 'badge--ok' },
-  Closed: { texto: 'Cerrada', clase: 'badge--off' },
-  Cancelled: { texto: 'Cancelada', clase: 'badge--error' },
+  Scheduled: { texto: 'Programada', variant: 'info' as const },
+  Open: { texto: 'Abierta', variant: 'success' as const },
+  Closed: { texto: 'Cerrada', variant: 'neutral' as const },
+  Cancelled: { texto: 'Cancelada', variant: 'error' as const },
 }
 
 export function ProveedorOportunidadesPage() {
@@ -51,6 +60,10 @@ export function ProveedorOportunidadesPage() {
   const proveedor = oportunidadesQuery.data?.proveedor
   const invitaciones = oportunidadesQuery.data?.invitaciones ?? []
   const subastas = oportunidadesQuery.data?.subastas ?? []
+  const invitacionesRows = invitaciones.map((invitacion) => ({ ...invitacion })) as Array<Record<string, unknown>>
+  const subastasRows = subastas.map((subasta) => ({ ...subasta })) as Array<Record<string, unknown>>
+  const { paginatedItems: invitacionesPaginadas, setPage: setInvPage, setPageSize: setInvPageSize, ...invPaginacion } = usePagination(invitacionesRows)
+  const { paginatedItems: subastasPaginadas, setPage: setSubPage, setPageSize: setSubPageSize, ...subPaginacion } = usePagination(subastasRows)
 
   const manejarRespuestaInvitacion = async (invitacionId, aceptar, motivo = null) => {
     setRespondiendoId(invitacionId)
@@ -90,181 +103,207 @@ export function ProveedorOportunidadesPage() {
     setMotivoRechazoText('')
   }
 
-  if (oportunidadesQuery.isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (oportunidadesQuery.isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner />
+      </div>
+    )
+  }
+
   const error = getErrorMessage(oportunidadesQuery.error, '')
   if (error) return <Alert variant="error">{error}</Alert>
 
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <h1>Oportunidades Comerciales</h1>
-      </div>
+    <PageShell as="section" width="wide" className="px-0 py-0">
+      <PageHeader
+        title="Oportunidades comerciales"
+        description="Gestiona invitaciones a procesos y accede a subastas disponibles."
+      />
 
-      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-text">Invitaciones a procesos</h2>
+      <Card hover={false} padding="md" className="space-y-4">
+        <h2 className="m-0 text-lg font-semibold text-text">Invitaciones a procesos</h2>
         {errorComercial && <Alert variant="error">{errorComercial}</Alert>}
 
         {invitaciones.length === 0 ? (
-          <p className="text-sm text-text-muted">Todavia no recibiste invitaciones de compradores.</p>
+          <EmptyState title="Sin invitaciones" description="Todavia no recibiste invitaciones de compradores." />
         ) : (
-          <div className="overflow-x-auto rounded-md border border-border bg-surface shadow-sm">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead>
-                <tr>
-                  <th>Proceso</th>
-                  <th>Fecha</th>
-                  <th>Estado</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {invitaciones.map((invitacion) => {
-                  const estadoInvitacion =
-                    ESTADO_INVITACION[invitacion.estado] ?? ESTADO_INVITACION.pendiente
-                  return (
-                    <tr key={invitacion.id}>
-                      <td>
-                        <code>{invitacion.codigoProceso || '---'}</code> {invitacion.tituloProceso}
-                      </td>
-                      <td>{formatearFecha(invitacion.invitadoEn)}</td>
-                      <td>
-                        <span className={`badge ${estadoInvitacion.clase}`}>
-                          {estadoInvitacion.texto}
-                        </span>
-                        {invitacion.estado === 'rechazada' && invitacion.rejectionReason && (
-                          <div className="campo__ayuda" style={{ marginTop: '0.25rem' }}>
-                            Motivo: {invitacion.rejectionReason}
+          <>
+            <Table
+              data={invitacionesPaginadas}
+              sortable={false}
+              columns={[
+                {
+                  header: 'Proceso',
+                  accessor: 'tituloProceso',
+                  render: (value, invitacion) => (
+                    <span>
+                      <code>{String(invitacion.codigoProceso || '---')}</code> {String(value ?? '')}
+                    </span>
+                  ),
+                },
+                {
+                  header: 'Fecha',
+                  accessor: 'invitadoEn',
+                  render: (value) => formatearFecha(value),
+                },
+                {
+                  header: 'Estado',
+                  accessor: 'estado',
+                  render: (value, invitacion) => {
+                    const estadoInvitacion = ESTADO_INVITACION[String(value)] ?? ESTADO_INVITACION.pendiente
+                    return (
+                      <div>
+                        <Badge variant={estadoInvitacion.variant}>{estadoInvitacion.texto}</Badge>
+                        {value === 'rechazada' && invitacion.rejectionReason && (
+                          <div className="mt-1 text-xs text-text-muted">
+                            Motivo: {String(invitacion.rejectionReason)}
                           </div>
                         )}
-                      </td>
-                      <td className="flex flex-wrap justify-end gap-2">
-                        {invitacion.estado === 'pendiente' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {rechazandoId === invitacion.id ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '200px' }}>
-                                <input
-                                  type="text"
-                                  placeholder="Motivo del rechazo (obligatorio)"
-                                  value={motivoRechazoText}
-                                  onChange={(e) => setMotivoRechazoText(e.target.value)}
-                                  className="campo"
-                                  style={{ padding: '4px', fontSize: '0.875rem' }}
-                                />
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                  <button
-                                    className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
-                                    type="button"
-                                    onClick={() => manejarConfirmarRechazo(invitacion.id)}
-                                    disabled={respondiendoId === invitacion.id}
-                                    style={{ color: 'var(--color-error)' }}
-                                  >
-                                    Confirmar
-                                  </button>
-                                  <button
-                                    className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
-                                    type="button"
-                                    onClick={manejarCancelarRechazo}
-                                    disabled={respondiendoId === invitacion.id}
-                                  >
-                                    Cancelar
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button
-                                  className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
-                                  type="button"
-                                  onClick={() => manejarRespuestaInvitacion(invitacion.id, true)}
-                                  disabled={respondiendoId === invitacion.id}
-                                >
-                                  Aceptar
-                                </button>
-                                <button
-                                  className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
-                                  type="button"
-                                  onClick={() => iniciarRechazo(invitacion.id)}
-                                  disabled={respondiendoId === invitacion.id}
-                                >
-                                  Rechazar
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                      </div>
+                    )
+                  },
+                },
+                {
+                  header: '',
+                  accessor: 'id',
+                  render: (_value, invitacion) => {
+                    const invitacionId = String(invitacion.id)
+                    if (invitacion.estado !== 'pendiente') return null
 
-      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-text">Subastas disponibles</h2>
-        {subastas.length === 0 ? (
-          <p className="text-sm text-text-muted">
-            Las subastas van a aparecer aca cuando el comprador las inicie.
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded-md border border-border bg-surface shadow-sm">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead>
-                <tr>
-                  <th>Proceso</th>
-                  <th>Precio actual</th>
-                  <th>Inicio</th>
-                  <th>Cierre</th>
-                  <th>Estado</th>
-                  <th>Oferta</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subastas.map((subasta) => {
-                  const estadoSubasta = ESTADO_SUBASTA[subasta.estado] ?? {
-                    texto: subasta.estado,
-                    clase: 'badge--off',
-                  }
-                  const abierta = subasta.estado === 'Open' && new Date(subasta.inicioISO).getTime() <= ahoraMs
-                  return (
-                    <tr key={subasta.id}>
-                      <td>
-                        <code>{subasta.codigo}</code> {subasta.titulo}
-                      </td>
-                      <td>{formatearPesos(subasta.precioActual)}</td>
-                      <td>{formatearFecha(subasta.inicioISO)}</td>
-                      <td>{formatearFecha(subasta.finISO)}</td>
-                      <td>
-                        <span className={`badge ${estadoSubasta.clase}`}>{estadoSubasta.texto}</span>
-                      </td>
-                      <td>
-                        {abierta ? (
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <button
-                              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60"
+                    if (rechazandoId === invitacionId) {
+                      return (
+                        <div className="grid min-w-[220px] gap-2">
+                          <Input
+                            placeholder="Motivo del rechazo"
+                            value={motivoRechazoText}
+                            onChange={(event) => setMotivoRechazoText(event.target.value)}
+                            fieldClassName="mb-0"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button
                               type="button"
-                              onClick={() => navigate(`/proveedor/subastas/${subasta.id}`)}
+                              variant="danger"
+                              size="sm"
+                              onClick={() => manejarConfirmarRechazo(invitacionId)}
+                              disabled={respondiendoId === invitacionId}
                             >
-                              Entrar
-                            </button>
+                              Confirmar
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={manejarCancelarRechazo}
+                              disabled={respondiendoId === invitacionId}
+                            >
+                              Cancelar
+                            </Button>
                           </div>
-                        ) : (
-                          <span className="campo__ayuda">
-                            {subasta.estado === 'Scheduled' ? 'Aun no abre' : 'Sin ofertas abiertas'}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => manejarRespuestaInvitacion(invitacionId, true)}
+                          disabled={respondiendoId === invitacionId}
+                        >
+                          Aceptar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => iniciarRechazo(invitacionId)}
+                          disabled={respondiendoId === invitacionId}
+                        >
+                          Rechazar
+                        </Button>
+                      </div>
+                    )
+                  },
+                  sortKey: false,
+                },
+              ]}
+            />
+            {invitacionesPaginadas.length > 0 && <Pagination {...invPaginacion} onPageChange={setInvPage} onPageSizeChange={setInvPageSize} />}
+          </>
         )}
-      </div>
-    </section>
+      </Card>
+
+      <Card hover={false} padding="md" className="space-y-4">
+        <h2 className="m-0 text-lg font-semibold text-text">Subastas disponibles</h2>
+        {subastas.length === 0 ? (
+          <EmptyState title="Sin subastas" description="Las subastas van a aparecer aca cuando el comprador las inicie." />
+        ) : (
+          <>
+            <Table
+              data={subastasPaginadas}
+              sortable={false}
+              columns={[
+                {
+                  header: 'Proceso',
+                  accessor: 'titulo',
+                  render: (value, subasta) => (
+                    <span>
+                      <code>{String(subasta.codigo)}</code> {String(value ?? '')}
+                    </span>
+                  ),
+                },
+                {
+                  header: 'Precio actual',
+                  accessor: 'precioActual',
+                  render: (value) => formatearPesos(Number(value) || 0),
+                },
+                {
+                  header: 'Inicio',
+                  accessor: 'inicioISO',
+                  render: (value) => formatearFecha(value),
+                },
+                {
+                  header: 'Cierre',
+                  accessor: 'finISO',
+                  render: (value) => formatearFecha(value),
+                },
+                {
+                  header: 'Estado',
+                  accessor: 'estado',
+                  render: (value) => {
+                    const estadoSubasta = ESTADO_SUBASTA[String(value)] ?? {
+                      texto: String(value ?? '---'),
+                      variant: 'neutral' as const,
+                    }
+                    return <Badge variant={estadoSubasta.variant}>{estadoSubasta.texto}</Badge>
+                  },
+                },
+                {
+                  header: 'Oferta',
+                  accessor: 'id',
+                  render: (_value, subasta) => {
+                    const abierta = subasta.estado === 'Open' && new Date(String(subasta.inicioISO)).getTime() <= ahoraMs
+                    return abierta ? (
+                      <Button type="button" size="sm" onClick={() => navigate(`/proveedor/subastas/${subasta.id}`)}>
+                        Entrar
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-text-muted">
+                        {subasta.estado === 'Scheduled' ? 'Aun no abre' : 'Sin ofertas abiertas'}
+                      </span>
+                    )
+                  },
+                  sortKey: false,
+                },
+              ]}
+            />
+            {subastasPaginadas.length > 0 && <Pagination {...subPaginacion} onPageChange={setSubPage} onPageSizeChange={setSubPageSize} />}
+          </>
+        )}
+      </Card>
+    </PageShell>
   )
 }
 
@@ -273,7 +312,7 @@ function formatearFecha(fechaIso) {
   return new Intl.DateTimeFormat('es-AR', {
     dateStyle: 'short',
     timeStyle: 'short',
-  }).format(new Date(fechaIso))
+  }).format(new Date(String(fechaIso)))
 }
 
 function formatearPesos(monto) {

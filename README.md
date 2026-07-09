@@ -121,12 +121,14 @@ subastas_inversas/
 - Gestión de procesos de compra (creación, edición, publicación)
 - Subasta inversa en vivo con actualizaciones en tiempo real
 - Portal ciudadano público con SSE
-- Módulo de proveedores (registro, documentos, oportunidades, postulación)
+- Módulo de proveedores (registro, documentación, oportunidades, ARCA, postulación)
 - Evaluación y calificación de proveedores con criterios
 - Configuración de empresa (modalidades, circuitos, plantillas)
 - Auditoría y access logs
-- Design system propio (~40 componentes) con Storybook
+- Design system propio (56 componentes UI) con Storybook
 - Branding dinámico por tenant (color primario, logo)
+- Frontend 100% TypeScript con tsconfig estricto
+- Organización FSD (Feature-Sliced Design) por dominio
 
 ---
 
@@ -292,4 +294,4 @@ npm run storybook
 9. **Evaluación de proveedores** — Criterios excluyentes y ponderados
 10. **Revisión documental** — Flujo observación → remediación → veredicto
 11. **Branding dinámico** — Color primario y logo por tenant
-12. **Design system propio** — ~40 componentes UI en Storybook
+12. **Design system propio** — 56 componentes UI en Storybook con patrones documentados

@@ -1,7 +1,10 @@
 import {
   dictaminarDocumentoProveedor,
+  eliminarProveedor,
   habilitarProveedorEmpresa,
+  abrirDocumentoProveedor,
   listarDocumentosProveedor,
+  listarHistorialArcaProveedor,
   listarInvitacionesDeProveedor,
   listarProveedores,
   listarProveedoresParaAuditoria,
@@ -10,6 +13,7 @@ import {
   obtenerSubastaProveedor,
   observarDocumentoProveedor,
   registrarProveedor,
+  reintentarVerificacionArcaProveedor,
   realizarLance,
   obtenerProveedorDeUsuario,
   responderInvitacion,
@@ -18,6 +22,7 @@ import {
   type LanceMapped,
   type ListarProveedoresQueryParams,
   type RegistrarProveedorInput,
+  type HabilitarProveedorEmpresaInput,
 } from '../../../shared/api/proveedoresApi'
 
 export const proveedoresKeys = {
@@ -31,6 +36,11 @@ export const proveedoresKeys = {
   supplierAuction: (usuarioId?: string | null, auctionId?: string | null) =>
     [...proveedoresKeys.all, 'supplier-auction', usuarioId ?? '', auctionId ?? ''] as const,
   evaluationList: (params: ListarProveedoresQueryParams) => [...proveedoresKeys.all, 'evaluation-list', params] as const,
+  arcaHistory: (proveedorId?: string | null) => [...proveedoresKeys.all, 'arca-history', proveedorId ?? ''] as const,
+}
+
+export function listarHistorialArcaProveedorQuery({ proveedorId }: { proveedorId?: string | null }) {
+  return listarHistorialArcaProveedor({ proveedorId: proveedorId ?? '' })
 }
 
 export async function listarProveedoresQuery(params: ListarProveedoresQueryParams & { soloVerificados?: boolean }) {
@@ -44,6 +54,10 @@ export function obtenerProveedorDeUsuarioQuery({ usuarioId }: { usuarioId?: stri
 
 export function listarDocumentosProveedorQuery({ proveedorId }: { proveedorId?: string | null }) {
   return listarDocumentosProveedor({ proveedorId: proveedorId ?? '' })
+}
+
+export function abrirDocumentoProveedorMutation(params: { documentoId: string }) {
+  return abrirDocumentoProveedor(params)
 }
 
 export async function proveedorHomeQuery({ usuarioId }: { usuarioId?: string | null }) {
@@ -105,8 +119,16 @@ export function dictaminarDocumentoProveedorMutation(params: Parameters<typeof d
   return dictaminarDocumentoProveedor(params)
 }
 
-export function habilitarProveedorEmpresaMutation(params: { tenantId: string; proveedorId: string }) {
+export function habilitarProveedorEmpresaMutation(params: HabilitarProveedorEmpresaInput) {
   return habilitarProveedorEmpresa(params)
+}
+
+export function eliminarProveedorMutation(params: { proveedorId: string }) {
+  return eliminarProveedor(params)
+}
+
+export function reintentarVerificacionArcaProveedorMutation(params: { proveedorId: string }) {
+  return reintentarVerificacionArcaProveedor(params)
 }
 
 export function realizarLanceProveedorMutation(params: {

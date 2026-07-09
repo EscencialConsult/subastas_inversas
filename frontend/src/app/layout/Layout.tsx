@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { NavLink, Outlet, Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../auth/AuthContext'
 import {
   puedeGestionarUsuarios,
@@ -10,6 +9,7 @@ import {
   puedeGestionarCompras,
   puedeAprobarAdjudicacion,
   puedeEvaluar,
+  puedeVerCalificacion,
   puedeSupervisar,
   puedeVerProveedores,
   tienePanel,
@@ -19,12 +19,12 @@ import {
   LayoutDashboard, Users, Settings, Building2,
   ShoppingCart, ClipboardCheck, Truck, Award,
   Hammer, ShieldCheck, UserCircle, LogOut, FileCheck2,
-  Menu, X
+  Menu, X, type LucideIcon,
 } from 'lucide-react'
 import { Button } from '../../shared/ui/Button'
 import { Breadcrumbs } from '../../shared/ui/Breadcrumbs'
 
-const iconos = {
+const iconos: Record<string, LucideIcon> = {
   panel: LayoutDashboard,
   usuarios: Users,
   configuracion: Settings,
@@ -39,10 +39,17 @@ const iconos = {
   proveedor: UserCircle,
 }
 
-function Icono({ item }) {
+interface NavItem {
+  to: string
+  texto: string
+  icono: string
+  visible: boolean
+}
+
+function Icono({ item }: { item: NavItem }) {
   const Icon = iconos[item.icono]
   if (!Icon) return null
-  return <Icon className="layout__link-icono w-4 h-4 shrink-0" />
+  return <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
 }
 
 export function Layout() {
@@ -50,7 +57,7 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const marcaTexto = tenant?.nombre || 'SICST'
 
-  const items = [
+  const items: NavItem[] = [
     { to: '/panel', texto: 'Panel', icono: 'panel', visible: tienePanel(rol) },
     { to: '/usuarios', texto: 'Usuarios', icono: 'usuarios', visible: puedeGestionarUsuarios(rol) },
     { to: '/configuracion', texto: 'Configuracion', icono: 'configuracion', visible: puedeGestionarConfiguracion(rol) },
@@ -58,20 +65,22 @@ export function Layout() {
     { to: '/compras', texto: 'Compras', icono: 'compras', visible: puedeGestionarCompras(rol) },
     { to: '/compras-realizadas', texto: 'Compras realizadas', icono: 'compras-realizadas', visible: puedeGestionarCompras(rol) },
     { to: '/proveedores', texto: 'Proveedores', icono: 'proveedores', visible: puedeVerProveedores(rol) },
-    { to: '/calificacion', texto: 'Calificación', icono: 'evaluacion', visible: puedeEvaluar(rol) },
-    { to: '/evaluacion', texto: 'Evaluación de procesos', icono: 'evaluacion', visible: puedeEvaluar(rol) },
-    { to: '/evaluacion-proveedores', texto: 'Evaluación documental', icono: 'evaluacion', visible: puedeEvaluar(rol) },
+    { to: '/calificacion', texto: 'Calificacion', icono: 'evaluacion', visible: puedeVerCalificacion(rol) },
+    { to: '/evaluacion', texto: 'Evaluacion de procesos', icono: 'evaluacion', visible: puedeEvaluar(rol) },
+    { to: '/evaluacion-proveedores', texto: 'Evaluacion documental', icono: 'evaluacion', visible: puedeEvaluar(rol) },
     { to: '/adjudicaciones', texto: 'Adjudicaciones', icono: 'adjudicaciones', visible: puedeAprobarAdjudicacion(rol) },
     { to: '/subastas', texto: 'Subastas', icono: 'subastas', visible: puedeSupervisar(rol) },
-    { to: '/auditoria', texto: 'Auditoría', icono: 'auditoria', visible: puedeSupervisar(rol) },
+    { to: '/auditoria', texto: 'Auditoria', icono: 'auditoria', visible: puedeSupervisar(rol) },
     { to: '/proveedor', texto: 'Mi cuenta', icono: 'proveedor', visible: esProveedor(rol) },
+    { to: '/proveedor/arca', texto: 'ARCA', icono: 'auditoria', visible: esProveedor(rol) },
+    { to: '/proveedor/documentacion', texto: 'Documentacion', icono: 'proveedor', visible: esProveedor(rol) },
     { to: '/proveedor/oportunidades', texto: 'Subastas / Invitaciones', icono: 'subastas', visible: esProveedor(rol) },
   ].filter((i) => i.visible)
 
   const menuLinks = (
     <>
       {items.length === 0 && (
-        <p className="text-sm text-text-muted px-3 py-4">No tenés secciones asignadas.</p>
+        <p className="px-3 py-4 text-sm text-text-muted">No tenes secciones asignadas.</p>
       )}
       {items.map((item) => (
         <NavLink
@@ -80,9 +89,10 @@ export function Layout() {
           onClick={() => setSidebarOpen(false)}
           className={({ isActive }) =>
             [
-              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150',
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150',
+              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
               isActive
-                ? 'bg-primary-light text-primary font-semibold'
+                ? 'bg-primary-soft text-primary font-semibold'
                 : 'text-text-muted hover:bg-background hover:text-text',
             ].join(' ')
           }
@@ -95,98 +105,98 @@ export function Layout() {
   )
 
   return (
-    <div className="layout min-h-screen flex flex-col">
-      {/* Skip to Main Content Link (A11y) */}
+    <div className="flex min-h-screen flex-col">
       <a href="#main-content" className="skip-link">
         Saltar al contenido principal
       </a>
 
-      {/* Header */}
-      <header className="layout__header flex items-center justify-between px-6 h-14 bg-surface border-b border-border shadow-sm z-30">
-        <div className="flex items-center gap-3">
-          {/* Hamburger Menu Toggle */}
-          <button
+      <header className="z-30 flex h-14 items-center justify-between border-b border-border bg-surface px-4 shadow-sm sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button
             type="button"
-            className="lg:hidden p-1.5 rounded hover:bg-background text-text-muted hover:text-text transition-colors"
+            variant="ghost"
+            size="sm"
+            className="lg:hidden"
             onClick={() => setSidebarOpen(true)}
-            aria-label="Abrir menú de navegación"
+            aria-label="Abrir menu de navegacion"
             aria-expanded={sidebarOpen}
-          >
-            <Menu size={20} />
-          </button>
+            icon={<Menu size={20} />}
+          />
 
-          <div className="layout__marca flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {tenant?.logo ? (
-              <img className="layout__logo-img max-h-8 object-contain" src={tenant.logo} alt={marcaTexto} />
+              <img className="max-h-8 object-contain" src={tenant.logo} alt={marcaTexto} />
             ) : (
-              <span className="layout__logo font-bold text-lg text-primary">{marcaTexto}</span>
+              <span className="truncate text-lg font-bold text-primary">{marcaTexto}</span>
             )}
-            {tenant && <span className="layout__tenant pl-2 border-l border-border text-sm text-text-muted font-medium">{tenant.nombre}</span>}
+            {tenant && (
+              <span className="hidden border-l border-border pl-2 text-sm font-medium text-text-muted sm:inline">
+                {tenant.nombre}
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="layout__usuario flex items-center gap-4 text-sm">
-          <Link to="/perfil" className="layout__perfil flex items-center gap-2 text-text hover:text-primary font-medium transition-colors">
-            <UserCircle size={20} className="text-text-muted" />
+        <div className="flex items-center gap-2 text-sm sm:gap-4">
+          <Link
+            to="/perfil"
+            className="flex items-center gap-2 font-medium text-text transition-colors hover:text-primary"
+          >
+            <UserCircle size={20} className="text-text-muted" aria-hidden="true" />
             <span className="hidden sm:inline">
               {usuario.nombre} {usuario.apellido} ({etiquetaRol(rol)})
             </span>
           </Link>
-          <Button variant="ghost" onClick={logout} title="Cerrar sesión" icon={<LogOut size={18} />} />
+          <Button
+            variant="ghost"
+            onClick={logout}
+            title="Cerrar sesion"
+            aria-label="Cerrar sesion"
+            icon={<LogOut size={18} />}
+          />
         </div>
       </header>
 
-      <div className="layout__cuerpo flex-1 flex relative">
-        {/* Desktop Sidebar (permanently visible on large screens) */}
-        <nav className="hidden lg:flex flex-col w-56 bg-surface border-r border-border p-4 gap-1 shrink-0 overflow-y-auto">
+      <div className="relative flex flex-1">
+        <nav
+          className="hidden w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface p-4 lg:flex"
+          aria-label="Navegacion principal"
+        >
           {menuLinks}
         </nav>
 
-        {/* Mobile Slide-over Sidebar with Framer Motion */}
-        <AnimatePresence>
-          {sidebarOpen && (
-            <>
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-40 bg-black/45 lg:hidden"
-                onClick={() => setSidebarOpen(false)}
-              />
-              
-              {/* Sidebar Panel */}
-              <motion.nav
-                initial={{ x: '-100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '-100%' }}
-                transition={{ type: 'tween', duration: 0.25 }}
-                className="fixed inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border p-5 flex flex-col gap-1 shadow-xl lg:hidden"
-                role="navigation"
-                aria-label="Menú de navegación móvil"
-              >
-                <div className="flex items-center justify-between mb-6 pb-2 border-b border-border">
-                  <span className="font-bold text-primary text-base">{marcaTexto}</span>
-                  <button
-                    type="button"
-                    className="p-1 rounded hover:bg-background text-text-muted hover:text-text transition-colors"
-                    onClick={() => setSidebarOpen(false)}
-                    aria-label="Cerrar menú de navegación"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                
-                <div className="flex-1 flex flex-col gap-1 overflow-y-auto">
-                  {menuLinks}
-                </div>
-              </motion.nav>
-            </>
-          )}
-        </AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/45 animate-fadeIn lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
 
-        {/* Main Content Area */}
-        <main id="main-content" className="layout__contenido flex-1 p-6 sm:p-8 bg-background overflow-x-hidden">
+            <nav
+              className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col gap-1 border-r border-border bg-surface p-5 shadow-xl lg:hidden animate-slideIn"
+              role="navigation"
+              aria-label="Menu de navegacion movil"
+            >
+              <div className="mb-6 flex items-center justify-between border-b border-border pb-2">
+                <span className="truncate text-base font-bold text-primary">{marcaTexto}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSidebarOpen(false)}
+                  aria-label="Cerrar menu de navegacion"
+                  icon={<X size={20} />}
+                />
+              </div>
+
+              <div className="flex flex-1 flex-col gap-1 overflow-y-auto">
+                {menuLinks}
+              </div>
+            </nav>
+          </>
+        )}
+
+        <main id="main-content" className="flex-1 overflow-x-hidden bg-background p-6 sm:p-8">
           <Breadcrumbs />
           <Outlet />
         </main>

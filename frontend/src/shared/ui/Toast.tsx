@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { X, CheckCircle, AlertTriangle, Info, AlertOctagon } from 'lucide-react'
+import { Button } from './Button'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'
 
@@ -46,13 +47,13 @@ export function Toast({ id, type = 'info', message, duration = 4000, onDismiss }
     >
       <Icon size={18} className="mt-0.5 shrink-0" />
       <p className="text-sm flex-1 leading-snug">{message}</p>
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => onDismiss(id)}
-        className="shrink-0 p-0.5 rounded hover:opacity-70 transition-opacity cursor-pointer"
-        aria-label="Cerrar notificación"
-      >
-        <X size={14} />
-      </button>
+        icon={<X size={14} />}
+        aria-label="Cerrar notificacion"
+      />
     </div>
   )
 }

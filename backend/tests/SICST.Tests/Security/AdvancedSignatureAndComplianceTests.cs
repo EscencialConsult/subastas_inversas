@@ -4,7 +4,7 @@ using Xunit;
 
 namespace SICST.Tests.Security;
 
-public class AdvancedSignatureAndComplianceTests
+public class AdvancedSignatureTests
 {
     [Fact]
     public async Task AdvancedSignature_ShouldProducePkcs7X509DetachedEnvelope()
@@ -30,31 +30,4 @@ public class AdvancedSignatureAndComplianceTests
         Assert.False(await service.VerifyAsync(payload + "|alterado", signature, CancellationToken.None));
     }
 
-    [Fact]
-    public async Task ExternalComplianceServices_ShouldValidateDgrAndRepsal()
-    {
-        var dgr = new MockDgrTaxComplianceService();
-        var repsal = new MockRepsalComplianceService();
-
-        var valid = new ExternalComplianceRequest(
-            "30-11111111-1",
-            "Proveedor Limpio",
-            "Cordoba",
-            "Cordoba");
-        var dgrRejected = new ExternalComplianceRequest(
-            "30-11111111-9",
-            "Proveedor Con Deuda",
-            "Cordoba",
-            "Cordoba");
-        var repsalRejected = new ExternalComplianceRequest(
-            "30-11111111-7",
-            "Proveedor REPSAL",
-            "Cordoba",
-            "Cordoba");
-
-        Assert.True((await dgr.VerifyAsync(valid, CancellationToken.None)).Verified);
-        Assert.True((await repsal.VerifyAsync(valid, CancellationToken.None)).Verified);
-        Assert.False((await dgr.VerifyAsync(dgrRejected, CancellationToken.None)).Verified);
-        Assert.False((await repsal.VerifyAsync(repsalRejected, CancellationToken.None)).Verified);
-    }
 }

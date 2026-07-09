@@ -10,6 +10,10 @@ public record EnableSupplierForCompanyCommand : IRequest<CompanySupplierDto>
 {
     public Guid CompanyId { get; init; }
     public Guid SupplierId { get; init; }
+    public bool ArcaReviewed { get; init; }
+    public bool DocumentsReviewed { get; init; }
+    public bool WarningsAccepted { get; init; }
+    public string? ReviewNotes { get; init; }
 }
 
 public class EnableSupplierForCompanyCommandHandler : IRequestHandler<EnableSupplierForCompanyCommand, CompanySupplierDto>
@@ -29,10 +33,21 @@ public class EnableSupplierForCompanyCommandHandler : IRequestHandler<EnableSupp
             throw new InvalidOperationException("Empresa no encontrada.");
         }
 
-        var supplierExists = await _context.Suppliers.AnyAsync(s => s.Id == request.SupplierId, cancellationToken);
-        if (!supplierExists)
+        var supplier = await _context.Suppliers
+            .FirstOrDefaultAsync(s => s.Id == request.SupplierId, cancellationToken);
+        if (supplier is null)
         {
             throw new InvalidOperationException("Proveedor no encontrado.");
+        }
+
+        if (!supplier.ArcaVerified || supplier.ArcaVerificationStatus != ArcaVerificationStatus.Verified)
+        {
+            throw new InvalidOperationException("El proveedor debe estar verificado por ARCA antes de habilitarlo para la empresa.");
+        }
+
+        if (!request.ArcaReviewed || !request.DocumentsReviewed || !request.WarningsAccepted)
+        {
+            throw new InvalidOperationException("Debes revisar ARCA, documentacion y aceptar las advertencias antes de habilitar al proveedor.");
         }
 
         var configuration = await _context.CompanyConfigurations
@@ -67,7 +82,7 @@ public class EnableSupplierForCompanyCommandHandler : IRequestHandler<EnableSupp
         }
 
         relation.Status = evaluation.Status;
-        relation.WarningMessage = evaluation.WarningMessage;
+        relation.WarningMessage = BuildReviewWarning(evaluation.WarningMessage, request.ReviewNotes);
         relation.EvaluatedAtUtc = now;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -83,5 +98,27 @@ public class EnableSupplierForCompanyCommandHandler : IRequestHandler<EnableSupp
             LinkedAtUtc = relation.LinkedAtUtc,
             EvaluatedAtUtc = relation.EvaluatedAtUtc
         };
+    }
+
+    private static string? BuildReviewWarning(string? policyWarning, string? reviewNotes)
+    {
+        var notes = string.IsNullOrWhiteSpace(reviewNotes)
+            ? null
+            : reviewNotes.Trim();
+
+        if (string.IsNullOrWhiteSpace(policyWarning) && notes is null)
+        {
+            return null;
+        }
+
+        var message = string.Join(
+            " | ",
+            new[]
+            {
+                policyWarning,
+                notes is null ? null : $"Revision admin: {notes}"
+            }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+        return message.Length <= 500 ? message : message[..500];
     }
 }

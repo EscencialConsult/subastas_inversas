@@ -6,6 +6,8 @@ const labels: Record<string, string> = {
   perfil: 'Mi perfil',
   configuracion: 'Configuracion',
   proveedor: 'Mi cuenta',
+  arca: 'ARCA',
+  documentacion: 'Documentacion',
   oportunidades: 'Oportunidades',
   subastas: 'Subastas',
   'evaluacion-proveedores': 'Evaluacion documental',
@@ -62,7 +64,7 @@ export function Breadcrumbs() {
           <li key={crumb.to} className="inline-flex items-center gap-1">
             <ChevronRight size={14} aria-hidden="true" />
             {crumb.current ? (
-              <span className="font-medium text-text">{crumb.label}</span>
+              <span className="font-medium text-text" aria-current="page">{crumb.label}</span>
             ) : (
               <Link to={crumb.to} className="hover:text-primary">
                 {crumb.label}

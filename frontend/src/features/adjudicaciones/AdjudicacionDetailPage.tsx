@@ -1,16 +1,20 @@
-// Detalle para la AUTORIDAD: ve la adjudicación propuesta por el comprador y
-// las ofertas, y la aprueba o la rechaza (con motivo).
-
-import { useState } from 'react'
+import { ReactNode, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { analisisSubasta } from '../../shared/api/subastasApi'
 import { ESTADO_PROCESO } from '../../domain/compras'
 import { getErrorMessage } from '../../shared/query/queryClient'
-import { Badge } from '../../shared/ui/Badge'
 import { Alert } from '../../shared/ui/Alert'
-import { Spinner } from '../../shared/ui/Spinner'
+import { Badge } from '../../shared/ui/Badge'
+import { Button } from '../../shared/ui/Button'
+import { DataTable, type DataTableColumn } from '../../shared/ui/DataTable'
+import { FormActions } from '../../shared/ui/FormActions'
+import { FormSection } from '../../shared/ui/FormSection'
+import { LoadingState } from '../../shared/ui/StateViews'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { PageShell } from '../../shared/ui/PageShell'
+import { Textarea } from '../../shared/ui/Textarea'
 import {
   adjudicacionDetalleQuery,
   adjudicacionesKeys,
@@ -19,13 +23,36 @@ import {
   rechazarAdjudicacionMutation,
 } from './data/adjudicacionesData'
 
+interface Adjudicacion {
+  proveedor: string
+  monto: number
+  fecha: string
+  documentHash?: string
+  immutableHash?: string
+}
+
+interface Oferta {
+  id: string
+  proveedor: string
+  monto: number
+}
+
+interface ProcesoAdjudicacion {
+  id: string
+  codigo: string
+  titulo: string
+  estado: string
+  adjudicacion?: Adjudicacion | null
+  tieneSubasta?: boolean
+}
+
 export function AdjudicacionDetailPage() {
   const { id } = useParams()
   const { tenantId, usuario } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [accionMotivo, setAccionMotivo] = useState(null)
+  const [accionMotivo, setAccionMotivo] = useState<string | null>(null)
   const [motivo, setMotivo] = useState('')
 
   const detalleQuery = useQuery({
@@ -67,11 +94,12 @@ export function AdjudicacionDetailPage() {
     }
   }
 
-  if (detalleQuery.isLoading) return <div className="flex justify-center py-12"><Spinner /></div>
+  if (detalleQuery.isLoading) return <LoadingState label="Cargando adjudicación..." />
+
   const error = getErrorMessage(detalleQuery.error ?? aprobarMutation.error ?? rechazarMutation.error ?? devolverMutation.error, '')
-  const proceso = detalleQuery.data?.proceso
+  const proceso = detalleQuery.data?.proceso as ProcesoAdjudicacion | undefined
   const subasta = detalleQuery.data?.subasta
-  const ofertas = detalleQuery.data?.ofertas ?? []
+  const ofertas = (detalleQuery.data?.ofertas ?? []) as Oferta[]
   const procesando = aprobarMutation.isPending || rechazarMutation.isPending || devolverMutation.isPending
   if (!proceso) return <Alert variant="error">{error}</Alert>
 
@@ -84,152 +112,153 @@ export function AdjudicacionDetailPage() {
   const masBaja = ofertas[0] ?? null
   const adjudicaNoEsLaMasBaja = adj && masBaja && !esOfertaAdjudicada(masBaja, adj)
 
+  const ofertaColumns: Array<DataTableColumn<Oferta & Record<string, unknown>>> = [
+    { header: 'Proveedor', accessor: 'proveedor' },
+    {
+      header: 'Monto',
+      sortValue: (row) => row.monto,
+      cell: (row) => formatearPesos(row.monto),
+    },
+    {
+      header: '',
+      align: 'right',
+      cell: (row) => (
+        <div className="flex flex-wrap justify-end gap-2">
+          {ofertas[0]?.id === row.id && <Badge variant="neutral">Más baja</Badge>}
+          {esOfertaAdjudicada(row, adj) && <Badge variant="success">Adjudicado</Badge>}
+        </div>
+      ),
+    },
+  ]
+
   return (
-    <section className="space-y-6">
-      <div className="encabezado">
-        <h1>
-          Adjudicación · <code>{proceso.codigo}</code>
-        </h1>
-        <button className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60" onClick={() => navigate('/adjudicaciones')}>
-          Volver
-        </button>
-      </div>
+    <PageShell width="wide">
+      <PageHeader
+        title={<>Adjudicación · <code>{proceso.codigo}</code></>}
+        description={proceso.titulo}
+        actions={
+          <Button variant="ghost" onClick={() => navigate('/adjudicaciones')}>
+            Volver
+          </Button>
+        }
+      />
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      <p className="proceso__descripcion">{proceso.titulo}</p>
+      <FormSection title="Adjudicación propuesta">
+        <dl className="grid gap-3 sm:grid-cols-2">
+          <InfoTerm label="Proveedor" value={adjudicado ?? '—'} />
+          {adj && <InfoTerm label="Monto" value={formatearPesos(adj.monto)} />}
+          {adj && <InfoTerm label="Propuesta el" value={adj.fecha} />}
+          {adj?.documentHash && (
+            <InfoTerm label="Hash acta" value={<code>{adj.documentHash.slice(0, 16)}</code>} />
+          )}
+          {adj?.immutableHash && (
+            <InfoTerm label="Hash registro" value={<code>{adj.immutableHash.slice(0, 16)}</code>} />
+          )}
+        </dl>
+      </FormSection>
 
-      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-text">Adjudicación propuesta</h2>
-        <div className="perfil__solo-lectura">
-          <span>Proveedor: {adjudicado ?? '—'}</span>
-          {adj && <span>Monto: {formatearPesos(adj.monto)}</span>}
-          {adj && <span>Propuesta el: {adj.fecha}</span>}
-          {adj?.documentHash && <span>Hash acta: <code>{adj.documentHash.slice(0, 16)}</code></span>}
-          {adj?.immutableHash && <span>Hash registro: <code>{adj.immutableHash.slice(0, 16)}</code></span>}
-        </div>
+      {analisis && (
+        <FormSection title="Resultado de la subasta">
+          <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <InfoTerm label="Proveedores que ofertaron" value={analisis.oferentes} />
+            <InfoTerm label="Presupuesto base" value={formatearPesos(analisis.base)} />
+            <InfoTerm label="Oferta más baja" value={formatearPesos(analisis.mejor)} />
+            <InfoTerm label="Baja lograda" value={`${analisis.bajaPorcentaje.toFixed(1)}%`} />
+          </dl>
+        </FormSection>
+      )}
 
-        {/* Contexto de la subasta para que la Autoridad decida con información. */}
-        {analisis && (
-          <>
-            <h2 className="text-lg font-semibold text-text">Resultado de la subasta</h2>
-            <div className="perfil__solo-lectura">
-              <span>Proveedores que ofertaron: {analisis.oferentes}</span>
-              <span>Presupuesto base: {formatearPesos(analisis.base)}</span>
-              <span>Oferta más baja: {formatearPesos(analisis.mejor)}</span>
-              <span>Baja lograda: {analisis.bajaPorcentaje.toFixed(1)}%</span>
-            </div>
-          </>
-        )}
+      {adjudicaNoEsLaMasBaja && (
+        <Alert variant="info">
+          Atención: la adjudicación propuesta no es la oferta más baja
+          ({masBaja?.proveedor}, {formatearPesos(masBaja?.monto)}). Revisá la
+          justificación antes de aprobar.
+        </Alert>
+      )}
 
-        {/* Aviso de gobernanza: si NO se adjudicó a la oferta más baja. */}
-        {adjudicaNoEsLaMasBaja && (
-          <Alert variant="info">Atención: la adjudicación propuesta no es la oferta más baja
-            ({masBaja?.proveedor}, {formatearPesos(masBaja?.monto)}). Revisá la
-            justificación antes de aprobar.</Alert>
-        )}
+      <FormSection title="Ofertas">
+        <DataTable
+          columns={ofertaColumns}
+          rows={ofertas as (Oferta & Record<string, unknown>)[]}
+          getRowId={(row) => row.id}
+          emptyTitle="Sin ofertas"
+          emptyDescription="No se registraron ofertas en la subasta."
+        />
+      </FormSection>
 
-        <h2 className="text-lg font-semibold text-text">Ofertas</h2>
-        <table className="min-w-full divide-y divide-border text-sm">
-          <thead>
-            <tr>
-              <th>Proveedor</th>
-              <th>Monto</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {ofertas.map((o, i) => (
-              <tr key={o.id}>
-                <td>{o.proveedor}</td>
-                <td>{formatearPesos(o.monto)}</td>
-                <td className="flex flex-wrap justify-end gap-2">
-{i === 0 && <Badge variant="neutral">Más baja</Badge>}
-                  {esOfertaAdjudicada(o, adj) && (
-                    <Badge variant="success">Adjudicado</Badge>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {pendiente && !accionMotivo && (
+        <FormActions>
+          <Button variant="danger" onClick={() => setAccionMotivo('rechazar')} disabled={procesando}>
+            Rechazar
+          </Button>
+          <Button variant="secondary" onClick={() => setAccionMotivo('devolver')} disabled={procesando}>
+            Devolver
+          </Button>
+          <Button onClick={aprobar} disabled={procesando}>
+            {procesando ? 'Procesando…' : 'Aprobar adjudicación'}
+          </Button>
+        </FormActions>
+      )}
 
-        {pendiente && !accionMotivo && (
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              className="inline-flex items-center justify-center rounded-md bg-error px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-error/90 disabled:opacity-60"
-              onClick={() => setAccionMotivo('rechazar')}
+      {pendiente && accionMotivo && (
+        <FormSection title={estaDevolviendo ? 'Devolver adjudicación' : 'Rechazar adjudicación'}>
+          <Textarea
+            label={estaDevolviendo ? 'Motivo de la devolución' : 'Motivo del rechazo'}
+            placeholder={
+              estaDevolviendo
+                ? 'Indicá qué debe corregir el equipo evaluador…'
+                : 'Explicá por qué se rechaza la adjudicación…'
+            }
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={3}
+          />
+          <FormActions>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setAccionMotivo(null)
+                setMotivo('')
+              }}
               disabled={procesando}
             >
-              Rechazar
-            </button>
-            <button
-              className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-background disabled:opacity-60"
-              onClick={() => setAccionMotivo('devolver')}
-              disabled={procesando}
-            >
-              Devolver
-            </button>
-            <button className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-60" onClick={aprobar} disabled={procesando}>
-              {procesando ? 'Procesando…' : 'Aprobar adjudicación'}
-            </button>
-          </div>
-        )}
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={confirmarRechazo} disabled={procesando}>
+              {procesando
+                ? 'Procesando…'
+                : estaDevolviendo
+                  ? 'Confirmar devolución'
+                  : 'Confirmar rechazo'}
+            </Button>
+          </FormActions>
+        </FormSection>
+      )}
 
-        {pendiente && accionMotivo && (
-          <div className="rechazo">
-            <label className="campo">
-              <span>{estaDevolviendo ? 'Motivo de la devolucion' : 'Motivo del rechazo'}</span>
-              <textarea
-                rows={3}
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                placeholder={estaDevolviendo
-                  ? 'Indicá qué debe corregir el equipo evaluador…'
-                  : 'Explicá por qué se rechaza la adjudicación…'}
-              />
-            </label>
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
-                onClick={() => {
-                  setAccionMotivo(null)
-                  setMotivo('')
-                }}
-                disabled={procesando}
-              >
-                Cancelar
-              </button>
-              <button
-                className="inline-flex items-center justify-center rounded-md bg-error px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-error/90 disabled:opacity-60"
-                onClick={confirmarRechazo}
-                disabled={procesando}
-              >
-                {procesando
-                  ? 'Procesando…'
-                  : estaDevolviendo
-                    ? 'Confirmar devolución'
-                    : 'Confirmar rechazo'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!pendiente && (
-          <Alert variant="info">Esta adjudicación ya fue resuelta.</Alert>
-        )}
-      </div>
-    </section>
+      {!pendiente && (
+        <Alert variant="info">Esta adjudicación ya fue resuelta.</Alert>
+      )}
+    </PageShell>
   )
 }
 
-function esOfertaAdjudicada(oferta, adjudicacion) {
-  if (!oferta || !adjudicacion) return false
+function InfoTerm({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase text-text-muted">{label}</dt>
+      <dd className="mt-1 text-sm font-semibold text-text">{value}</dd>
+    </div>
+  )
+}
 
+function esOfertaAdjudicada(oferta: Oferta, adjudicacion?: Adjudicacion | null) {
+  if (!oferta || !adjudicacion) return false
   return oferta.proveedor === adjudicacion.proveedor && Number(oferta.monto) === Number(adjudicacion.monto)
 }
 
-function formatearPesos(monto) {
+function formatearPesos(monto: number) {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
