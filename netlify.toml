@@ -5,7 +5,9 @@
 [build]
   base = "frontend"
   command = "npm run build"
-  publish = "frontend/dist"
+  # OJO: al estar definido "base", esta ruta se resuelve DENTRO de esa carpeta.
+  # Por eso va "dist" y no "frontend/dist" (si no, buscaría frontend/frontend/dist).
+  publish = "dist"
 
 # La app es una SPA: cualquier ruta (/portal, /login, /compras...) debe servir
 # index.html. Sin esto, recargar una ruta interna devuelve 404.
