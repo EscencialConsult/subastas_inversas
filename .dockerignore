@@ -1,0 +1,18 @@
+# Todo lo que NO debe entrar en la imagen del backend.
+# Acelera el build y evita copiar secretos o basura por accidente.
+
+**/bin/
+**/obj/
+**/node_modules/
+frontend/
+.git/
+.vs/
+.vscode/
+**/*.user
+**/test-results/
+**/playwright-report/
+
+# Nunca copiar certificados ni secretos a la imagen
+**/*.pfx
+**/*.p12
+**/*.key

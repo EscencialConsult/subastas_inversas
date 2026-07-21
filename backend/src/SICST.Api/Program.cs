@@ -272,21 +272,47 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 if (ShouldInitializeDatabase(app.Configuration, app.Environment))
 {
+    using var initScope = app.Services.CreateScope();
+
+    // Migración y sembrado se manejan por separado a propósito: si se los agrupa en un
+    // solo try/catch, un fallo de la migración deja el sembrado sin ejecutar y la app
+    // arranca igual con la base vacía, sin que nadie se entere.
+    var migrationOk = false;
     try
     {
-        using (var scope = app.Services.CreateScope())
-        {
-            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            await dbContext.Database.MigrateAsync();
-
-            var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
-            var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-            await DatabaseInitializer.SeedAsync(context, passwordHasher);
-        }
+        var dbContext = initScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+        migrationOk = true;
+        app.Logger.LogInformation("Database migrations applied successfully.");
     }
     catch (Exception ex)
     {
-        app.Logger.LogWarning(ex, "Database initialization failed or server is unreachable. App will continue to start.");
+        app.Logger.LogError(
+            ex,
+            "DATABASE MIGRATION FAILED. The schema may be incomplete and the app will not work correctly. " +
+            "Check the connection string and the migration history before using the system.");
+    }
+
+    if (migrationOk)
+    {
+        try
+        {
+            var context = initScope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+            var passwordHasher = initScope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+            await DatabaseInitializer.SeedAsync(context, passwordHasher);
+            app.Logger.LogInformation("Database seeding completed successfully.");
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogError(
+                ex,
+                "DATABASE SEEDING FAILED. Initial data (including the superadmin user) may be missing, " +
+                "so nobody will be able to log in.");
+        }
+    }
+    else
+    {
+        app.Logger.LogError("Seeding skipped because the migration failed.");
     }
 }
 

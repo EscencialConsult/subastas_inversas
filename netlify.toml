@@ -1,0 +1,15 @@
+# Configuración de Netlify — SOLO publica el frontend (React + Vite).
+# El backend (.NET) NO puede alojarse en Netlify: necesita su propio hosting
+# y su URL pública debe cargarse en la variable de entorno VITE_API_URL.
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "frontend/dist"
+
+# La app es una SPA: cualquier ruta (/portal, /login, /compras...) debe servir
+# index.html. Sin esto, recargar una ruta interna devuelve 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
