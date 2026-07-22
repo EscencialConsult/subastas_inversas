@@ -6,7 +6,10 @@ using SICST.Domain.Entities;
 
 namespace SICST.Application.Modules.Suppliers.Queries;
 
-public record GetSupplierDocumentsQuery(Guid SupplierId) : IRequest<List<SupplierDocumentDto>>;
+// RequestingUserId + RequesterIsStaff llegan desde el token (los pone el controlador).
+// Sirven para que un proveedor solo vea SUS documentos y el personal del organismo, todos.
+public record GetSupplierDocumentsQuery(Guid SupplierId, Guid RequestingUserId, bool RequesterIsStaff)
+    : IRequest<List<SupplierDocumentDto>>;
 
 public class GetSupplierDocumentsQueryHandler : IRequestHandler<GetSupplierDocumentsQuery, List<SupplierDocumentDto>>
 {
@@ -19,12 +22,21 @@ public class GetSupplierDocumentsQueryHandler : IRequestHandler<GetSupplierDocum
 
     public async Task<List<SupplierDocumentDto>> Handle(GetSupplierDocumentsQuery request, CancellationToken cancellationToken)
     {
-        var supplierExists = await _context.Suppliers
-            .AnyAsync(s => s.Id == request.SupplierId, cancellationToken);
+        var supplier = await _context.Suppliers
+            .Where(s => s.Id == request.SupplierId)
+            .Select(s => new { s.Id, s.UserId })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (!supplierExists)
+        if (supplier is null)
         {
             throw new InvalidOperationException("Proveedor no encontrado.");
+        }
+
+        // Un proveedor solo accede a SUS documentos; el personal del organismo puede revisar
+        // los de cualquiera. Sin este chequeo, un proveedor podía leer el legajo de otro (IDOR).
+        if (!request.RequesterIsStaff && supplier.UserId != request.RequestingUserId)
+        {
+            throw new UnauthorizedAccessException("No tenés acceso a los documentos de este proveedor.");
         }
 
         var documents = await _context.SupplierDocuments

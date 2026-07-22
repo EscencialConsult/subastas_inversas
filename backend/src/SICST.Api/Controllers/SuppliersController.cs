@@ -10,6 +10,7 @@ using SICST.Application.Modules.Suppliers.Queries;
 using SICST.Domain.Entities;
 using SICST.Application.Common.Security;
 using SICST.Application.Common.Models;
+using System.Security.Claims;
 using System.Security.Cryptography;
 
 namespace SICST.Api.Controllers;
@@ -25,6 +26,28 @@ public class SuppliersController : ControllerBase
     {
         _sender = sender;
         _environment = environment;
+    }
+
+    // Lee del token (JWT) el ID del usuario logueado. Copiado del patrón ya usado en
+    // ProfileController/AuthController. Lanza 401 si el token no trae un ID válido.
+    private Guid GetCurrentUserId()
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (!Guid.TryParse(value, out var userId))
+        {
+            throw new UnauthorizedAccessException("Usuario no autenticado.");
+        }
+
+        return userId;
+    }
+
+    // "Personal del organismo" = cualquier rol que NO sea Proveedor (Admin, Comprador,
+    // Evaluador, Autoridad, Auditor, SuperAdmin). Ellos pueden revisar la documentación de
+    // cualquier proveedor; un Proveedor solo puede acceder a la suya.
+    private bool EsPersonalDelOrganismo()
+    {
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        return role is not null && role != nameof(UserRole.Proveedor);
     }
 
     [AllowAnonymous]
@@ -184,6 +207,13 @@ public class SuppliersController : ControllerBase
     [HttpGet("by-user/{userId:guid}")]
     public async Task<ActionResult<SupplierDto>> GetByUserId(Guid userId)
     {
+        // Un proveedor solo puede ver su propio perfil; el personal del organismo, cualquiera.
+        // Esto cierra el "pivote" del IDOR: antes revelaba el supplierId de cualquier usuario.
+        if (userId != GetCurrentUserId() && !EsPersonalDelOrganismo())
+        {
+            return Forbid();
+        }
+
         var supplier = await _sender.Send(new GetSupplierByUserIdQuery(userId));
 
         if (supplier == null)
@@ -201,6 +231,14 @@ public class SuppliersController : ControllerBase
         Guid supplierId,
         [FromForm] UploadDocumentRequest request)
     {
+        // Solo el proveedor dueño puede subir documentos a su propio legajo. Se valida ANTES
+        // de escribir el archivo en disco, para no dejar archivos huérfanos ante un intento ajeno.
+        var ownSupplier = await _sender.Send(new GetSupplierByUserIdQuery(GetCurrentUserId()));
+        if (ownSupplier is null || ownSupplier.Id != supplierId)
+        {
+            return Forbid();
+        }
+
         var file = request.File;
         var type = request.Type;
         var expiresAtUtc = request.ExpiresAtUtc;
@@ -260,7 +298,8 @@ public class SuppliersController : ControllerBase
     {
         try
         {
-            var documents = await _sender.Send(new GetSupplierDocumentsQuery(supplierId));
+            var documents = await _sender.Send(
+                new GetSupplierDocumentsQuery(supplierId, GetCurrentUserId(), EsPersonalDelOrganismo()));
             return Ok(documents);
         }
         catch (InvalidOperationException ex)
@@ -273,7 +312,8 @@ public class SuppliersController : ControllerBase
     [HttpGet("documents/{documentId:guid}/file")]
     public async Task<IActionResult> GetDocumentFile(Guid documentId)
     {
-        var document = await _sender.Send(new GetSupplierDocumentFileQuery(documentId));
+        var document = await _sender.Send(
+            new GetSupplierDocumentFileQuery(documentId, GetCurrentUserId(), EsPersonalDelOrganismo()));
         if (document is null)
         {
             return NotFound(new { message = "Documento no encontrado." });
@@ -321,14 +361,19 @@ public class SuppliersController : ControllerBase
         Guid documentId,
         [FromBody] SubmitSupplierDocumentRemediationCommand command)
     {
-        if (documentId != command.DocumentId)
+        // Subsanar es una acción del proveedor dueño. Tomamos su identidad del token, no del
+        // cuerpo del pedido (que era manipulable). El handler verifica que el documento sea suyo.
+        var ownSupplier = await _sender.Send(new GetSupplierByUserIdQuery(GetCurrentUserId()));
+        if (ownSupplier is null)
         {
-            return BadRequest(new { message = "El ID de la URL no coincide con el cuerpo." });
+            return Forbid();
         }
 
         try
         {
-            return Ok(await _sender.Send(command));
+            var result = await _sender.Send(
+                command with { DocumentId = documentId, SupplierId = ownSupplier.Id });
+            return Ok(result);
         }
         catch (InvalidOperationException ex)
         {
@@ -363,7 +408,8 @@ public class SuppliersController : ControllerBase
     {
         try
         {
-            var documents = await _sender.Send(new GetSupplierDocumentsQuery(supplierId));
+            var documents = await _sender.Send(
+                new GetSupplierDocumentsQuery(supplierId, GetCurrentUserId(), EsPersonalDelOrganismo()));
             var alerts = documents
                 .Where(d => d.Status is SupplierDocumentStatus.ExpiringSoon or SupplierDocumentStatus.Expired)
                 .Where(d => d.ExpiresAtUtc <= DateTime.UtcNow.AddDays(Math.Max(0, daysAhead)))

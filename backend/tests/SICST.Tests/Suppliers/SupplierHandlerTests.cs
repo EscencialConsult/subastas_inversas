@@ -277,7 +277,7 @@ public class SupplierHandlerTests
         await context.SaveChangesAsync();
 
         var handler = new GetSupplierDocumentsQueryHandler(context);
-        var result = await handler.Handle(new GetSupplierDocumentsQuery(supplierId), CancellationToken.None);
+        var result = await handler.Handle(new GetSupplierDocumentsQuery(supplierId, Guid.NewGuid(), RequesterIsStaff: true), CancellationToken.None);
 
         Assert.Single(result);
         Assert.Equal(supplierId, result[0].SupplierId);
@@ -299,10 +299,77 @@ public class SupplierHandlerTests
         await context.SaveChangesAsync();
 
         var handler = new GetSupplierDocumentsQueryHandler(context);
-        var result = await handler.Handle(new GetSupplierDocumentsQuery(supplierId), CancellationToken.None);
+        var result = await handler.Handle(new GetSupplierDocumentsQuery(supplierId, Guid.NewGuid(), RequesterIsStaff: true), CancellationToken.None);
 
         Assert.Equal(SupplierDocumentStatus.ExpiringSoon, result[0].Status);
         Assert.NotNull(result[0].AlertSentAtUtc);
+    }
+
+    [Fact]
+    public async Task GetSupplierDocuments_ShouldThrow_WhenAnotherSupplierRequests()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context, "uno@proveedor.com", "30-11111111-8");
+        await SeedSupplierAsync(context, "dos@proveedor.com", "30-22222222-5");
+        context.SupplierDocuments.Add(
+            CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111"));
+        await context.SaveChangesAsync();
+
+        // Un usuario que NO es el dueño y que NO es personal del organismo: debe ser rechazado.
+        var otroUsuarioId = Guid.NewGuid();
+        var handler = new GetSupplierDocumentsQueryHandler(context);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            handler.Handle(new GetSupplierDocumentsQuery(supplierId, otroUsuarioId, RequesterIsStaff: false), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetSupplierDocuments_ShouldReturn_WhenOwnerRequests()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        var ownerUserId = await context.Suppliers.Where(s => s.Id == supplierId).Select(s => s.UserId).FirstAsync();
+        context.SupplierDocuments.Add(
+            CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111"));
+        await context.SaveChangesAsync();
+
+        var handler = new GetSupplierDocumentsQueryHandler(context);
+        var result = await handler.Handle(
+            new GetSupplierDocumentsQuery(supplierId, ownerUserId, RequesterIsStaff: false), CancellationToken.None);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task GetSupplierDocumentFile_ShouldThrow_WhenAnotherSupplierRequests()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        var doc = CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
+        context.SupplierDocuments.Add(doc);
+        await context.SaveChangesAsync();
+
+        var handler = new GetSupplierDocumentFileQueryHandler(context);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            handler.Handle(new GetSupplierDocumentFileQuery(doc.Id, Guid.NewGuid(), RequesterIsStaff: false), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetSupplierDocumentFile_ShouldReturn_WhenStaffRequests()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        var doc = CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
+        context.SupplierDocuments.Add(doc);
+        await context.SaveChangesAsync();
+
+        var handler = new GetSupplierDocumentFileQueryHandler(context);
+        var result = await handler.Handle(
+            new GetSupplierDocumentFileQuery(doc.Id, Guid.NewGuid(), RequesterIsStaff: true), CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(doc.Id, result!.Id);
     }
 
     [Fact]
