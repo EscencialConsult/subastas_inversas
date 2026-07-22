@@ -124,6 +124,91 @@ public class SupplierArcaVerificationServiceTests
         Assert.Equal("Belgrano 456", supplier.ArcaFiscalAddress);
     }
 
+    [Fact]
+    public async Task RunOnce_ShouldKeepVerification_WhenCredentialEmailFails()
+    {
+        using var context = TestDbContextFactory.Create(new TestCurrentTenant());
+        var supplierId = await SeedPendingSupplierAsync(context);
+
+        await using var provider = CreateProvider(
+            context,
+            new FixedArcaVerificationService(new ArcaVerificationResult(true, "Situación fiscal verificada.")
+            {
+                TaxpayerData = CreateTaxpayerData()
+            }),
+            new ThrowingEmailSender());
+
+        var service = new SupplierArcaVerificationService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<SupplierArcaVerificationService>.Instance);
+
+        // El correo falla, pero la verificación NO debe perderse.
+        await service.RunOnce(CancellationToken.None);
+
+        var supplier = await context.Suppliers.Include(s => s.User).SingleAsync(s => s.Id == supplierId);
+        Assert.Equal(SupplierStatus.Verified, supplier.Status);
+        Assert.Equal(ArcaVerificationStatus.Verified, supplier.ArcaVerificationStatus);
+        Assert.True(supplier.ArcaVerified);
+        Assert.True(supplier.User.Active);
+        Assert.Equal("hashed-temporary-password", supplier.User.PasswordHash);
+        Assert.NotNull(supplier.ArcaVerifiedAtUtc);
+        // La entrega falló: queda marcado como "aún no entregado" para reintentar.
+        Assert.Null(supplier.CredentialsSentAtUtc);
+    }
+
+    [Fact]
+    public async Task RunCredentialDeliveryOnce_ShouldDeliver_WhenEmailRecovers()
+    {
+        using var context = TestDbContextFactory.Create(new TestCurrentTenant());
+        var supplierId = await SeedVerifiedUndeliveredSupplierAsync(context, DateTime.UtcNow.AddMinutes(-5));
+        var emailSender = new RecordingEmailSender();
+
+        await using var provider = CreateProvider(
+            context,
+            new FixedArcaVerificationService(new ArcaVerificationResult(true, "ok")),
+            emailSender);
+
+        var service = new SupplierArcaVerificationService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<SupplierArcaVerificationService>.Instance);
+
+        await service.RunCredentialDeliveryOnce(CancellationToken.None);
+
+        var supplier = await context.Suppliers.Include(s => s.User).SingleAsync(s => s.Id == supplierId);
+        Assert.NotNull(supplier.CredentialsSentAtUtc);
+        Assert.Equal("hashed-temporary-password", supplier.User.PasswordHash);
+        Assert.Single(emailSender.Messages);
+        Assert.Contains("verificada", emailSender.Messages[0].Subject);
+    }
+
+    [Fact]
+    public async Task RunCredentialDeliveryOnce_ShouldGiveUp_AfterMaxAge()
+    {
+        using var context = TestDbContextFactory.Create(new TestCurrentTenant());
+        var supplierId = await SeedVerifiedUndeliveredSupplierAsync(context, DateTime.UtcNow.AddDays(-8));
+        var emailSender = new RecordingEmailSender();
+
+        await using var provider = CreateProvider(
+            context,
+            new FixedArcaVerificationService(new ArcaVerificationResult(true, "ok")),
+            emailSender);
+
+        var service = new SupplierArcaVerificationService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<SupplierArcaVerificationService>.Instance);
+
+        // Pasaron más de 7 días: deja de reintentar y marca el caso, sin enviar correo.
+        await service.RunCredentialDeliveryOnce(CancellationToken.None);
+        // Un segundo ciclo no debe re-procesarlo ni duplicar la marca.
+        await service.RunCredentialDeliveryOnce(CancellationToken.None);
+
+        var supplier = await context.Suppliers.Include(s => s.User).SingleAsync(s => s.Id == supplierId);
+        Assert.Null(supplier.CredentialsSentAtUtc);
+        Assert.Empty(emailSender.Messages);
+        Assert.NotNull(supplier.ArcaVerificationNotes);
+        Assert.Contains("No se pudieron entregar las credenciales", supplier.ArcaVerificationNotes!);
+    }
+
     private static ServiceProvider CreateProvider(
         ApplicationDbContext context,
         IArcaVerificationService arca,
@@ -166,6 +251,47 @@ public class SupplierArcaVerificationServiceTests
             Status = SupplierStatus.Pending,
             ArcaVerificationStatus = ArcaVerificationStatus.Pending,
             CreatedAtUtc = DateTime.UtcNow
+        };
+
+        context.Users.Add(user);
+        context.Suppliers.Add(supplier);
+        await context.SaveChangesAsync();
+        return supplier.Id;
+    }
+
+    private static async Task<Guid> SeedVerifiedUndeliveredSupplierAsync(
+        ApplicationDbContext context, DateTime arcaVerifiedAtUtc)
+    {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = $"proveedor-{Guid.NewGuid():N}@test.com",
+            PasswordHash = "hash-anterior",
+            FirstName = "Proveedor",
+            LastName = "Test",
+            Role = UserRole.Proveedor,
+            Active = true
+        };
+
+        var supplier = new Supplier
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            BusinessName = "Proveedor Test SRL",
+            Cuit = "30-12345678-1",
+            Email = user.Email,
+            BusinessCategory = "Servicios",
+            Province = "Tucuman",
+            Locality = "San Miguel de Tucuman",
+            Status = SupplierStatus.Verified,
+            ArcaVerified = true,
+            ArcaVerificationStatus = ArcaVerificationStatus.Verified,
+            ArcaVerifiedAtUtc = arcaVerifiedAtUtc,
+            ArcaVerificationExpiresAtUtc = arcaVerifiedAtUtc.AddDays(180),
+            ArcaVerificationNotes = "Situación fiscal verificada.",
+            CredentialsSentAtUtc = null,
+            CreatedAtUtc = arcaVerifiedAtUtc
         };
 
         context.Users.Add(user);
@@ -237,6 +363,14 @@ public class SupplierArcaVerificationServiceTests
         {
             var completed = await Task.WhenAny(_sent.Task, Task.Delay(TimeSpan.FromSeconds(5)));
             Assert.Same(_sent.Task, completed);
+        }
+    }
+
+    private sealed class ThrowingEmailSender : IEmailSender
+    {
+        public Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("SMTP no disponible (simulado).");
         }
     }
 

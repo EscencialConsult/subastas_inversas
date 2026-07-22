@@ -13,6 +13,15 @@ public class SupplierArcaVerificationService : BackgroundService
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ArcaValidityPeriod = TimeSpan.FromDays(180);
 
+    // Tope de reintentos de ENTREGA de credenciales: si tras 7 días no se pudo mandar el
+    // correo, se deja de reintentar y se marca para revisión (por si el email es inválido).
+    private static readonly TimeSpan CredentialDeliveryMaxAge = TimeSpan.FromDays(7);
+
+    // Se agrega a las notas del proveedor cuando se agota el tope de 7 días. Sirve de marca
+    // para no volver a reintentar ni a re-leer ese proveedor en cada ciclo.
+    private const string CredentialDeliveryFailedMarker =
+        "No se pudieron entregar las credenciales automaticamente tras varios dias de intentos. Revisar el correo del proveedor o reenviarlas manualmente.";
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SupplierArcaVerificationService> _logger;
 
@@ -32,6 +41,7 @@ public class SupplierArcaVerificationService : BackgroundService
             {
                 await RunOnce(stoppingToken);
                 await RunRenewalsOnce(stoppingToken);
+                await RunCredentialDeliveryOnce(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -124,7 +134,8 @@ public class SupplierArcaVerificationService : BackgroundService
                 supplier.ArcaVerificationExpiresAtUtc = now.Add(ArcaValidityPeriod);
                 EnrichWithArcaData(supplier, result.TaxpayerData);
 
-                await emailSender.SendAsync(
+                await TrySendEmailAsync(
+                    emailSender,
                     supplier.Email,
                     "Tu verificacion ARCA fue renovada",
                     BuildRenewedEmail(supplier),
@@ -134,7 +145,8 @@ public class SupplierArcaVerificationService : BackgroundService
             {
                 supplier.ArcaVerificationStatus = ArcaVerificationStatus.Pending;
 
-                await emailSender.SendAsync(
+                await TrySendEmailAsync(
+                    emailSender,
                     supplier.Email,
                     "Tu verificacion ARCA necesita atencion",
                     BuildRenewalFailedEmail(supplier, result.Notes),
@@ -145,6 +157,114 @@ public class SupplierArcaVerificationService : BackgroundService
         if (expiring.Count > 0)
         {
             await context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    // Reintenta la ENTREGA del correo de credenciales a proveedores ya verificados por ARCA
+    // cuyo email de bienvenida todavía no salió (CredentialsSentAtUtc == null). Corre en cada
+    // ciclo, así un fallo transitorio del correo se recupera solo, sin intervención humana.
+    // Tras CredentialDeliveryMaxAge (7 días) sin lograrlo, deja de reintentar y lo marca.
+    internal async Task RunCredentialDeliveryOnce(CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+
+        var now = DateTime.UtcNow;
+        var giveUpBefore = now.Subtract(CredentialDeliveryMaxAge);
+
+        var pendingDelivery = await context.Suppliers
+            .Include(s => s.User)
+            .Where(s => s.ArcaVerificationStatus == ArcaVerificationStatus.Verified
+                && s.CredentialsSentAtUtc == null
+                && s.User != null
+                // Excluye los que ya superaron el tope Y ya fueron marcados, para no
+                // volver a leerlos en cada ciclo (los que aún no se marcaron sí entran).
+                && (s.ArcaVerifiedAtUtc == null
+                    || s.ArcaVerifiedAtUtc >= giveUpBefore
+                    || s.ArcaVerificationNotes == null
+                    || !s.ArcaVerificationNotes.Contains(CredentialDeliveryFailedMarker)))
+            .OrderBy(s => s.ArcaVerifiedAtUtc)
+            .Take(10)
+            .ToListAsync(cancellationToken);
+
+        if (pendingDelivery.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var supplier in pendingDelivery)
+        {
+            // Pasó el tope de 7 días sin poder entregar: se deja de reintentar y se marca
+            // (una sola vez) para que aparezca en el panel como caso a revisar.
+            if (supplier.ArcaVerifiedAtUtc is not null && supplier.ArcaVerifiedAtUtc < giveUpBefore)
+            {
+                if (supplier.ArcaVerificationNotes is null
+                    || !supplier.ArcaVerificationNotes.Contains(CredentialDeliveryFailedMarker))
+                {
+                    supplier.ArcaVerificationNotes = string.IsNullOrWhiteSpace(supplier.ArcaVerificationNotes)
+                        ? CredentialDeliveryFailedMarker
+                        : supplier.ArcaVerificationNotes + " | " + CredentialDeliveryFailedMarker;
+
+                    _logger.LogError(
+                        "No se pudieron entregar las credenciales al proveedor {Email} tras {Days} días. Se deja de reintentar.",
+                        supplier.Email, CredentialDeliveryMaxAge.TotalDays);
+                }
+
+                continue;
+            }
+
+            // Regeneramos la contraseña en cada intento porque el hash guardado no es
+            // reversible: no podríamos reenviar la anterior en texto plano. Como el proveedor
+            // todavía no recibió ninguna, cambiarla no rompe nada.
+            var temporaryPassword = GenerateTemporaryPassword();
+            supplier.User!.PasswordHash = passwordHasher.Hash(temporaryPassword);
+
+            var sent = await TrySendEmailAsync(
+                emailSender,
+                supplier.Email,
+                "Tu cuenta de proveedor fue verificada",
+                BuildVerifiedEmail(supplier, temporaryPassword),
+                cancellationToken);
+
+            if (sent)
+            {
+                supplier.CredentialsSentAtUtc = DateTime.UtcNow;
+                _logger.LogInformation(
+                    "Credenciales entregadas al proveedor {Email} tras reintento.", supplier.Email);
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    // Envía un correo aislando cualquier fallo: registra el error y devuelve false en vez de
+    // propagar la excepción, para que un problema de email nunca tumbe la lógica del negocio
+    // (verificación, guardado). La cancelación por apagado sí se deja propagar.
+    private async Task<bool> TrySendEmailAsync(
+        IEmailSender emailSender,
+        string to,
+        string subject,
+        string body,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await emailSender.SendAsync(to, subject, body, cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Falló el envío de email a {To} (asunto: {Subject}). Se reintentará automáticamente.",
+                to, subject);
+            return false;
         }
     }
 
@@ -195,7 +315,8 @@ public class SupplierArcaVerificationService : BackgroundService
             supplier.ArcaVerificationStatus = ArcaVerificationStatus.PendingManualReview;
             supplier.User.Active = false;
 
-            await emailSender.SendAsync(
+            await TrySendEmailAsync(
+                emailSender,
                 supplier.Email,
                 "Tu registro esta pendiente de revision manual",
                 BuildManualReviewEmail(supplier),
@@ -211,15 +332,23 @@ public class SupplierArcaVerificationService : BackgroundService
             supplier.ArcaVerificationStatus = ArcaVerificationStatus.Verified;
             supplier.ArcaVerifiedAtUtc = DateTime.UtcNow;
             supplier.ArcaVerificationExpiresAtUtc = DateTime.UtcNow.Add(ArcaValidityPeriod);
-            supplier.CredentialsSentAtUtc = DateTime.UtcNow;
             supplier.User.Active = true;
             supplier.User.PasswordHash = passwordHasher.Hash(temporaryPassword);
 
-            await emailSender.SendAsync(
+            // La verificación ya quedó lista arriba y se guarda igual. El correo se intenta
+            // acá, pero si falla NO se pierde nada: CredentialsSentAtUtc queda en null y el
+            // envío se reintenta solo en RunCredentialDeliveryOnce hasta lograrlo.
+            var credentialsSent = await TrySendEmailAsync(
+                emailSender,
                 supplier.Email,
                 "Tu cuenta de proveedor fue verificada",
                 BuildVerifiedEmail(supplier, temporaryPassword),
                 cancellationToken);
+
+            if (credentialsSent)
+            {
+                supplier.CredentialsSentAtUtc = DateTime.UtcNow;
+            }
         }
         else
         {
@@ -228,7 +357,8 @@ public class SupplierArcaVerificationService : BackgroundService
             supplier.ArcaVerificationStatus = ArcaVerificationStatus.Rejected;
             supplier.User.Active = false;
 
-            await emailSender.SendAsync(
+            await TrySendEmailAsync(
+                emailSender,
                 supplier.Email,
                 "No pudimos verificar tus datos de proveedor",
                 BuildRejectedEmail(supplier),

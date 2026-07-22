@@ -23,4 +23,10 @@
     <ProjectReference Include="..\SICST.Persistence\SICST.Persistence.csproj" />
   </ItemGroup>
 
+  <!-- Permite que el proyecto de tests invoque métodos internos (RunOnce, RunCredentialDeliveryOnce)
+       para testear de forma determinista, sin depender del ciclo de 30s del BackgroundService. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SICST.Tests" />
+  </ItemGroup>
+
 </Project>
