@@ -44,7 +44,11 @@ public class CmsGenerator
             if (_certificate is not null)
                 return _certificate;
 
-            var rawData = File.ReadAllBytes(_options.CertificatePath);
+            // En Render no hay disco para el .pfx: si viene el certificado en base64
+            // (variable de entorno), lo usamos; si no, lo leemos del archivo (dev local).
+            var rawData = !string.IsNullOrWhiteSpace(_options.CertificateBase64)
+                ? Convert.FromBase64String(_options.CertificateBase64.Trim())
+                : File.ReadAllBytes(_options.CertificatePath);
 
             _certificate = string.IsNullOrEmpty(_options.CertificatePassword)
                 ? X509CertificateLoader.LoadCertificate(rawData)

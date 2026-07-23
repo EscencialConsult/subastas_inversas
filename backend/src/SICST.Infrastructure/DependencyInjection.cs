@@ -22,7 +22,9 @@ public static class DependencyInjection
         services.AddArcaServices(configuration);
 
         var arcaOptions = configuration.GetSection(ArcaOptions.SectionName).Get<ArcaOptions>();
-        if (arcaOptions is not null && !string.IsNullOrWhiteSpace(arcaOptions.CertificatePath) && !string.IsNullOrWhiteSpace(arcaOptions.Cuit))
+        var tieneCertificado = arcaOptions is not null &&
+            (!string.IsNullOrWhiteSpace(arcaOptions.CertificatePath) || !string.IsNullOrWhiteSpace(arcaOptions.CertificateBase64));
+        if (arcaOptions is not null && tieneCertificado && !string.IsNullOrWhiteSpace(arcaOptions.Cuit))
         {
             services.AddSingleton<IArcaVerificationService, ArcaVerificationService>();
         }

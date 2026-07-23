@@ -5,6 +5,11 @@ public class ArcaOptions
     public const string SectionName = "Arca";
 
     public string CertificatePath { get; set; } = string.Empty;
+
+    // Alternativa a CertificatePath para entornos sin disco (Render): el .pfx en base64.
+    // Si viene cargada, tiene prioridad sobre CertificatePath. Ver CmsGenerator.
+    public string CertificateBase64 { get; set; } = string.Empty;
+
     public string CertificatePassword { get; set; } = string.Empty;
     public string Cuit { get; set; } = string.Empty;
     public string Environment { get; set; } = "homologacion";
