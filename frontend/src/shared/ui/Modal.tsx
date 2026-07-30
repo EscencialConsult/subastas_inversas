@@ -131,10 +131,10 @@ export function Modal({
     >
       <div
         ref={containerRef}
-        className={`bg-surface rounded-md w-full shadow-xl overflow-hidden transition-all duration-180 ease-out ${entering ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-3'}`}
+        className={`bg-surface rounded-md w-full shadow-xl overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] transition-all duration-180 ease-out ${entering ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-3'}`}
         style={{ maxWidth: size === 'sm' ? '24rem' : size === 'lg' ? '42rem' : size === 'xl' ? '72rem' : '36rem' }}
       >
-        <div className="flex items-center justify-between px-6 pt-5 pb-0">
+        <div className="flex flex-shrink-0 items-center justify-between px-6 pt-5 pb-0">
           {title && <h2 id={titleId} className="text-xl font-semibold text-text m-0">{title}</h2>}
           <Button
             variant="ghost"
@@ -144,8 +144,10 @@ export function Modal({
             aria-label="Cerrar modal"
           />
         </div>
-        <div className="px-6 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 px-6 pb-5">{footer}</div>}
+        {/* El cuerpo scrollea por dentro cuando el contenido es mas alto que la pantalla,
+            asi el encabezado y los botones del footer quedan siempre visibles. */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        {footer && <div className="flex flex-shrink-0 justify-end gap-2 px-6 pb-5">{footer}</div>}
       </div>
     </div>
   ) : null
