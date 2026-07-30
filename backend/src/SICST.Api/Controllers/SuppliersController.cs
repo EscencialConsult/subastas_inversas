@@ -8,6 +8,7 @@ using SICST.Application.Modules.Suppliers.Commands;
 using SICST.Application.Modules.Suppliers.DTOs;
 using SICST.Application.Modules.Suppliers.Queries;
 using SICST.Domain.Entities;
+using SICST.Application.Common.Interfaces;
 using SICST.Application.Common.Security;
 using SICST.Application.Common.Models;
 using System.Security.Claims;
@@ -20,12 +21,12 @@ namespace SICST.Api.Controllers;
 public class SuppliersController : ControllerBase
 {
     private readonly ISender _sender;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IFileStorage _fileStorage;
 
-    public SuppliersController(ISender sender, IWebHostEnvironment environment)
+    public SuppliersController(ISender sender, IFileStorage fileStorage)
     {
         _sender = sender;
-        _environment = environment;
+        _fileStorage = fileStorage;
     }
 
     // Lee del token (JWT) el ID del usuario logueado. Copiado del patrón ya usado en
@@ -258,18 +259,30 @@ public class SuppliersController : ControllerBase
             return BadRequest(new { message = "Solo se permiten archivos PDF." });
         }
 
-        var uploadsRoot = Path.Combine(_environment.ContentRootPath, "uploads", "suppliers", supplierId.ToString());
-        Directory.CreateDirectory(uploadsRoot);
-
-        var safeFileName = $"{Guid.NewGuid()}-{Path.GetFileName(file.FileName)}";
-        var fullPath = Path.Combine(uploadsRoot, safeFileName);
-
-        await using (var stream = System.IO.File.Create(fullPath))
+        // Leemos el archivo a memoria una sola vez (PDF <= 10 MB) para calcular el hash y
+        // guardarlo, sin depender del disco local.
+        byte[] bytes;
+        await using (var buffer = new MemoryStream())
         {
-            await file.CopyToAsync(stream);
+            await file.CopyToAsync(buffer, HttpContext.RequestAborted);
+            bytes = buffer.ToArray();
         }
 
-        var sha256Hash = Convert.ToHexString(SHA256.HashData(await System.IO.File.ReadAllBytesAsync(fullPath))).ToLowerInvariant();
+        var sha256Hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
+        var extension = Path.GetExtension(file.FileName);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            extension = ".pdf";
+        }
+
+        // La "key" es opaca (guid + extension), sin el nombre original: evita caracteres raros
+        // en la ruta del storage. El nombre real del archivo se guarda aparte en FileName.
+        var storageKey = $"suppliers/{supplierId}/{Guid.NewGuid():N}{extension}";
+        await using (var uploadStream = new MemoryStream(bytes))
+        {
+            await _fileStorage.SaveAsync(storageKey, uploadStream, "application/pdf", HttpContext.RequestAborted);
+        }
 
         try
         {
@@ -279,7 +292,7 @@ public class SuppliersController : ControllerBase
                 Type = type,
                 FileName = file.FileName,
                 ContentType = file.ContentType,
-                StoragePath = Path.Combine("uploads", "suppliers", supplierId.ToString(), safeFileName),
+                StoragePath = storageKey,
                 Sha256Hash = sha256Hash,
                 ExpiresAtUtc = expiresAtUtc
             });
@@ -288,6 +301,8 @@ public class SuppliersController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            // Si el registro en base falla, borramos el archivo ya subido para no dejar huerfanos.
+            await _fileStorage.DeleteAsync(storageKey, HttpContext.RequestAborted);
             return BadRequest(new { message = ex.Message });
         }
     }
@@ -319,10 +334,8 @@ public class SuppliersController : ControllerBase
             return NotFound(new { message = "Documento no encontrado." });
         }
 
-        var fullPath = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, document.StoragePath));
-        var uploadsRoot = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, "uploads"));
-
-        if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(fullPath))
+        var stream = await _fileStorage.OpenReadAsync(document.StoragePath, HttpContext.RequestAborted);
+        if (stream is null)
         {
             return NotFound(new { message = "Archivo no encontrado." });
         }
@@ -331,7 +344,8 @@ public class SuppliersController : ControllerBase
             ? "application/pdf"
             : document.ContentType;
 
-        return PhysicalFile(fullPath, contentType, document.FileName, enableRangeProcessing: true);
+        // El control de acceso ya se resolvió en la query (dueño o personal del organismo).
+        return File(stream, contentType, document.FileName);
     }
 
     [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]

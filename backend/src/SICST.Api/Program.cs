@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -21,6 +22,7 @@ using SICST.Application;
 using SICST.Application.Common.Security;
 using SICST.Application.Common.Interfaces;
 using SICST.Infrastructure;
+using SICST.Infrastructure.Storage;
 using SICST.Persistence;
 using SICST.Persistence.Contexts;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -51,6 +53,28 @@ builder.Services.AddHostedService<OutboxDispatcherService>();
 builder.Services.AddSingleton<IUploadStorage, LocalUploadStorage>();
 builder.Services.AddSingleton<IAntivirusScanner, NoOpAntivirusScanner>();
 builder.Services.AddScoped<IArcaVerificationAuditStore, ArcaVerificationAuditStore>();
+
+// Almacenamiento de archivos: Supabase Storage en produccion (Render no persiste el disco,
+// borra los archivos en cada redeploy), disco local en desarrollo. Se elige segun la config.
+var supabaseStorageSection = builder.Configuration.GetSection(SupabaseStorageOptions.SectionName);
+builder.Services.Configure<SupabaseStorageOptions>(supabaseStorageSection);
+var supabaseStorageOptions = supabaseStorageSection.Get<SupabaseStorageOptions>();
+if (supabaseStorageOptions is not null && supabaseStorageOptions.IsConfigured)
+{
+    builder.Services.AddHttpClient<IFileStorage, SupabaseFileStorage>(client =>
+    {
+        client.BaseAddress = new Uri(supabaseStorageOptions.Url.TrimEnd('/') + "/");
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", supabaseStorageOptions.ServiceKey);
+        client.DefaultRequestHeaders.Add("apikey", supabaseStorageOptions.ServiceKey);
+    });
+}
+else
+{
+    builder.Services.AddSingleton<IFileStorage>(
+        new LocalFileStorage(Path.Combine(builder.Environment.ContentRootPath, "uploads")));
+}
+
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready", "db"])
     .AddCheck<RedisHealthCheck>("redis", tags: ["ready", "cache"])
