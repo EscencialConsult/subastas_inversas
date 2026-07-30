@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import {
+  abrirDocumentoProveedorMutation,
   dictaminarDocumentoProveedorMutation,
   listarDocumentosProveedorQuery,
   listarProveedoresEvaluacionQuery,
@@ -65,6 +66,7 @@ export function EvaluacionProveedoresPage() {
   const [mensaje, setMensaje] = useState('')
   const [formularios, setFormularios] = useState<Record<string, DocumentoForm>>({})
   const [procesandoId, setProcesandoId] = useState<string | null>(null)
+  const [abriendoDocumentoId, setAbriendoDocumentoId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const filtros = { tenantId, busqueda, estado }
@@ -141,6 +143,24 @@ export function EvaluacionProveedoresPage() {
     onError: (err) => setError(getErrorMessage(err)),
     onSettled: () => setProcesandoId(null),
   })
+
+  const abrirDocumentoMutation = useMutation({
+    mutationFn: abrirDocumentoProveedorMutation,
+  })
+
+  // El evaluador necesita ver el PDF antes de dictaminar. El backend permite la descarga
+  // al personal del organismo (nuestro arreglo del IDOR habilita a los no-proveedores).
+  async function abrirDocumento(documentoId: string) {
+    setAbriendoDocumentoId(documentoId)
+    setError('')
+    try {
+      await abrirDocumentoMutation.mutateAsync({ documentoId })
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setAbriendoDocumentoId(null)
+    }
+  }
 
   function actualizarFormulario(documentoId: string, campo: keyof DocumentoForm, valor: string) {
     setFormularios((actual) => ({
@@ -303,11 +323,20 @@ export function EvaluacionProveedoresPage() {
                 header: 'Documento',
                 accessor: 'nombreArchivo',
                 render: (value, documento) => (
-                  <div>
+                  <div className="grid gap-1">
                     <span>{String(value ?? '---')}</span>
-                    <small className="mt-1 block break-all font-mono text-xs text-text-muted">
+                    <small className="break-all font-mono text-xs text-text-muted">
                       {String(documento.hashCorto ?? '')}
                     </small>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      onClick={() => abrirDocumento(String(documento.id))}
+                      loading={abriendoDocumentoId === String(documento.id)}
+                    >
+                      Ver PDF
+                    </Button>
                   </div>
                 ),
               },
