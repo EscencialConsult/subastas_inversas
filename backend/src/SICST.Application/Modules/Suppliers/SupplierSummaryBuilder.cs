@@ -48,32 +48,27 @@ public static class SupplierSummaryBuilder
         SupplierDto supplier,
         IReadOnlyCollection<SupplierDocumentSnapshot> documents)
     {
+        // El ÚNICO bloqueo duro es la verificación fiscal de ARCA. Sin ARCA verificado, el
+        // proveedor no puede operar en ningún lado.
         if (!supplier.ArcaVerified || supplier.ArcaVerificationStatus != ArcaVerificationStatus.Verified)
         {
             return SupplierReadinessStatus.Blocked;
         }
 
-        if (supplier.Status == SupplierStatus.Rejected)
-        {
-            return SupplierReadinessStatus.Blocked;
-        }
-
+        // Ya verificado por ARCA: el proveedor está vigente. Los problemas de documentación
+        // se muestran como ADVERTENCIA (NeedsReview), no como bloqueo. La habilitación real
+        // para operar la decide cada empresa por separado.
         if (documents.Count == 0)
         {
-            return SupplierReadinessStatus.Blocked;
+            return SupplierReadinessStatus.NeedsReview;
         }
 
         if (documents.Any(d => d.Status == SupplierDocumentStatus.Expired))
         {
-            return SupplierReadinessStatus.Blocked;
+            return SupplierReadinessStatus.NeedsReview;
         }
 
         if (documents.Any(d => d.Verdict == SupplierDocumentVerdict.Rejected))
-        {
-            return SupplierReadinessStatus.Blocked;
-        }
-
-        if (supplier.Status != SupplierStatus.Verified)
         {
             return SupplierReadinessStatus.NeedsReview;
         }

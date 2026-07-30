@@ -659,10 +659,10 @@ public class SupplierHandlerTests
     }
 
     [Fact]
-    public async Task IssueSupplierDocumentVerdict_ShouldUpdateSupplierStatusToRejected_WhenAnyDocumentIsRejected()
+    public async Task IssueSupplierDocumentVerdict_ShouldNotRejectWholeSupplier_WhenADocumentIsRejected()
     {
         using var context = CreateDbContext();
-        var supplierId = await SeedSupplierAsync(context);
+        var supplierId = await SeedSupplierAsync(context); // queda Verificado por ARCA
         var evaluatorId = await SeedEvaluatorAsync(context);
         var doc = CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
         context.SupplierDocuments.Add(doc);
@@ -678,8 +678,29 @@ public class SupplierHandlerTests
             Notes = "Documento rechazado por no ser valido."
         }, CancellationToken.None);
 
+        // Rechazar un documento NO tumba al proveedor entero: sigue Verificado por ARCA.
         var supplier = await context.Suppliers.FindAsync(supplierId);
-        Assert.Equal(SupplierStatus.Rejected, supplier!.Status);
+        Assert.Equal(SupplierStatus.Verified, supplier!.Status);
+    }
+
+    [Fact]
+    public async Task GetSuppliers_ShouldBeNeedsReview_WhenArcaVerifiedButHasRejectedDocument()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context, email: "warn@test.com", cuit: "30-20202020-1");
+        var evaluatorId = await SeedEvaluatorAsync(context);
+        var doc = CreateDocument(supplierId, "doc.pdf", "2222222222222222222222222222222222222222222222222222222222222222");
+        context.SupplierDocuments.Add(doc);
+        context.SupplierDocumentReviews.Add(ObserveSupplierDocumentCommandHandler.CreateReview(
+            doc.Id, evaluatorId, SupplierDocumentReviewAction.Verdict, "Rechazado.", SupplierDocumentVerdict.Rejected));
+        await context.SaveChangesAsync();
+
+        var handler = new GetSuppliersQueryHandler(context);
+        var result = await handler.Handle(new GetSuppliersQuery(), CancellationToken.None);
+        var dto = result.Items.Single(s => s.Id == supplierId);
+
+        // ARCA verificado + documento rechazado => ADVERTENCIA, no bloqueo.
+        Assert.Equal(SupplierReadinessStatus.NeedsReview, dto.ReadinessStatus);
     }
 
     private static async Task<Guid> SeedSupplierAsync(

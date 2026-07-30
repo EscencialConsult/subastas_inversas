@@ -244,10 +244,11 @@ public class IssueSupplierDocumentVerdictCommandHandler : IRequestHandler<IssueS
                 document.Supplier.Status = SupplierStatus.Verified;
             }
         }
-        else if (request.Verdict == SupplierDocumentVerdict.Rejected)
-        {
-            document.Supplier.Status = SupplierStatus.Rejected;
-        }
+
+        // Nota: rechazar un documento NO cambia el estado global del proveedor. El estado
+        // global lo define la verificación fiscal de ARCA; un documento rechazado queda
+        // registrado a nivel de ese documento y se refleja como advertencia (ver
+        // SupplierSummaryBuilder.CalculateReadiness), no como un rechazo de todo el legajo.
 
         await _context.SaveChangesAsync(cancellationToken);
         return ObserveSupplierDocumentCommandHandler.ToDto(review);
