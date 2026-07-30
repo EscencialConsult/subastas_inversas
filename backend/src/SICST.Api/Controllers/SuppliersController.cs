@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using SICST.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using SICST.Application.Modules.Auctions.DTOs;
 using SICST.Application.Modules.Purchases.Commands;
@@ -266,6 +267,13 @@ public class SuppliersController : ControllerBase
         {
             await file.CopyToAsync(buffer, HttpContext.RequestAborted);
             bytes = buffer.ToArray();
+        }
+
+        // El Content-Type lo declara el navegador y se puede falsear. Verificamos que el
+        // contenido real empiece con la cabecera de un PDF ("%PDF-").
+        if (!PdfUploadSecurity.HasPdfMagicBytes(bytes))
+        {
+            return BadRequest(new { message = "El archivo no es un PDF valido." });
         }
 
         var sha256Hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();

@@ -55,6 +55,16 @@ public static class PdfUploadSecurity
 {
     private static readonly byte[] PdfMagicBytes = "%PDF-"u8.ToArray();
 
+    /// <summary>
+    /// True si el contenido empieza con la cabecera de un PDF real ("%PDF-"). Sirve para
+    /// rechazar archivos que dicen ser PDF por su Content-Type pero no lo son.
+    /// </summary>
+    public static bool HasPdfMagicBytes(ReadOnlySpan<byte> content)
+    {
+        return content.Length >= PdfMagicBytes.Length
+            && content[..PdfMagicBytes.Length].SequenceEqual(PdfMagicBytes);
+    }
+
     public static async Task ValidatePdfMagicBytesAsync(Stream stream, CancellationToken cancellationToken)
     {
         if (!stream.CanSeek)
