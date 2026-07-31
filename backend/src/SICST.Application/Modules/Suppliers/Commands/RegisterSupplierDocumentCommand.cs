@@ -59,6 +59,23 @@ public class RegisterSupplierDocumentCommandHandler : IRequestHandler<RegisterSu
             ? DateTime.SpecifyKind(request.ExpiresAtUtc, DateTimeKind.Utc)
             : request.ExpiresAtUtc.ToUniversalTime();
 
+        // Evita documentos duplicados del mismo tipo. Si ya hay uno todavia vigente (no vencido)
+        // de ese tipo, el proveedor primero debe eliminar el anterior (o esperar a que venza)
+        // antes de subir uno nuevo. Los archivados NO cuentan: el filtro global de EF los excluye,
+        // asi que un documento rechazado y ya eliminado deja libre el paso para el reemplazo.
+        var yaTieneVigenteDelMismoTipo = await _context.SupplierDocuments
+            .AnyAsync(
+                d => d.SupplierId == request.SupplierId
+                    && d.Type == request.Type
+                    && d.ExpiresAtUtc > now,
+                cancellationToken);
+
+        if (yaTieneVigenteDelMismoTipo)
+        {
+            throw new InvalidOperationException(
+                "Ya tenes un documento de este tipo cargado. Para subir uno nuevo, primero elimina el anterior desde su tarjeta (o espera a que venza).");
+        }
+
         var document = new SupplierDocument
         {
             Id = Guid.NewGuid(),

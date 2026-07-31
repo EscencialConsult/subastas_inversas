@@ -265,6 +265,118 @@ public class SupplierHandlerTests
     }
 
     [Fact]
+    public async Task RegisterSupplierDocument_ShouldThrow_WhenActiveDocumentOfSameTypeExists()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        // Ya hay una Constancia CUIT/CUIL vigente (no vencida).
+        context.SupplierDocuments.Add(new SupplierDocument
+        {
+            Id = Guid.NewGuid(),
+            SupplierId = supplierId,
+            Type = SupplierDocumentType.CuitCertificate,
+            FileName = "constancia-actual.pdf",
+            ContentType = "application/pdf",
+            StoragePath = $"uploads/suppliers/{supplierId}/constancia-actual.pdf",
+            UploadedAtUtc = DateTime.UtcNow,
+            Sha256Hash = "1111111111111111111111111111111111111111111111111111111111111111",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(60),
+            Status = SupplierDocumentStatus.Valid
+        });
+        await context.SaveChangesAsync();
+
+        var handler = new RegisterSupplierDocumentCommandHandler(context);
+
+        // No se puede subir otra Constancia CUIT/CUIL mientras haya una vigente.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            handler.Handle(new RegisterSupplierDocumentCommand
+            {
+                SupplierId = supplierId,
+                Type = SupplierDocumentType.CuitCertificate,
+                FileName = "constancia-nueva.pdf",
+                ContentType = "application/pdf",
+                StoragePath = $"uploads/suppliers/{supplierId}/constancia-nueva.pdf",
+                Sha256Hash = "2222222222222222222222222222222222222222222222222222222222222222",
+                ExpiresAtUtc = DateTime.UtcNow.AddDays(90)
+            }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RegisterSupplierDocument_ShouldSucceed_WhenExistingDocumentOfSameTypeIsArchived()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        // Habia una del mismo tipo pero el proveedor la elimino (archivada): no debe bloquear.
+        context.SupplierDocuments.Add(new SupplierDocument
+        {
+            Id = Guid.NewGuid(),
+            SupplierId = supplierId,
+            Type = SupplierDocumentType.CuitCertificate,
+            FileName = "constancia-rechazada.pdf",
+            ContentType = "application/pdf",
+            StoragePath = $"uploads/suppliers/{supplierId}/constancia-rechazada.pdf",
+            UploadedAtUtc = DateTime.UtcNow,
+            Sha256Hash = "3333333333333333333333333333333333333333333333333333333333333333",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(60),
+            Status = SupplierDocumentStatus.Valid,
+            ArchivedAtUtc = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var handler = new RegisterSupplierDocumentCommandHandler(context);
+
+        var result = await handler.Handle(new RegisterSupplierDocumentCommand
+        {
+            SupplierId = supplierId,
+            Type = SupplierDocumentType.CuitCertificate,
+            FileName = "constancia-nueva.pdf",
+            ContentType = "application/pdf",
+            StoragePath = $"uploads/suppliers/{supplierId}/constancia-nueva.pdf",
+            Sha256Hash = "4444444444444444444444444444444444444444444444444444444444444444",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(90)
+        }, CancellationToken.None);
+
+        Assert.Equal("constancia-nueva.pdf", result.FileName);
+    }
+
+    [Fact]
+    public async Task RegisterSupplierDocument_ShouldSucceed_WhenExistingDocumentOfSameTypeIsExpired()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        // La anterior vencio: subir la renovacion del mismo tipo debe permitirse.
+        context.SupplierDocuments.Add(new SupplierDocument
+        {
+            Id = Guid.NewGuid(),
+            SupplierId = supplierId,
+            Type = SupplierDocumentType.CuitCertificate,
+            FileName = "constancia-vencida.pdf",
+            ContentType = "application/pdf",
+            StoragePath = $"uploads/suppliers/{supplierId}/constancia-vencida.pdf",
+            UploadedAtUtc = DateTime.UtcNow.AddDays(-400),
+            Sha256Hash = "5555555555555555555555555555555555555555555555555555555555555555",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(-1),
+            Status = SupplierDocumentStatus.Expired
+        });
+        await context.SaveChangesAsync();
+
+        var handler = new RegisterSupplierDocumentCommandHandler(context);
+
+        var result = await handler.Handle(new RegisterSupplierDocumentCommand
+        {
+            SupplierId = supplierId,
+            Type = SupplierDocumentType.CuitCertificate,
+            FileName = "constancia-renovada.pdf",
+            ContentType = "application/pdf",
+            StoragePath = $"uploads/suppliers/{supplierId}/constancia-renovada.pdf",
+            Sha256Hash = "6666666666666666666666666666666666666666666666666666666666666666",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(365)
+        }, CancellationToken.None);
+
+        Assert.Equal("constancia-renovada.pdf", result.FileName);
+    }
+
+    [Fact]
     public async Task GetSupplierDocuments_ShouldReturnOnlyRequestedSupplierDocuments()
     {
         using var context = CreateDbContext();
