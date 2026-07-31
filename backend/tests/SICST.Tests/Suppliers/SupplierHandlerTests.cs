@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SICST.Application.Common.Interfaces;
 using SICST.Application.Modules.Suppliers.Commands;
 using SICST.Application.Modules.Suppliers.DTOs;
 using SICST.Application.Modules.Suppliers.Queries;
@@ -701,6 +702,65 @@ public class SupplierHandlerTests
 
         // ARCA verificado + documento rechazado => ADVERTENCIA, no bloqueo.
         Assert.Equal(SupplierReadinessStatus.NeedsReview, dto.ReadinessStatus);
+    }
+
+    [Fact]
+    public async Task DeleteSupplierDocument_ShouldDelete_WhenOwnerAndNotApproved()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        var ownerUserId = await context.Suppliers.Where(s => s.Id == supplierId).Select(s => s.UserId).FirstAsync();
+        var doc = CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
+        context.SupplierDocuments.Add(doc);
+        await context.SaveChangesAsync();
+
+        var handler = new DeleteSupplierDocumentCommandHandler(context, new NoOpFileStorage());
+        await handler.Handle(new DeleteSupplierDocumentCommand(doc.Id, ownerUserId), CancellationToken.None);
+
+        Assert.False(await context.SupplierDocuments.AnyAsync(d => d.Id == doc.Id));
+    }
+
+    [Fact]
+    public async Task DeleteSupplierDocument_ShouldThrow_WhenNotOwner()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        var doc = CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
+        context.SupplierDocuments.Add(doc);
+        await context.SaveChangesAsync();
+
+        var handler = new DeleteSupplierDocumentCommandHandler(context, new NoOpFileStorage());
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            handler.Handle(new DeleteSupplierDocumentCommand(doc.Id, Guid.NewGuid()), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DeleteSupplierDocument_ShouldThrow_WhenApproved()
+    {
+        using var context = CreateDbContext();
+        var supplierId = await SeedSupplierAsync(context);
+        var ownerUserId = await context.Suppliers.Where(s => s.Id == supplierId).Select(s => s.UserId).FirstAsync();
+        var evaluatorId = await SeedEvaluatorAsync(context);
+        var doc = CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
+        context.SupplierDocuments.Add(doc);
+        context.SupplierDocumentReviews.Add(ObserveSupplierDocumentCommandHandler.CreateReview(
+            doc.Id, evaluatorId, SupplierDocumentReviewAction.Verdict, "Aprobado.", SupplierDocumentVerdict.Approved));
+        await context.SaveChangesAsync();
+
+        var handler = new DeleteSupplierDocumentCommandHandler(context, new NoOpFileStorage());
+
+        // No se puede eliminar un documento aprobado.
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            handler.Handle(new DeleteSupplierDocumentCommand(doc.Id, ownerUserId), CancellationToken.None));
+    }
+
+    private sealed class NoOpFileStorage : IFileStorage
+    {
+        public Task<string> SaveAsync(string key, Stream content, string contentType, CancellationToken cancellationToken) => Task.FromResult(key);
+        public Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken) => Task.FromResult<Stream?>(null);
+        public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task DeleteAsync(string key, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private static async Task<Guid> SeedSupplierAsync(

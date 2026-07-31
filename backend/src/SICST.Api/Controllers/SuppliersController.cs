@@ -356,6 +356,24 @@ public class SuppliersController : ControllerBase
         return File(stream, contentType, document.FileName);
     }
 
+    [Authorize]
+    [HttpDelete("documents/{documentId:guid}")]
+    public async Task<IActionResult> DeleteDocument(Guid documentId)
+    {
+        // El proveedor dueño puede eliminar sus documentos NO aprobados (para corregir uno
+        // rechazado y volver a subirlo). La identidad se toma del token; el handler valida
+        // la propiedad y que el documento no esté aprobado.
+        try
+        {
+            await _sender.Send(new DeleteSupplierDocumentCommand(documentId, GetCurrentUserId()));
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [Authorize(Policy = PermissionCodes.PurchasesEvaluate)]
     [HttpPost("documents/{documentId:guid}/observations")]
     public async Task<ActionResult<SupplierDocumentReviewDto>> ObserveDocument(

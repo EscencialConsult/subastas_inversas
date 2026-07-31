@@ -20,6 +20,7 @@ import { Spinner } from '../../shared/ui/Spinner'
 import { Textarea } from '../../shared/ui/Textarea'
 import {
   abrirDocumentoProveedorMutation,
+  eliminarDocumentoProveedorMutation,
   proveedorHomeQuery,
   proveedoresKeys,
   subsanarDocumentoProveedorMutation,
@@ -51,6 +52,7 @@ export function ProveedorDocumentacionPage() {
   const queryClient = useQueryClient()
   const [subsanandoId, setSubsanandoId] = useState<string | null>(null)
   const [abriendoDocumentoId, setAbriendoDocumentoId] = useState<string | null>(null)
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null)
   const [errorDocumento, setErrorDocumento] = useState('')
   const [subsanaciones, setSubsanaciones] = useState<Record<string, string>>({})
   const [filePickerKey, setFilePickerKey] = useState(0)
@@ -82,6 +84,13 @@ export function ProveedorDocumentacionPage() {
 
   const abrirDocumentoMutation = useMutation({
     mutationFn: abrirDocumentoProveedorMutation,
+  })
+
+  const eliminarMutation = useMutation({
+    mutationFn: eliminarDocumentoProveedorMutation,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: proveedoresKeys.byUser(usuario.id) })
+    },
   })
 
   const proveedor = homeQuery.data?.proveedor
@@ -167,6 +176,21 @@ export function ProveedorDocumentacionPage() {
     }
   }
 
+  async function manejarEliminar(documentoId: string) {
+    if (!window.confirm('¿Eliminar este documento? Vas a poder subir uno nuevo en su lugar.')) {
+      return
+    }
+    setEliminandoId(documentoId)
+    setErrorDocumento('')
+    try {
+      await eliminarMutation.mutateAsync({ documentoId })
+    } catch (err) {
+      setErrorDocumento(getErrorMessage(err))
+    } finally {
+      setEliminandoId(null)
+    }
+  }
+
   return (
     <PageShell as="section" width="wide" className="px-0 py-0">
       <PageHeader
@@ -235,6 +259,8 @@ export function ProveedorDocumentacionPage() {
         setSubsanaciones={setSubsanaciones}
         onSubsanar={manejarSubsanacion}
         subsanandoId={subsanandoId}
+        onEliminar={manejarEliminar}
+        eliminandoId={eliminandoId}
       />
 
       <DocumentSection
@@ -247,6 +273,8 @@ export function ProveedorDocumentacionPage() {
         setSubsanaciones={setSubsanaciones}
         onSubsanar={manejarSubsanacion}
         subsanandoId={subsanandoId}
+        onEliminar={manejarEliminar}
+        eliminandoId={eliminandoId}
       />
 
       <DocumentSection
@@ -259,6 +287,8 @@ export function ProveedorDocumentacionPage() {
         setSubsanaciones={setSubsanaciones}
         onSubsanar={manejarSubsanacion}
         subsanandoId={subsanandoId}
+        onEliminar={manejarEliminar}
+        eliminandoId={eliminandoId}
       />
 
       <DocumentSection
@@ -271,6 +301,8 @@ export function ProveedorDocumentacionPage() {
         setSubsanaciones={setSubsanaciones}
         onSubsanar={manejarSubsanacion}
         subsanandoId={subsanandoId}
+        onEliminar={manejarEliminar}
+        eliminandoId={eliminandoId}
       />
     </PageShell>
   )
@@ -286,6 +318,8 @@ function DocumentSection({
   setSubsanaciones,
   onSubsanar,
   subsanandoId,
+  onEliminar,
+  eliminandoId,
 }: {
   title: string
   description: string
@@ -296,6 +330,8 @@ function DocumentSection({
   setSubsanaciones: Dispatch<SetStateAction<Record<string, string>>>
   onSubsanar: (documentoId: string) => void
   subsanandoId: string | null
+  onEliminar: (documentoId: string) => void
+  eliminandoId: string | null
 }) {
   return (
     <Card hover={false} padding="md" className="space-y-4">
@@ -379,6 +415,16 @@ function DocumentSection({
                   >
                     Subsanar
                   </Button>
+                  {documento.dictamen !== 'aprobado' && documento.dictamen !== 'aprobado_con_excepcion' && (
+                    <Button
+                      variant="danger"
+                      type="button"
+                      onClick={() => onEliminar(documento.id)}
+                      loading={eliminandoId === documento.id}
+                    >
+                      Eliminar
+                    </Button>
+                  )}
                 </div>
               </div>
             </Card>

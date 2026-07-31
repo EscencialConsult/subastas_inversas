@@ -445,6 +445,12 @@ export async function abrirDocumentoProveedor({ documentoId }: { documentoId: st
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+export async function eliminarDocumentoProveedor({ documentoId }: { documentoId: string }): Promise<void> {
+  await apiFetch(`/api/suppliers/documents/${documentoId}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function subirDocumentoProveedor({ proveedorId, tipo, archivo, venceEl }: { proveedorId: string; tipo: number | string; archivo: File; venceEl: string }): Promise<DocumentoProveedorMapped> {
   const formData = new FormData()
   formData.append('type', String(tipo))

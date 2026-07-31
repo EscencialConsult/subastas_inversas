@@ -1,6 +1,7 @@
 import {
   dictaminarDocumentoProveedor,
   eliminarProveedor,
+  eliminarDocumentoProveedor,
   habilitarProveedorEmpresa,
   abrirDocumentoProveedor,
   listarDocumentosProveedor,
@@ -58,6 +59,10 @@ export function listarDocumentosProveedorQuery({ proveedorId }: { proveedorId?: 
 
 export function abrirDocumentoProveedorMutation(params: { documentoId: string }) {
   return abrirDocumentoProveedor(params)
+}
+
+export function eliminarDocumentoProveedorMutation(params: { documentoId: string }) {
+  return eliminarDocumentoProveedor(params)
 }
 
 export async function proveedorHomeQuery({ usuarioId }: { usuarioId?: string | null }) {
