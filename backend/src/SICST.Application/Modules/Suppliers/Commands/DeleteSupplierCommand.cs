@@ -50,7 +50,10 @@ public class DeleteSupplierCommandHandler : IRequestHandler<DeleteSupplierComman
         var supplierEvaluations = await _context.SupplierEvaluations
             .Where(e => e.SupplierId == request.SupplierId)
             .ToListAsync(cancellationToken);
+        // IgnoreQueryFilters: al borrar el proveedor entero también se quitan sus documentos
+        // archivados (que el filtro global oculta), para no dejar registros huérfanos.
         var documents = await _context.SupplierDocuments
+            .IgnoreQueryFilters()
             .Where(d => d.SupplierId == request.SupplierId)
             .ToListAsync(cancellationToken);
 

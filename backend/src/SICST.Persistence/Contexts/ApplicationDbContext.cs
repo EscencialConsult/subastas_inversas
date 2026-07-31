@@ -56,6 +56,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
         modelBuilder.ApplyTenantQueryFilters(_currentTenant);
+
+        // Soft-delete de documentos de proveedor: los archivados quedan fuera de todas las
+        // consultas normales (listados, cálculo de estado, dictámenes). Se acceden con
+        // IgnoreQueryFilters() solo donde haga falta (ej. borrado total del proveedor).
+        modelBuilder.Entity<SupplierDocument>().HasQueryFilter(d => d.ArchivedAtUtc == null);
+
         base.OnModelCreating(modelBuilder);
     }
 }

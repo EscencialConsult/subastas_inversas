@@ -41,5 +41,10 @@ public class SupplierDocument
 
     public DateTime? AlertSentAtUtc { get; set; }
 
+    // Si tiene valor, el documento está "archivado": el proveedor lo quitó de su vista y deja
+    // de contar para su estado, pero el registro (y sus dictámenes inmutables) se conservan
+    // para auditoría. Un filtro global de EF lo excluye de todas las consultas normales.
+    public DateTime? ArchivedAtUtc { get; set; }
+
     public List<SupplierDocumentReview> Reviews { get; set; } = [];
 }

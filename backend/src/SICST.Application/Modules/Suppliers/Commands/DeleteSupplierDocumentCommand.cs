@@ -5,20 +5,19 @@ using SICST.Domain.Entities;
 
 namespace SICST.Application.Modules.Suppliers.Commands;
 
-// Elimina un documento del proveedor. Solo el proveedor DUEÑO puede borrarlo, y únicamente si
-// NO está aprobado (pendiente de dictamen, observado o rechazado). Los documentos aprobados
-// quedan protegidos por trazabilidad. Borra el archivo del almacenamiento y el registro.
+// "Elimina" un documento del proveedor desde su vista: en realidad lo ARCHIVA (soft-delete).
+// Solo el proveedor DUEÑO puede hacerlo, y únicamente si el documento NO está aprobado
+// (pendiente, observado o rechazado). El registro y sus dictámenes inmutables se conservan
+// para auditoría; un filtro global de EF lo oculta de todas las consultas normales.
 public record DeleteSupplierDocumentCommand(Guid DocumentId, Guid RequestingUserId) : IRequest;
 
 public class DeleteSupplierDocumentCommandHandler : IRequestHandler<DeleteSupplierDocumentCommand>
 {
     private readonly IApplicationDbContext _context;
-    private readonly IFileStorage _fileStorage;
 
-    public DeleteSupplierDocumentCommandHandler(IApplicationDbContext context, IFileStorage fileStorage)
+    public DeleteSupplierDocumentCommandHandler(IApplicationDbContext context)
     {
         _context = context;
-        _fileStorage = fileStorage;
     }
 
     public async Task Handle(DeleteSupplierDocumentCommand request, CancellationToken cancellationToken)
@@ -39,7 +38,7 @@ public class DeleteSupplierDocumentCommandHandler : IRequestHandler<DeleteSuppli
             throw new UnauthorizedAccessException("No tenés acceso a este documento.");
         }
 
-        // Solo se pueden eliminar documentos NO aprobados. Los aprobados quedan protegidos.
+        // Solo se pueden archivar documentos NO aprobados. Los aprobados quedan protegidos.
         var latestVerdict = document.Reviews
             .Where(r => r.Action == SupplierDocumentReviewAction.Verdict)
             .OrderByDescending(r => r.CreatedAtUtc)
@@ -50,14 +49,8 @@ public class DeleteSupplierDocumentCommandHandler : IRequestHandler<DeleteSuppli
             throw new InvalidOperationException("No se puede eliminar un documento ya aprobado.");
         }
 
-        // Borrar el archivo del almacenamiento (best-effort) y luego el registro + sus revisiones.
-        if (!string.IsNullOrWhiteSpace(document.StoragePath))
-        {
-            await _fileStorage.DeleteAsync(document.StoragePath, cancellationToken);
-        }
-
-        _context.SupplierDocumentReviews.RemoveRange(document.Reviews);
-        _context.SupplierDocuments.Remove(document);
+        // Soft-delete: se archiva. No se borran ni el archivo ni las revisiones (auditoría).
+        document.ArchivedAtUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
     }
 }

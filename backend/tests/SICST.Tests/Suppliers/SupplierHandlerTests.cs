@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using SICST.Application.Common.Interfaces;
 using SICST.Application.Modules.Suppliers.Commands;
 using SICST.Application.Modules.Suppliers.DTOs;
 using SICST.Application.Modules.Suppliers.Queries;
@@ -710,14 +709,23 @@ public class SupplierHandlerTests
         using var context = CreateDbContext();
         var supplierId = await SeedSupplierAsync(context);
         var ownerUserId = await context.Suppliers.Where(s => s.Id == supplierId).Select(s => s.UserId).FirstAsync();
+        var evaluatorId = await SeedEvaluatorAsync(context);
         var doc = CreateDocument(supplierId, "doc.pdf", "1111111111111111111111111111111111111111111111111111111111111111");
         context.SupplierDocuments.Add(doc);
+        // El documento tiene una revisión (rechazo): al borrarlo, sus revisiones se van también.
+        context.SupplierDocumentReviews.Add(ObserveSupplierDocumentCommandHandler.CreateReview(
+            doc.Id, evaluatorId, SupplierDocumentReviewAction.Verdict, "Rechazado.", SupplierDocumentVerdict.Rejected));
         await context.SaveChangesAsync();
 
-        var handler = new DeleteSupplierDocumentCommandHandler(context, new NoOpFileStorage());
+        var handler = new DeleteSupplierDocumentCommandHandler(context);
         await handler.Handle(new DeleteSupplierDocumentCommand(doc.Id, ownerUserId), CancellationToken.None);
 
+        // Se archiva: desaparece de las consultas normales (filtro global)...
         Assert.False(await context.SupplierDocuments.AnyAsync(d => d.Id == doc.Id));
+        // ...pero el registro (con su fecha de archivado) y sus dictámenes se conservan.
+        var archivado = await context.SupplierDocuments.IgnoreQueryFilters().FirstAsync(d => d.Id == doc.Id);
+        Assert.NotNull(archivado.ArchivedAtUtc);
+        Assert.True(await context.SupplierDocumentReviews.AnyAsync(r => r.SupplierDocumentId == doc.Id));
     }
 
     [Fact]
@@ -729,7 +737,7 @@ public class SupplierHandlerTests
         context.SupplierDocuments.Add(doc);
         await context.SaveChangesAsync();
 
-        var handler = new DeleteSupplierDocumentCommandHandler(context, new NoOpFileStorage());
+        var handler = new DeleteSupplierDocumentCommandHandler(context);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             handler.Handle(new DeleteSupplierDocumentCommand(doc.Id, Guid.NewGuid()), CancellationToken.None));
@@ -748,20 +756,13 @@ public class SupplierHandlerTests
             doc.Id, evaluatorId, SupplierDocumentReviewAction.Verdict, "Aprobado.", SupplierDocumentVerdict.Approved));
         await context.SaveChangesAsync();
 
-        var handler = new DeleteSupplierDocumentCommandHandler(context, new NoOpFileStorage());
+        var handler = new DeleteSupplierDocumentCommandHandler(context);
 
         // No se puede eliminar un documento aprobado.
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             handler.Handle(new DeleteSupplierDocumentCommand(doc.Id, ownerUserId), CancellationToken.None));
     }
 
-    private sealed class NoOpFileStorage : IFileStorage
-    {
-        public Task<string> SaveAsync(string key, Stream content, string contentType, CancellationToken cancellationToken) => Task.FromResult(key);
-        public Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken) => Task.FromResult<Stream?>(null);
-        public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken) => Task.FromResult(false);
-        public Task DeleteAsync(string key, CancellationToken cancellationToken) => Task.CompletedTask;
-    }
 
     private static async Task<Guid> SeedSupplierAsync(
         ApplicationDbContext context,
